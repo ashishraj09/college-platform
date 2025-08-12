@@ -1,4 +1,67 @@
+# IDE and Editor files
 .vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Dependencies
+**/node_modules/
+backend/node_modules/
+frontend/node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+**/coverage/
+
+# Production builds
+**/build/
+**/dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Temporary folders
+tmp/
+temp/
+
+# Git and GitHub
 .github/
-backend/node_modules
-frontend/node_modules
+.git/
+
+# Package locks (choose one approach)
+# package-lock.json
+# yarn.lock
