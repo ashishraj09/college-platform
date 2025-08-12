@@ -106,6 +106,53 @@ router.get('/my-courses',
       order: [['created_at', 'DESC']]
     });
 
+    // Helper function to resolve instructor names
+    const resolveInstructorNames = async (facultyDetails) => {
+      if (!facultyDetails || typeof facultyDetails !== 'object') return facultyDetails;
+      
+      const resolved = { ...facultyDetails };
+      
+      const getInstructorName = async (instructorId) => {
+        if (!instructorId || typeof instructorId !== 'string') return instructorId;
+        
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidPattern.test(instructorId)) return instructorId;
+        
+        try {
+          const user = await User.findByPk(instructorId, {
+            attributes: ['id', 'first_name', 'last_name']
+          });
+          return user ? `${user.first_name} ${user.last_name}` : instructorId;
+        } catch (err) {
+          return instructorId;
+        }
+      };
+
+      // Resolve various instructor fields
+      if (resolved.primary_instructor) {
+        resolved.primary_instructor = await getInstructorName(resolved.primary_instructor);
+      }
+      if (resolved.instructor) {
+        resolved.instructor = await getInstructorName(resolved.instructor);
+      }
+      if (resolved.co_instructors && Array.isArray(resolved.co_instructors)) {
+        resolved.co_instructors = await Promise.all(resolved.co_instructors.map(getInstructorName));
+      }
+      if (resolved.guest_lecturers && Array.isArray(resolved.guest_lecturers)) {
+        resolved.guest_lecturers = await Promise.all(resolved.guest_lecturers.map(getInstructorName));
+      }
+      if (resolved.lab_instructors && Array.isArray(resolved.lab_instructors)) {
+        resolved.lab_instructors = await Promise.all(resolved.lab_instructors.map(getInstructorName));
+      }
+      
+      return resolved;
+    };
+
+    // Resolve instructor names for all courses
+    for (const course of courses) {
+      course.faculty_details = await resolveInstructorNames(course.faculty_details);
+    }
+
     // Categorize courses by status
     const categorized = {
       draft: courses.filter(course => course.status === 'draft'),
@@ -207,7 +254,7 @@ router.get('/department-courses',
   }
 });
 
-// Get course by ID
+//Get course by ID
 router.get('/:id',
   // authenticateToken, // Temporarily disabled for testing
   async (req, res) => {
@@ -223,6 +270,62 @@ router.get('/:id',
 
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
+      }
+
+      // Resolve faculty UUIDs to names
+      if (course.faculty_details && typeof course.faculty_details === 'object') {
+        const facultyDetails = { ...course.faculty_details };
+        
+        // Helper function to get instructor name by ID
+        const getInstructorName = async (instructorId) => {
+          if (!instructorId || typeof instructorId !== 'string') return instructorId;
+          
+          // Check if it's a UUID pattern
+          const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          if (!uuidPattern.test(instructorId)) return instructorId;
+          
+          try {
+            const user = await User.findByPk(instructorId, {
+              attributes: ['id', 'first_name', 'last_name']
+            });
+            return user ? `${user.first_name} ${user.last_name}` : instructorId;
+          } catch (err) {
+            console.error('Error fetching instructor:', err);
+            return instructorId;
+          }
+        };
+
+        // Resolve primary instructor
+        if (facultyDetails.primary_instructor) {
+          facultyDetails.primary_instructor = await getInstructorName(facultyDetails.primary_instructor);
+        }
+        if (facultyDetails.instructor) {
+          facultyDetails.instructor = await getInstructorName(facultyDetails.instructor);
+        }
+
+        // Resolve co-instructors
+        if (facultyDetails.co_instructors && Array.isArray(facultyDetails.co_instructors)) {
+          facultyDetails.co_instructors = await Promise.all(
+            facultyDetails.co_instructors.map(getInstructorName)
+          );
+        }
+
+        // Resolve guest lecturers  
+        if (facultyDetails.guest_lecturers && Array.isArray(facultyDetails.guest_lecturers)) {
+          facultyDetails.guest_lecturers = await Promise.all(
+            facultyDetails.guest_lecturers.map(getInstructorName)
+          );
+        }
+
+        // Resolve lab instructors
+        if (facultyDetails.lab_instructors && Array.isArray(facultyDetails.lab_instructors)) {
+          facultyDetails.lab_instructors = await Promise.all(
+            facultyDetails.lab_instructors.map(getInstructorName)
+          );
+        }
+
+        // Update the course object
+        course.faculty_details = facultyDetails;
       }
 
       res.json({ course });
