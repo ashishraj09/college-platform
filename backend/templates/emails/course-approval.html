@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Approval Required</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: #2196F3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+            margin: -30px -30px 30px -30px;
+        }
+        .course-details {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .btn {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .btn:hover {
+            background: #45a049;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Course Approval Required</h1>
+        </div>
+        
+        <p>Dear {{HOD_NAME}},</p>
+        
+        <p>A new course has been submitted for your approval and requires your review.</p>
+        
+        <div class="course-details">
+            <h3>Course Details:</h3>
+            <p><strong>Course Name:</strong> {{COURSE_NAME}}</p>
+            <p><strong>Course Code:</strong> {{COURSE_CODE}}</p>
+            <p><strong>Submitted by:</strong> {{FACULTY_NAME}}</p>
+            <p><strong>Status:</strong> Submitted for Approval</p>
+        </div>
+        
+        <p>Please review the course details and approve or reject the submission.</p>
+        
+        <center>
+            <a href="{{COURSE_URL}}" class="btn">Review Course</a>
+        </center>
+        
+        <div class="footer">
+            <p>This is an automated email from the College Platform System.</p>
+            <p>Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>
