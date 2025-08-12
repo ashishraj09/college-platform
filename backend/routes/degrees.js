@@ -59,18 +59,23 @@ router.get('/',
 router.get('/my-degrees', 
   // authenticateToken, // Temporarily disabled for testing
   async (req, res) => {
-  console.log('HIT /api/degrees/my-degrees, req.user:', req.user);
   try {
     // For development/testing when authentication is disabled
-    const user = req.user || { 
-      id: '550e8400-e29b-41d4-a716-446655440000',
-      department_id: '550e8400-e29b-41d4-a716-446655440001' 
-    };
+    // Try to get user info from headers or request body
+    const user = req.user || (req.headers['x-user-id'] || req.headers['x-user-department']) ? {
+      id: req.headers['x-user-id'],
+      department_id: req.headers['x-user-department']
+    } : null;
+    
+    let whereClause = {};
+    if (user && user.department_id) {
+      whereClause.department_id = user.department_id;
+    } else {
+      // If no user context, return degrees from all departments for development
+    }
     
     const degrees = await Degree.findAll({
-      where: {
-        department_id: user.department_id  // Get degrees from faculty's department
-      },
+      where: whereClause,
       include: [
         {
           model: Department,
@@ -220,10 +225,29 @@ router.get('/:id',
 
 // Get degrees by department
 router.get('/department/:departmentId',
+  // authenticateToken, // Temporarily disabled for testing
   async (req, res) => {
     try {
+      const { departmentId } = req.params;
+      
+      // For development/testing when authentication is disabled
+      // Use the departmentId from the request parameters as fallback
+      const user = req.user || { 
+        id: req.headers['x-user-id'] || 'temp-user-id',
+        department_id: req.headers['x-user-department'] || departmentId,
+        user_type: 'faculty'
+      };
+
+      // Security check: Users can only access degrees from their own department
+      // unless they are admin or office staff
+      if (user.user_type !== 'admin' && user.user_type !== 'office' && user.department_id !== departmentId) {
+        return res.status(403).json({ 
+          error: 'Access denied. You can only access degrees from your own department.' 
+        });
+      }
+
       const degrees = await Degree.findAll({
-        where: { department_id: req.params.departmentId },
+        where: { department_id: departmentId },
         include: [
           { model: Department, as: 'department' },
         ],

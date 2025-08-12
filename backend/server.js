@@ -28,12 +28,18 @@ app.use(helmet());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip rate limiting for development
+  skip: process.env.NODE_ENV === 'development' ? () => false : undefined,
 });
-app.use('/api/', limiter);
+
+// Only apply rate limiting to API routes, and be more lenient in development  
+if (process.env.NODE_ENV !== 'development') {
+  app.use('/api/', limiter);
+}
 
 // CORS configuration
 const corsOptions = {
@@ -45,7 +51,7 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-User-Department', 'X-User-Id'],
   preflightContinue: false,
 };
 app.use(cors(corsOptions));

@@ -164,18 +164,30 @@ export const coursesAPI = {
     return response.data;
   },
   
-  createCourse: async (data: any) => {
-    const response = await api.post('/courses', data);
+  createCourse: async (data: any, userId?: string, departmentId?: string) => {
+    const courseData = { ...data };
+    if (userId) courseData.userId = userId;
+    if (departmentId) courseData.departmentId = departmentId;
+    
+    const response = await api.post('/courses', courseData);
     return response.data;
   },
   
-  updateCourse: async (id: string, data: any) => {
-    const response = await api.put(`/courses/${id}`, data);
+  updateCourse: async (id: string, data: any, userId?: string, departmentId?: string) => {
+    const courseData = { ...data };
+    if (userId) courseData.userId = userId;
+    if (departmentId) courseData.departmentId = departmentId;
+    
+    const response = await api.put(`/courses/${id}`, courseData);
     return response.data;
   },
   
-  deleteCourse: async (id: string) => {
-    const response = await api.delete(`/courses/${id}`);
+  deleteCourse: async (id: string, userId?: string, departmentId?: string) => {
+    const requestData: any = {};
+    if (userId) requestData.userId = userId;
+    if (departmentId) requestData.departmentId = departmentId;
+    
+    const response = await api.delete(`/courses/${id}`, { data: requestData });
     return response.data;
   },
   
@@ -189,23 +201,42 @@ export const coursesAPI = {
     return response.data;
   },
 
-  getFacultyCourses: async () => {
-    const response = await api.get('/courses/my-courses');
+  getFacultyCourses: async (userDepartmentId?: string, userId?: string) => {
+    const params: any = {};
+    if (userDepartmentId) {
+      params.departmentId = userDepartmentId;
+    }
+    if (userId) {
+      params.userId = userId;
+    }
+    const response = await api.get('/courses/my-courses', { params });
     return response.data;
   },
 
-  getDepartmentCourses: async () => {
-    const response = await api.get('/courses/department-courses');
+  getDepartmentCourses: async (userDepartmentId?: string) => {
+    const params: any = {};
+    if (userDepartmentId) {
+      params.departmentId = userDepartmentId;
+    }
+    const response = await api.get('/courses/department-courses', { params });
     return response.data;
   },
 
-  submitCourse: async (id: string) => {
-    const response = await api.patch(`/courses/${id}/submit`);
+  submitCourse: async (id: string, userId?: string, departmentId?: string) => {
+    const requestData: any = {};
+    if (userId) requestData.userId = userId;
+    if (departmentId) requestData.departmentId = departmentId;
+    
+    const response = await api.patch(`/courses/${id}/submit`, requestData);
     return response.data;
   },
 
-  publishCourse: async (id: string) => {
-    const response = await api.patch(`/courses/${id}/approve`);
+  publishCourse: async (id: string, userId?: string, departmentId?: string) => {
+    const requestData: any = {};
+    if (userId) requestData.userId = userId;
+    if (departmentId) requestData.departmentId = departmentId;
+    
+    const response = await api.patch(`/courses/${id}/approve`, requestData);
     return response.data;
   },
 };
@@ -270,8 +301,12 @@ export const degreesAPI = {
     return response.data;
   },
 
-  getFacultyDegrees: async () => {
-    const response = await api.get('/degrees/my-degrees');
+  getFacultyDegrees: async (userDepartmentId?: string) => {
+    const params: any = {};
+    if (userDepartmentId) {
+      params.departmentId = userDepartmentId;
+    }
+    const response = await api.get('/degrees/my-degrees', { params });
     return response.data;
   },
 

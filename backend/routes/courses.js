@@ -74,18 +74,35 @@ router.get('/my-courses',
   // authenticateToken, // Temporarily disabled for testing
   async (req, res) => {
   try {
-    console.log('HIT /api/courses/my-courses, req.user:', req.user);
+    const { userId, departmentId } = req.query;
     
     // For development/testing when authentication is disabled
     const user = req.user || { 
-      id: '550e8400-e29b-41d4-a716-446655440000',
-      department_id: '550e8400-e29b-41d4-a716-446655440001' 
+      id: userId,
+      department_id: departmentId,
+      user_type: 'faculty',
+      is_head_of_department: false
     };
+
+    // Validate that we have user context
+    if (!user.id || !user.department_id) {
+      return res.status(400).json({ error: 'User context required - missing userId or departmentId parameters' });
+    }
+    
+    // HODs and admins see all courses in their department, regular faculty see only their own courses
+    const whereClause = {};
+    if (user.user_type === 'admin') {
+      // Admin sees all courses (no filter)
+    } else if (user.is_head_of_department || user.user_type === 'office') {
+      // HODs and office staff see all courses in their department
+      whereClause.department_id = user.department_id;
+    } else {
+      // Regular faculty see only their own courses
+      whereClause.created_by = user.id;
+    }
     
     const courses = await Course.findAll({
-      where: {
-        created_by: user.id
-      },
+      where: whereClause,
       include: [
         {
           model: Department,
@@ -186,16 +203,17 @@ router.get('/department-courses',
   // authenticateToken, // Temporarily disabled for testing
   async (req, res) => {
   try {
-    console.log('HIT /api/courses/department-courses, req.user:', req.user);
+    const { userId, departmentId } = req.query;
     
     // For development/testing when authentication is disabled
     const user = req.user || { 
-      id: '550e8400-e29b-41d4-a716-446655440000',
-      department_id: '550e8400-e29b-41d4-a716-446655440001' 
+      id: userId,
+      department_id: departmentId
     };
-    
+
+    // Validate that we have user context
     if (!user.department_id) {
-      return res.status(400).json({ error: 'User department not found' });
+      return res.status(400).json({ error: 'User context required - missing departmentId parameter' });
     }
 
     const courses = await Course.findAll({
@@ -366,6 +384,12 @@ router.post('/',
         return res.status(400).json({ error: 'Department not found' });
       }
 
+      // Faculty can only create courses in their own department (temporarily bypassed for testing)
+      const user = req.user || { department_id, user_type: 'faculty' }; // Temp for testing
+      if (user.user_type !== 'admin' && user.department_id !== department_id) {
+        return res.status(403).json({ error: 'Can only create courses in your own department' });
+      }
+
       const degree = await Degree.findOne({
         where: { id: degree_id, department_id },
       });
@@ -393,7 +417,7 @@ router.post('/',
         department_id,
         degree_id,
         is_elective,
-        created_by: req.user?.id || '550e8400-e29b-41d4-a716-446655440000', // Temporary for testing
+        created_by: req.user?.id || req.body.userId,
         status: 'draft',
       });
 
@@ -447,9 +471,26 @@ router.patch('/:id/submit',
         return res.status(404).json({ error: 'Course not found' });
       }
 
+      // For development/testing when authentication is disabled
+      const user = req.user || { 
+        id: req.body.userId,
+        department_id: req.body.departmentId, 
+        user_type: 'faculty' 
+      };
+
+      // Validate that we have user context
+      if (!user.id || !user.department_id) {
+        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      }
+
       // Only course creator can submit
-      if (course.created_by !== (req.user?.id || '550e8400-e29b-41d4-a716-446655440000')) {
+      if (course.created_by !== user.id) {
         return res.status(403).json({ error: 'Only course creator can submit for approval' });
+      }
+
+      // Faculty can only submit courses in their own department (temporarily bypassed for testing)
+      if (user.user_type !== 'admin' && user.department_id !== course.department_id) {
+        return res.status(403).json({ error: 'Can only submit courses in your own department' });
       }
 
       if (course.status !== 'draft') {
@@ -512,7 +553,7 @@ router.patch('/:id/approve',
 
       await course.update({
         status: 'approved',
-        approved_by: user.id || '550e8400-e29b-41d4-a716-446655440000',
+        approved_by: user.id || req.body.userId,
         approved_at: new Date(),
       });
 
@@ -579,15 +620,34 @@ router.put('/:id',
   auditMiddleware('update', 'course', 'Course updated'),
   async (req, res) => {
     try {
-      const course = await Course.findByPk(req.params.id);
+      const course = await Course.findByPk(req.params.id, {
+        include: [{ model: Department, as: 'department' }]
+      });
 
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
       }
 
+      // For development/testing when authentication is disabled
+      const user = req.user || { 
+        id: req.body.userId,
+        department_id: req.body.departmentId,
+        user_type: 'faculty'
+      };
+
+      // Validate that we have user context
+      if (!user.id || !user.department_id) {
+        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      }
+
       // Only course creator can update (except admins)
-      if (course.created_by !== (req.user?.id || '550e8400-e29b-41d4-a716-446655440000') && req.user?.user_type !== 'admin') {
+      if (course.created_by !== user.id && user.user_type !== 'admin') {
         return res.status(403).json({ error: 'Only course creator can update this course' });
+      }
+
+      // Faculty can only update courses in their own department (temporarily bypassed for testing)
+      if (user.user_type !== 'admin' && user.department_id !== course.department_id) {
+        return res.status(403).json({ error: 'Can only update courses in your own department' });
       }
 
       // Can't update approved courses without changing status
@@ -653,15 +713,34 @@ router.delete('/:id',
   auditMiddleware('delete', 'course', 'Course deleted'),
   async (req, res) => {
     try {
-      const course = await Course.findByPk(req.params.id);
+      const course = await Course.findByPk(req.params.id, {
+        include: [{ model: Department, as: 'department' }]
+      });
 
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
       }
 
+      // For development/testing when authentication is disabled
+      const user = req.user || { 
+        id: req.body.userId,
+        department_id: req.body.departmentId, 
+        user_type: 'faculty' 
+      };
+
+      // Validate that we have user context
+      if (!user.id || !user.department_id) {
+        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      }
+
       // Only course creator or admin can delete
-      if (course.created_by !== (req.user?.id || '550e8400-e29b-41d4-a716-446655440000') && req.user?.user_type !== 'admin') {
+      if (course.created_by !== user.id && user.user_type !== 'admin') {
         return res.status(403).json({ error: 'Only course creator or admin can delete this course' });
+      }
+
+      // Faculty can only delete courses in their own department (temporarily bypassed for testing)
+      if (user.user_type !== 'admin' && user.department_id !== course.department_id) {
+        return res.status(403).json({ error: 'Can only delete courses in your own department' });
       }
 
       // Can't delete active courses with enrollments

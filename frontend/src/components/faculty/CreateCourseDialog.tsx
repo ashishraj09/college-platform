@@ -12,8 +12,6 @@ import {
   MenuItem,
   Box,
   Typography,
-  Grid,
-  Chip,
   IconButton,
   Alert,
   CircularProgress,
@@ -22,7 +20,8 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { coursesAPI, departmentsAPI, degreesAPI, usersAPI } from '../../services/api';
+import { coursesAPI, degreesAPI, usersAPI } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CreateCourseDialogProps {
   open: boolean;
@@ -66,8 +65,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   mode = 'create',
 }) => {
   const { enqueueSnackbar } = useSnackbar();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [departments, setDepartments] = useState<any[]>([]);
+  const [loadingDegrees, setLoadingDegrees] = useState(false);
   const [degrees, setDegrees] = useState<any[]>([]);
   const [faculty, setFaculty] = useState<any[]>([]);
   const [error, setError] = useState('');
@@ -78,7 +78,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     overview: '',
     credits: 3,
     semester: 1,
-    department_id: '',
+    department_id: user?.department?.id || '',
     degree_id: '',
     is_elective: false,
     max_students: 50,
@@ -100,93 +100,87 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
 
   useEffect(() => {
     if (open) {
-      loadInitialData();
-    }
-  }, [open]);
+      // Initialize form based on mode
+      if (course && mode === 'edit') {
+        // Populate form with existing course data
+        setForm({
+          name: course.name || '',
+          code: course.code || '',
+          overview: course.overview || '',
+          credits: course.credits || 3,
+          semester: course.semester || 1,
+          department_id: course.department_id || '',
+          degree_id: course.degree_id || '',
+          is_elective: course.is_elective || false,
+          max_students: course.max_students || 50,
+          prerequisites: course.prerequisites || [],
+          study_details: {
+            learning_objectives: course.study_details?.learning_objectives || [''],
+            course_outcomes: course.study_details?.course_outcomes || [''],
+            assessment_methods: course.study_details?.assessment_methods || [''],
+            textbooks: course.study_details?.textbooks || [''],
+            references: course.study_details?.references || [''],
+          },
+          faculty_details: {
+            primary_instructor: course.faculty_details?.primary_instructor || course.faculty_details?.instructor || '',
+            co_instructors: course.faculty_details?.co_instructors || [],
+            guest_lecturers: course.faculty_details?.guest_lecturers || [],
+            lab_instructors: course.faculty_details?.lab_instructors || [],
+          },
+        });
+      } else if (mode === 'create') {
+        // Reset form for new course
+        setForm({
+          name: '',
+          code: '',
+          overview: '',
+          credits: 3,
+          semester: 1,
+          department_id: user?.department?.id || '',
+          degree_id: '',
+          is_elective: false,
+          max_students: 50,
+          prerequisites: [],
+          study_details: {
+            learning_objectives: [''],
+            course_outcomes: [''],
+            assessment_methods: [''],
+            textbooks: [''],
+            references: [''],
+          },
+          faculty_details: {
+            primary_instructor: '',
+            co_instructors: [],
+            guest_lecturers: [],
+            lab_instructors: [],
+          },
+        });
+      }
 
-  useEffect(() => {
-    if (open && course && mode === 'edit') {
-      // Populate form with existing course data
-      setForm({
-        name: course.name || '',
-        code: course.code || '',
-        overview: course.overview || '',
-        credits: course.credits || 3,
-        semester: course.semester || 1,
-        department_id: course.department_id || '',
-        degree_id: course.degree_id || '',
-        is_elective: course.is_elective || false,
-        max_students: course.max_students || 50,
-        prerequisites: course.prerequisites || [],
-        study_details: {
-          learning_objectives: course.study_details?.learning_objectives || [''],
-          course_outcomes: course.study_details?.course_outcomes || [''],
-          assessment_methods: course.study_details?.assessment_methods || [''],
-          textbooks: course.study_details?.textbooks || [''],
-          references: course.study_details?.references || [''],
-        },
-        faculty_details: {
-          primary_instructor: course.faculty_details?.primary_instructor || course.faculty_details?.instructor || '',
-          co_instructors: course.faculty_details?.co_instructors || [],
-          guest_lecturers: course.faculty_details?.guest_lecturers || [],
-          lab_instructors: course.faculty_details?.lab_instructors || [],
-        },
-      });
-    } else if (open && mode === 'create') {
-      // Reset form for new course
-      setForm({
-        name: '',
-        code: '',
-        overview: '',
-        credits: 3,
-        semester: 1,
-        department_id: '',
-        degree_id: '',
-        is_elective: false,
-        max_students: 50,
-        prerequisites: [],
-        study_details: {
-          learning_objectives: [''],
-          course_outcomes: [''],
-          assessment_methods: [''],
-          textbooks: [''],
-          references: [''],
-        },
-        faculty_details: {
-          primary_instructor: '',
-          co_instructors: [],
-          guest_lecturers: [],
-          lab_instructors: [],
-        },
-      });
+      // Load data
+      loadDegreesByDepartment(); 
+      if (form.department_id || user?.department?.id) {
+        loadFacultyByDepartment(form.department_id || user?.department?.id);
+      }
     }
-  }, [open, course, mode]);
+  }, [open, course, mode, user?.department?.id]);
 
-  useEffect(() => {
-    if (form.department_id) {
-      loadDegreesByDepartment(form.department_id);
-      loadFacultyByDepartment(form.department_id);
-    }
-  }, [form.department_id]);
-
-  const loadInitialData = async () => {
+  const loadDegreesByDepartment = async () => {
     try {
-      const [departmentsResponse] = await Promise.all([
-        departmentsAPI.getDepartments(),
-      ]);
-      setDepartments(departmentsResponse);
-    } catch (error) {
-      console.error('Error loading initial data:', error);
-      setError('Failed to load departments');
-    }
-  };
-
-  const loadDegreesByDepartment = async (departmentId: string) => {
-    try {
-      const response = await degreesAPI.getDegreesByDepartment(departmentId);
-      setDegrees(response.degrees);
+      setLoadingDegrees(true);
+      const response = await degreesAPI.getFacultyDegrees(user?.department?.id);
+      
+      if (response && response.all) {
+        setDegrees(response.all);
+      } else {
+        setDegrees([]);
+      }
     } catch (error) {
       console.error('Error loading degrees:', error);
+      setError('Failed to load degrees. Please try again.');
+      setDegrees([]);
+    } finally {
+      setLoadingDegrees(false);
     }
   };
 
@@ -272,6 +266,12 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   };
 
   const handleSubmit = async () => {
+    // Check if user has a department assigned
+    if (!user?.department?.id) {
+      setError('You must be assigned to a department to create courses. Please contact your administrator.');
+      return;
+    }
+
     if (!form.name || !form.code || !form.overview || !form.department_id || !form.degree_id) {
       setError('Please fill in all required fields');
       return;
@@ -301,10 +301,10 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       };
 
       if (mode === 'edit' && course) {
-        await coursesAPI.updateCourse(course.id, cleanedForm);
+        await coursesAPI.updateCourse(course.id, cleanedForm, user?.id, user?.department?.id);
         enqueueSnackbar('Course updated successfully!', { variant: 'success' });
       } else {
-        await coursesAPI.createCourse(cleanedForm);
+        await coursesAPI.createCourse(cleanedForm, user?.id, user?.department?.id);
         enqueueSnackbar('Course created successfully!', { variant: 'success' });
       }
       
@@ -386,6 +386,12 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
       <DialogTitle>{mode === 'edit' ? 'Edit Course' : 'Create New Course'}</DialogTitle>
       <DialogContent dividers>
+        {!user?.department && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            You must be assigned to a department to create courses. Please contact your administrator.
+          </Alert>
+        )}
+        
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -417,20 +423,14 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 inputProps={{ style: { textTransform: 'uppercase' } }}
               />
 
-              <FormControl fullWidth required>
-                <InputLabel>Department</InputLabel>
-                <Select
-                  value={form.department_id}
-                  label="Department"
-                  onChange={handleSelectChange('department_id')}
-                >
-                  {departments.map((dept) => (
-                    <MenuItem key={dept.id} value={dept.id}>
-                      {dept.name} ({dept.code})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <TextField
+                fullWidth
+                label="Department"
+                value={user?.department ? `${user.department.name} (${user.department.code})` : 'Loading...'}
+                disabled
+                helperText="Courses are automatically assigned to your department"
+                variant="filled"
+              />
 
               <FormControl fullWidth required>
                 <InputLabel>Degree</InputLabel>
@@ -438,13 +438,19 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   value={form.degree_id}
                   label="Degree"
                   onChange={handleSelectChange('degree_id')}
-                  disabled={!form.department_id}
+                  disabled={!form.department_id || loadingDegrees}
                 >
-                  {degrees.map((degree) => (
-                    <MenuItem key={degree.id} value={degree.id}>
-                      {degree.name} ({degree.code})
-                    </MenuItem>
-                  ))}
+                  {loadingDegrees ? (
+                    <MenuItem disabled>Loading degrees...</MenuItem>
+                  ) : degrees.length === 0 ? (
+                    <MenuItem disabled>No degrees available</MenuItem>
+                  ) : (
+                    degrees.map((degree) => (
+                      <MenuItem key={degree.id} value={degree.id}>
+                        {degree.name} ({degree.code})
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
               </FormControl>
             </Box>
@@ -590,7 +596,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
         <Button onClick={handleClose} disabled={loading}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={loading}>
+        <Button onClick={handleSubmit} variant="contained" disabled={loading || !user?.department}>
           {loading ? <CircularProgress size={24} /> : (mode === 'edit' ? 'Update Course' : 'Create Course')}
         </Button>
       </DialogActions>

@@ -102,34 +102,10 @@ const FacultyDashboard: React.FC = () => {
     try {
       setLoading(true);
       
-      // Check if user is authenticated
-      const tokens = localStorage.getItem('tokens');
-      console.log('Auth tokens:', tokens ? 'Present' : 'Not found');
-      if (tokens) {
-        try {
-          const parsedTokens = JSON.parse(tokens);
-          console.log('Access token exists:', !!parsedTokens.access);
-        } catch (e) {
-          console.log('Error parsing tokens:', e);
-        }
-      }
-      
       const [coursesData, degreesData] = await Promise.all([
-        coursesAPI.getFacultyCourses(),
-        degreesAPI.getFacultyDegrees(),
+        coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
+        degreesAPI.getFacultyDegrees(user?.department?.id),
       ]);
-      
-      console.log('Courses data:', coursesData);
-      console.log('Degrees data:', degreesData);
-      
-      // Add more detailed logging
-      console.log('Courses data type:', typeof coursesData);
-      console.log('Courses is array:', Array.isArray(coursesData));
-      console.log('Courses length:', Array.isArray(coursesData) ? coursesData.length : 'N/A');
-      
-      console.log('Degrees data type:', typeof degreesData);
-      console.log('Degrees is array:', Array.isArray(degreesData));
-      console.log('Degrees has all property:', degreesData && typeof degreesData === 'object' && 'all' in degreesData);
       
       // Handle courses data - the API returns { all: courses, categorized, summary }
       if (coursesData && coursesData.all) {
@@ -261,7 +237,7 @@ const FacultyDashboard: React.FC = () => {
           navigate(`/faculty/course/${course.id}`);
           break;
         case 'submit':
-          await coursesAPI.submitCourse(course.id);
+          await coursesAPI.submitCourse(course.id, user?.id, user?.department?.id);
           enqueueSnackbar('Course submitted for approval successfully!', { variant: 'success' });
           loadData();
           break;
@@ -273,13 +249,13 @@ const FacultyDashboard: React.FC = () => {
           }
           break;
         case 'publish':
-          await coursesAPI.publishCourse(course.id);
+          await coursesAPI.publishCourse(course.id, user?.id, user?.department?.id);
           enqueueSnackbar('Course published successfully!', { variant: 'success' });
           loadData();
           break;
         case 'delete':
           if (window.confirm('Are you sure you want to delete this course?')) {
-            await coursesAPI.deleteCourse(course.id);
+            await coursesAPI.deleteCourse(course.id, user?.id, user?.department?.id);
             enqueueSnackbar('Course deleted successfully!', { variant: 'success' });
             loadData();
           }
@@ -492,7 +468,7 @@ const FacultyDashboard: React.FC = () => {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/faculty/courses/create')}
+              onClick={() => setCreateDialogOpen(true)}
             >
               Create New Course
             </Button>
