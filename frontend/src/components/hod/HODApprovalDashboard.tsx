@@ -63,8 +63,8 @@ const HODApprovalDashboard: React.FC = () => {
     try {
       setLoading(true);
       const [coursesResponse, degreesResponse] = await Promise.all([
-        coursesAPI.getCourses({ status: 'submitted' }),
-        degreesAPI.getDegrees({ status: 'submitted' })
+        coursesAPI.getCourses({ status: 'pending_approval' }),
+        degreesAPI.getDegrees({ status: 'pending_approval' })
       ]);
       setPendingCourses(coursesResponse);
       setPendingDegrees(degreesResponse);
@@ -166,7 +166,7 @@ const HODApprovalDashboard: React.FC = () => {
               {item.name}
             </Typography>
             <Typography variant="body2" color="textSecondary" gutterBottom>
-              {item.code} • Submitted by {item.faculty.first_name} {item.faculty.last_name}
+              {item.code} • Submitted by {item.faculty?.first_name || 'Unknown'} {item.faculty?.last_name || ''}
             </Typography>
           </Box>
           <Chip label="Pending Review" color="warning" size="small" />
@@ -279,7 +279,7 @@ const HODApprovalDashboard: React.FC = () => {
                     Review {selectedItem.type === 'course' ? 'Course' : 'Degree'}: {selectedItem.name}
                   </Typography>
                   <Typography variant="body2" color="textSecondary">
-                    {selectedItem.code} • By {selectedItem.faculty.first_name} {selectedItem.faculty.last_name}
+                    {selectedItem.code} • By {selectedItem.faculty?.first_name || 'Unknown'} {selectedItem.faculty?.last_name || ''}
                   </Typography>
                 </Box>
                 <IconButton onClick={handleCloseDialog}>
@@ -306,10 +306,10 @@ const HODApprovalDashboard: React.FC = () => {
                     Faculty:
                   </Typography>
                   <Typography variant="body2">
-                    {selectedItem.faculty.first_name} {selectedItem.faculty.last_name}
+                    {selectedItem.faculty?.first_name || 'Unknown'} {selectedItem.faculty?.last_name || ''}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {selectedItem.faculty.email}
+                    {selectedItem.faculty?.email || ''}
                   </Typography>
                 </Box>
                 

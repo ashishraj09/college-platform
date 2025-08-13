@@ -4,29 +4,21 @@ import {
   AppBar,
   Toolbar,
   Typography,
-  Drawer,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemButton,
   CssBaseline,
   IconButton,
   Menu,
   MenuItem,
+  ListItemIcon,
+  Button,
 } from '@mui/material';
 import {
-  Dashboard,
-  School,
-  People,
-  Class,
   ExitToApp,
   AccountCircle,
+  School as SchoolIcon,
+  Dashboard as DashboardIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-
-const drawerWidth = 240;
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -58,67 +50,36 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     }
   };
 
-  const getMenuItems = () => {
-    if (!user) return [];
-
-    const getBasePath = () => {
-      switch (user.user_type) {
-        case 'admin': return '/admin';
-        case 'faculty': return '/faculty';
-        case 'office': return '/office';
-        case 'student': return '/student';
-        default: return '';
-      }
-    };
-
-    const basePath = getBasePath();
-    const commonItems = [
-      { text: 'Dashboard', icon: <Dashboard />, path: basePath },
-    ];
-
-    switch (user.user_type) {
-      case 'admin':
-        return [
-          ...commonItems,
-          { text: 'Users', icon: <People />, path: '/admin/users' },
-          { text: 'Departments', icon: <School />, path: '/admin/departments' },
-          { text: 'Degrees', icon: <Class />, path: '/admin/degrees' },
-          { text: 'Courses', icon: <Class />, path: '/admin/courses' },
-        ];
-      case 'faculty':
-        return [
-          ...commonItems,
-          { text: 'My Courses', icon: <Class />, path: '/my-courses' },
-          { text: 'Students', icon: <People />, path: '/students' },
-        ];
-      case 'office':
-        return [
-          ...commonItems,
-          { text: 'Enrollments', icon: <School />, path: '/enrollments' },
-          { text: 'Students', icon: <People />, path: '/students' },
-        ];
-      case 'student':
-        return [
-          ...commonItems,
-          { text: 'My Courses', icon: <Class />, path: '/my-courses' },
-          { text: 'Enrollments', icon: <School />, path: '/enrollments' },
-        ];
-      default:
-        return commonItems;
-    }
-  };
-
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
       <CssBaseline />
-      <AppBar
-        position="fixed"
-        sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}
-      >
+      <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            College Platform - {user?.user_type?.toUpperCase()} Dashboard
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            College Platform - {user?.user_type === 'admin' ? 'Admin' : user?.user_type === 'faculty' ? 'Faculty' : 'Student'} Dashboard
           </Typography>
+          
+          {/* Navigation Links - Only show for faculty */}
+          {user?.user_type === 'faculty' && (
+            <Box sx={{ display: 'flex', gap: 1, mr: 2 }}>
+              <Button
+                color="inherit"
+                startIcon={<DashboardIcon />}
+                onClick={() => navigate('/faculty')}
+              >
+                Dashboard
+              </Button>
+              <Button
+                color="inherit"
+                startIcon={<SchoolIcon />}
+                onClick={() => navigate('/faculty/degrees')}
+              >
+                Degrees
+              </Button>
+            </Box>
+          )}
+          
+          {/* User Menu */}
           <div>
             <IconButton
               size="large"
@@ -158,41 +119,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
         </Toolbar>
       </AppBar>
-      <Drawer
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-          },
-        }}
-        variant="permanent"
-        anchor="left"
-      >
-        <Toolbar />
-        <Box sx={{ overflow: 'auto' }}>
-          <List>
-            {getMenuItems().map((item) => (
-              <ListItem key={item.text} disablePadding>
-                <ListItemButton onClick={() => navigate(item.path)}>
-                  <ListItemIcon>{item.icon}</ListItemIcon>
-                  <ListItemText primary={item.text} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        </Box>
-      </Drawer>
+      
+      {/* Main Content */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           bgcolor: 'background.default',
           p: 3,
+          mt: '64px', // Account for AppBar height
         }}
       >
-        <Toolbar />
         {children}
       </Box>
     </Box>

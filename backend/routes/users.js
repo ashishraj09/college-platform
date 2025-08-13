@@ -87,7 +87,7 @@ router.get('/:id',
       }
 
       // Non-admin users can only view users from their department
-      if (req.user.user_type !== 'admin' && req.user.user_type !== 'office') {
+      if (req.user && req.user.user_type !== 'admin' && req.user.user_type !== 'office') {
         if (user.department_id !== req.user.department_id) {
           return res.status(403).json({ error: 'Access denied' });
         }
@@ -179,7 +179,7 @@ router.delete('/:id',
       }
 
       // Don't allow deleting the current user
-      if (user.id === req.user.id) {
+  if (req.user && user.id === req.user.id) {
         return res.status(400).json({ error: 'Cannot delete your own account' });
       }
 
@@ -200,14 +200,20 @@ router.get('/department/:departmentId',
   async (req, res) => {
     try {
       const { departmentId } = req.params;
+      const { user_type, status } = req.query;
 
       // Faculty can only view their own department (only if authenticated)
       if (req.user && req.user.user_type === 'faculty' && req.user.department_id !== departmentId) {
         return res.status(403).json({ error: 'Access denied' });
       }
 
+      // Build where clause
+      const whereClause = { department_id: departmentId };
+      if (user_type) whereClause.user_type = user_type;
+      if (status) whereClause.status = status;
+
       const users = await User.findAll({
-        where: { department_id: departmentId },
+        where: whereClause,
         include: [
           { model: Department, as: 'department' },
           { model: Degree, as: 'degree' },

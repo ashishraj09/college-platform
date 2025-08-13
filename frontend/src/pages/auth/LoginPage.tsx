@@ -196,7 +196,7 @@ const LoginPage: React.FC = () => {
                 <Button
                   variant="text"
                   size="small"
-                  onClick={() => setError('Password reset functionality will be implemented soon')}
+                  onClick={() => navigate('/forgot-password')}
                 >
                   Forgot your password?
                 </Button>

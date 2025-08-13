@@ -5,13 +5,16 @@ import { useAppSelector } from '../hooks/redux';
 // Import components (will be created)
 import LoginPage from '../pages/auth/LoginPage';
 import ActivateAccountPage from '../pages/auth/ActivateAccountPage';
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
-import DepartmentsPage from '../pages/admin/DepartmentsPage';
-import { UsersPage } from '../pages/UsersPage';
+import CreateUser from '../pages/admin/CreateUser';
 import TestPage from '../pages/TestPage';
 import FacultyDashboard from '../pages/faculty/FacultyDashboard';
 import CourseDetailsView from '../pages/faculty/CourseDetailsView';
+import DegreesPage from '../pages/faculty/DegreesPage';
+import DegreeDetailsPage from '../pages/faculty/DegreeDetailsPage';
 import StudentDashboard from '../pages/student/StudentDashboard';
 import OfficeDashboard from '../pages/office/OfficeDashboard';
 import ProtectedRoute from '../components/common/ProtectedRoute';
@@ -58,15 +61,20 @@ const AppRoutes: React.FC = () => {
         element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <LoginPage />} 
       />
       
+      {/* Password Reset Routes */}
+      <Route 
+        path="/forgot-password" 
+        element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <ForgotPasswordPage />} 
+      />
+      
+      <Route 
+        path="/reset-password" 
+        element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <ResetPasswordPage />} 
+      />
+      
       {/* Account Activation Route */}
       <Route 
         path="/activate" 
-        element={<ActivateAccountPage />} 
-      />
-      
-      {/* Password Reset Route */}
-      <Route 
-        path="/reset-password" 
         element={<ActivateAccountPage />} 
       />
       
@@ -77,8 +85,8 @@ const AppRoutes: React.FC = () => {
           <DashboardLayout>
             <Routes>
               <Route index element={<AdminDashboard />} />
-              <Route path="departments" element={<DepartmentsPage />} />
-              <Route path="users" element={<UsersPage />} />
+              <Route path="create-user" element={<CreateUser />} />
+              <Route path="edit-user/:userId" element={<CreateUser />} />
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </Routes>
           </DashboardLayout>
@@ -92,7 +100,10 @@ const AppRoutes: React.FC = () => {
             <DashboardLayout>
               <Routes>
                 <Route index element={<FacultyDashboard />} />
+                <Route path="degrees" element={<DegreesPage />} />
+                <Route path="degrees/:degreeId" element={<DegreeDetailsPage />} />
                 <Route path="course/:courseId" element={<CourseDetailsView />} />
+                <Route path="courses/:courseId" element={<CourseDetailsView />} />
                 <Route path="courses/create" element={<Navigate to="/faculty" replace />} />
                 <Route path="degrees/create" element={<Navigate to="/faculty" replace />} />
                 <Route path="*" element={<Navigate to="/faculty" replace />} />

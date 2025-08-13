@@ -186,9 +186,11 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
 
   const loadFacultyByDepartment = async (departmentId: string) => {
     try {
-      const response = await usersAPI.getUsersByDepartment(departmentId);
-      const facultyMembers = response.users.filter((user: any) => user.user_type === 'faculty');
-      setFaculty(facultyMembers);
+      const response = await usersAPI.getUsersByDepartment(departmentId, {
+        user_type: 'faculty',
+        status: 'active'
+      });
+      setFaculty(response.users);
     } catch (error) {
       console.error('Error loading faculty:', error);
     }

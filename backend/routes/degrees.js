@@ -61,17 +61,20 @@ router.get('/my-degrees',
   async (req, res) => {
   try {
     // For development/testing when authentication is disabled
-    // Try to get user info from headers or request body
-    const user = req.user || (req.headers['x-user-id'] || req.headers['x-user-department']) ? {
-      id: req.headers['x-user-id'],
-      department_id: req.headers['x-user-department']
-    } : null;
+    // Use departmentId from query params or default test user context
+    const departmentIdFromQuery = req.query.departmentId;
+    const user = req.user || {
+      id: 'test-user-id',
+      department_id: departmentIdFromQuery || null, // Use query param for development
+      user_type: 'faculty'
+    };
     
     let whereClause = {};
     if (user && user.department_id) {
       whereClause.department_id = user.department_id;
     } else {
-      // If no user context, return degrees from all departments for development
+      // If no user context and no departmentId query param, return empty array
+      whereClause.department_id = 'none-found';
     }
     
     const degrees = await Degree.findAll({
@@ -233,8 +236,8 @@ router.get('/department/:departmentId',
       // For development/testing when authentication is disabled
       // Use the departmentId from the request parameters as fallback
       const user = req.user || { 
-        id: req.headers['x-user-id'] || 'temp-user-id',
-        department_id: req.headers['x-user-department'] || departmentId,
+        id: 'temp-user-id',
+        department_id: departmentId,
         user_type: 'faculty'
       };
 

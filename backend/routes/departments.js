@@ -84,7 +84,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update department
-router.put('/:id', authenticateToken, authorizeRoles(['admin']), auditMiddleware('update', 'department'), async (req, res) => {
+router.put('/:id', authenticateToken, authorizeRoles('admin'), auditMiddleware('update', 'department'), async (req, res) => {
   try {
     const { name, code, description, status } = req.body;
     
@@ -128,7 +128,7 @@ router.put('/:id', authenticateToken, authorizeRoles(['admin']), auditMiddleware
 });
 
 // Delete department
-router.delete('/:id', authenticateToken, authorizeRoles(['admin']), auditMiddleware('delete', 'department'), async (req, res) => {
+router.delete('/:id', authenticateToken, authorizeRoles('admin'), auditMiddleware('delete', 'department'), async (req, res) => {
   try {
     const department = await Department.findByPk(req.params.id);
     if (!department) {

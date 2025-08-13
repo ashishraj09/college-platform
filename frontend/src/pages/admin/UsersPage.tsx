@@ -11,6 +11,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Paper,
   Chip,
   IconButton,
@@ -27,8 +28,8 @@ import {
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { usersAPI } from '../../services/api';
-import CreateUserDialog from '../../components/admin/CreateUserDialog';
 import { useSnackbar } from 'notistack';
 
 interface User {
@@ -45,28 +46,35 @@ interface User {
 }
 
 const UsersPage: React.FC = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [editFormData, setEditFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    user_type: 'student' as 'student' | 'faculty' | 'office' | 'admin',
-    status: 'active' as 'active' | 'inactive' | 'pending' | 'suspended',
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 20,
+    pages: 1
   });
   const { enqueueSnackbar } = useSnackbar();
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (page: number = 1, limit: number = 20) => {
     setLoading(true);
     try {
-      const response = await usersAPI.getUsers();
-      setUsers(response || []);
+      const response = await usersAPI.getUsers({ page, limit });
+      // Handle the API response structure: { users, pagination }
+      if (response && response.users) {
+        setUsers(Array.isArray(response.users) ? response.users : []);
+        setPagination(response.pagination || { total: 0, page: 1, limit: 20, pages: 1 });
+      } else {
+        // Fallback for different response structures
+        const usersList = Array.isArray(response) ? response : [];
+        setUsers(usersList);
+        setPagination({ total: usersList.length, page: 1, limit: 20, pages: 1 });
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       enqueueSnackbar('Failed to fetch users', { variant: 'error' });
+      setUsers([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -76,37 +84,26 @@ const UsersPage: React.FC = () => {
     fetchUsers();
   }, []);
 
+  const handleRefresh = () => {
+    fetchUsers(pagination.page, pagination.limit);
+  };
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    fetchUsers(newPage + 1, pagination.limit);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newLimit = parseInt(event.target.value, 10);
+    fetchUsers(1, newLimit);
+  };
+
   const handleCreateSuccess = () => {
-    setCreateDialogOpen(false);
-    fetchUsers();
+    fetchUsers(pagination.page, pagination.limit);
     enqueueSnackbar('User created successfully!', { variant: 'success' });
   };
 
   const handleEditClick = (user: User) => {
-    setSelectedUser(user);
-    setEditFormData({
-      first_name: user.first_name,
-      last_name: user.last_name,
-      email: user.email,
-      user_type: user.user_type,
-      status: user.status,
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleEditSubmit = async () => {
-    if (!selectedUser) return;
-
-    try {
-      await usersAPI.updateUser(selectedUser.id, editFormData);
-      setEditDialogOpen(false);
-      setSelectedUser(null);
-      fetchUsers();
-      enqueueSnackbar('User updated successfully!', { variant: 'success' });
-    } catch (error) {
-      console.error('Error updating user:', error);
-      enqueueSnackbar('Failed to update user', { variant: 'error' });
-    }
+    navigate(`/admin/edit-user/${user.id}`);
   };
 
   const handleDeleteClick = async (userId: string) => {
@@ -149,16 +146,16 @@ const UsersPage: React.FC = () => {
           Users
         </Typography>
         <Box>
-          <IconButton onClick={fetchUsers} disabled={loading}>
+          <IconButton onClick={handleRefresh} disabled={loading}>
             <RefreshIcon />
           </IconButton>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={() => navigate('/admin/create-user')}
             sx={{ ml: 1 }}
           >
-            Add User
+            Create User
           </Button>
         </Box>
       </Box>
@@ -237,81 +234,19 @@ const UsersPage: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          
+          <TablePagination
+            component="div"
+            count={pagination.total}
+            page={pagination.page - 1}
+            onPageChange={handleChangePage}
+            rowsPerPage={pagination.limit}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[10, 20, 50]}
+          />
         </CardContent>
       </Card>
 
-      {/* Create Dialog */}
-      <CreateUserDialog
-        open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        onSuccess={handleCreateSuccess}
-      />
-
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit User</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="First Name"
-            value={editFormData.first_name}
-            onChange={(e) => setEditFormData({ ...editFormData, first_name: e.target.value })}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Last Name"
-            value={editFormData.last_name}
-            onChange={(e) => setEditFormData({ ...editFormData, last_name: e.target.value })}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Email"
-            value={editFormData.email}
-            onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-            margin="normal"
-            required
-            type="email"
-          />
-          <TextField
-            fullWidth
-            select
-            label="User Type"
-            value={editFormData.user_type}
-            onChange={(e) => setEditFormData({ ...editFormData, user_type: e.target.value as any })}
-            margin="normal"
-            required
-          >
-            <MenuItem value="student">Student</MenuItem>
-            <MenuItem value="faculty">Faculty</MenuItem>
-            <MenuItem value="office">Office</MenuItem>
-            <MenuItem value="admin">Admin</MenuItem>
-          </TextField>
-          <TextField
-            fullWidth
-            select
-            label="Status"
-            value={editFormData.status}
-            onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as any })}
-            margin="normal"
-            required
-          >
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
-            <MenuItem value="pending">Pending</MenuItem>
-            <MenuItem value="suspended">Suspended</MenuItem>
-          </TextField>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleEditSubmit} variant="contained">
-            Update User
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

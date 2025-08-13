@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
 
 // Create axios instance
 const api = axios.create({
@@ -102,10 +102,10 @@ export const authAPI = {
 
   register: async (userData: {
     email: string;
-    password: string;
     first_name: string;
     last_name: string;
     user_type: 'student' | 'faculty' | 'office' | 'admin';
+    password?: string;
     student_id?: string;
     employee_id?: string;
     department_id?: string;
@@ -141,8 +141,13 @@ export const usersAPI = {
     return response.data;
   },
   
-  getUsersByDepartment: async (departmentId: string) => {
-    const response = await api.get(`/users/department/${departmentId}`);
+  getUsersByDepartment: async (departmentId: string, options?: { user_type?: string, status?: string }) => {
+    const params = new URLSearchParams();
+    if (options?.user_type) params.append('user_type', options.user_type);
+    if (options?.status) params.append('status', options.status);
+    
+    const url = `/users/department/${departmentId}${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await api.get(url);
     return response.data;
   },
 
@@ -253,18 +258,30 @@ export const departmentsAPI = {
     return response.data;
   },
   
-  createDepartment: async (data: any) => {
-    const response = await api.post('/departments', data);
+  createDepartment: async (data: any, userId?: string, departmentId?: string) => {
+    const departmentData = { ...data };
+    if (userId) departmentData.userId = userId;
+    if (departmentId) departmentData.departmentId = departmentId;
+    
+    const response = await api.post('/departments', departmentData);
     return response.data;
   },
   
-  updateDepartment: async (id: string, data: any) => {
-    const response = await api.put(`/departments/${id}`, data);
+  updateDepartment: async (id: string, data: any, userId?: string, departmentId?: string) => {
+    const departmentData = { ...data };
+    if (userId) departmentData.userId = userId;
+    if (departmentId) departmentData.departmentId = departmentId;
+    
+    const response = await api.put(`/departments/${id}`, departmentData);
     return response.data;
   },
   
-  deleteDepartment: async (id: string) => {
-    const response = await api.delete(`/departments/${id}`);
+  deleteDepartment: async (id: string, userId?: string, departmentId?: string) => {
+    const requestData: any = {};
+    if (userId) requestData.userId = userId;
+    if (departmentId) requestData.departmentId = departmentId;
+    
+    const response = await api.delete(`/departments/${id}`, { data: requestData });
     return response.data;
   },
 };

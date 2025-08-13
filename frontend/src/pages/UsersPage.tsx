@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -34,8 +34,8 @@ import {
   Lock as PasswordResetIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
+import { useNavigate } from 'react-router-dom';
 import { usersAPI } from '../services/api';
-import CreateUserDialog from '../components/admin/CreateUserDialog';
 
 interface User {
   id: string;
@@ -69,6 +69,7 @@ interface UsersPagination {
 
 export const UsersPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [pagination, setPagination] = useState<UsersPagination>({
     total: 0,
@@ -78,20 +79,12 @@ export const UsersPage: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [passwordResetDialogOpen, setPasswordResetDialogOpen] = useState(false);
   const [passwordResetLoading, setPasswordResetLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [editFormData, setEditFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    status: 'pending' as User['status']
-  });
 
-  const fetchUsers = async (page: number = 1, limit: number = 20) => {
+  const fetchUsers = useCallback(async (page: number = 1, limit: number = 20) => {
     try {
       setLoading(true);
       setError(null);
@@ -105,11 +98,11 @@ export const UsersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enqueueSnackbar]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     fetchUsers(newPage + 1, pagination.limit);
@@ -120,35 +113,9 @@ export const UsersPage: React.FC = () => {
     fetchUsers(1, newLimit);
   };
 
-  const handleCreateSuccess = () => {
-    setCreateDialogOpen(false);
-    fetchUsers(pagination.page, pagination.limit);
-    enqueueSnackbar('User created successfully!', { variant: 'success' });
-  };
-
   const handleEditUser = (user: User) => {
-    setSelectedUser(user);
-    setEditFormData({
-      first_name: user.first_name,
-      last_name: user.last_name,
-      email: user.email,
-      status: user.status
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedUser) return;
-
-    try {
-      await usersAPI.updateUser(selectedUser.id, editFormData);
-      setEditDialogOpen(false);
-      fetchUsers(pagination.page, pagination.limit);
-      enqueueSnackbar('User updated successfully!', { variant: 'success' });
-    } catch (err: any) {
-      console.error('Error updating user:', err);
-      enqueueSnackbar(err.message || 'Failed to update user', { variant: 'error' });
-    }
+    // Navigate to edit page with user ID
+    navigate(`/admin/edit-user/${user.id}`);
   };
 
   const handleDeleteUser = (user: User) => {
@@ -250,9 +217,9 @@ export const UsersPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={() => navigate('/admin/create-user')}
           >
-            Add User
+            Create User
           </Button>
         </Box>
       </Box>
@@ -374,67 +341,6 @@ export const UsersPage: React.FC = () => {
           rowsPerPageOptions={[10, 20, 50]}
         />
       </Paper>
-
-      {/* Create User Dialog */}
-      <CreateUserDialog
-        open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        onSuccess={handleCreateSuccess}
-      />
-
-      {/* Edit User Dialog */}
-      <Dialog
-        open={editDialogOpen}
-        onClose={() => setEditDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Edit User</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <TextField
-              fullWidth
-              label="First Name"
-              value={editFormData.first_name}
-              onChange={(e) => setEditFormData(prev => ({ ...prev, first_name: e.target.value }))}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Last Name"
-              value={editFormData.last_name}
-              onChange={(e) => setEditFormData(prev => ({ ...prev, last_name: e.target.value }))}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Email"
-              value={editFormData.email}
-              onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
-              margin="normal"
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={editFormData.status}
-                label="Status"
-                onChange={(e) => setEditFormData(prev => ({ ...prev, status: e.target.value as User['status'] }))}
-              >
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="inactive">Inactive</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="suspended">Suspended</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleSaveEdit} variant="contained">
-            Save Changes
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog

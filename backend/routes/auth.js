@@ -175,8 +175,8 @@ router.post('/login',
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Check if account is active
-      if (user.status !== 'active') {
+      // Check if account is active or pending (allow first login for pending users)
+      if (user.status !== 'active' && user.status !== 'pending') {
         return res.status(401).json({ 
           error: 'Account is not active. Please contact administrator.' 
         });
@@ -188,8 +188,16 @@ router.post('/login',
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Update last login
-      await user.update({ last_login: new Date() });
+      // If user was pending, activate them on first successful login
+      if (user.status === 'pending') {
+        await user.update({ 
+          status: 'active',
+          last_login: new Date() 
+        });
+      } else {
+        // Update last login for already active users
+        await user.update({ last_login: new Date() });
+      }
 
       // Generate tokens
       const accessToken = generateAccessToken(user.id);
