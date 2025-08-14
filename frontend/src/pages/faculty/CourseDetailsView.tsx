@@ -42,7 +42,8 @@ import { useSnackbar } from 'notistack';
 interface Course {
   id: string;
   name: string;
-  code: string;
+  code: string; // Base course code (e.g., "76Y67Y767")
+  version_code?: string; // Virtual field for display - versioned code (e.g., "76Y67Y767_V2")
   overview: string;
   credits: number;
   semester: number;
@@ -50,6 +51,9 @@ interface Course {
   is_elective: boolean;
   max_students: number;
   prerequisites: string[];
+  version: number;
+  parent_course_id?: string;
+  is_latest_version: boolean;
   createdAt: string;
   updatedAt: string;
   approved_at?: string;
@@ -71,6 +75,12 @@ interface Course {
     email: string;
   };
   approver?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+  updater?: {
     id: string;
     first_name: string;
     last_name: string;
@@ -456,10 +466,19 @@ const CourseDetailsView: React.FC = () => {
                 </Typography>
               </Box>
             )}
+
+            {course.updater && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">Last Modified By</Typography>
+                <Typography variant="body2">
+                  {course.updater.first_name} {course.updater.last_name}
+                </Typography>
+              </Box>
+            )}
           </Paper>
 
           {/* Rejection Reason */}
-          {course.rejection_reason && (
+          {course.rejection_reason && course.status === 'draft' && (
             <Paper sx={{ p: 3, mb: 3 }}>
               <Typography variant="h6" gutterBottom color="error">Rejection Reason</Typography>
               <Divider sx={{ mb: 2 }} />

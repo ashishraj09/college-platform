@@ -55,6 +55,23 @@ const HODApprovalDashboard: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return 'Not specified';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Not specified';
+      
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return 'Not specified';
+    }
+  };
+
   useEffect(() => {
     loadPendingItems();
   }, []);
@@ -66,8 +83,32 @@ const HODApprovalDashboard: React.FC = () => {
         coursesAPI.getCourses({ status: 'pending_approval' }),
         degreesAPI.getDegrees({ status: 'pending_approval' })
       ]);
-      setPendingCourses(coursesResponse);
-      setPendingDegrees(degreesResponse);
+      
+      // Transform courses to match ApprovalItem interface
+      const transformedCourses = coursesResponse.map((course: any) => ({
+        ...course,
+        type: 'course' as const,
+        description: course.overview,
+        faculty: course.creator ? {
+          first_name: course.creator.first_name,
+          last_name: course.creator.last_name,
+          email: course.creator.email
+        } : null
+      }));
+      
+      // Transform degrees to match ApprovalItem interface  
+      const transformedDegrees = degreesResponse.map((degree: any) => ({
+        ...degree,
+        type: 'degree' as const,
+        faculty: degree.creator ? {
+          first_name: degree.creator.first_name,
+          last_name: degree.creator.last_name,
+          email: degree.creator.email
+        } : null
+      }));
+      
+      setPendingCourses(transformedCourses);
+      setPendingDegrees(transformedDegrees);
     } catch (error) {
       console.error('Error loading pending items:', error);
       enqueueSnackbar('Failed to load pending approvals', { variant: 'error' });
@@ -118,21 +159,36 @@ const HODApprovalDashboard: React.FC = () => {
   };
 
   const handleReject = async () => {
-    if (!selectedItem || !rejectReason.trim()) {
-      enqueueSnackbar('Please provide a rejection reason', { variant: 'error' });
+    if (!selectedItem) return;
+    
+    const trimmedReason = rejectReason.trim();
+    
+    // Validation
+    if (!trimmedReason) {
+      enqueueSnackbar('Please provide a rejection reason to help faculty understand what needs improvement', { variant: 'error' });
+      return;
+    }
+    
+    if (trimmedReason.length < 10) {
+      enqueueSnackbar('Rejection reason must be at least 10 characters to provide meaningful feedback', { variant: 'error' });
+      return;
+    }
+    
+    if (trimmedReason.length > 500) {
+      enqueueSnackbar('Rejection reason cannot exceed 500 characters', { variant: 'error' });
       return;
     }
 
     setActionLoading(true);
     try {
       if (selectedItem.type === 'course') {
-        await coursesAPI.rejectCourse(selectedItem.id, rejectReason);
+        await coursesAPI.rejectCourse(selectedItem.id, trimmedReason);
       } else {
-        await degreesAPI.rejectDegree(selectedItem.id, rejectReason);
+        await degreesAPI.rejectDegree(selectedItem.id, trimmedReason);
       }
       
-      enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected`, { 
-        variant: 'info' 
+      enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected with feedback sent to faculty`, { 
+        variant: 'success' 
       });
       
       handleCloseDialog();
@@ -181,7 +237,7 @@ const HODApprovalDashboard: React.FC = () => {
             Department: {item.department?.name || 'N/A'}
           </Typography>
           <Typography variant="caption" color="textSecondary">
-            Submitted: {new Date(item.created_at).toLocaleDateString()}
+            Submitted: {formatDate(item.submitted_at || item.submittedAt || item.createdAt || item.created_at)}
           </Typography>
         </Box>
       </CardContent>
@@ -331,12 +387,23 @@ const HODApprovalDashboard: React.FC = () => {
               <TextField
                 fullWidth
                 multiline
-                rows={3}
-                label="Rejection Reason (if rejecting)"
+                rows={4}
+                label="Rejection Reason (Required for rejection)"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Provide a clear reason for rejection..."
-                helperText="This will be sent to the faculty member"
+                placeholder="Please provide specific feedback on what needs to be improved..."
+                helperText={
+                  rejectReason.trim().length < 10 && rejectReason.trim().length > 0
+                    ? `Minimum 10 characters required (${rejectReason.length}/10)`
+                    : `${rejectReason.length}/500 characters - This feedback will help the faculty improve their submission`
+                }
+                error={rejectReason.length > 500}
+                inputProps={{ maxLength: 500 }}
+                sx={{
+                  '& .MuiInputBase-root': {
+                    minHeight: '120px'
+                  }
+                }}
               />
             </DialogContent>
 
@@ -351,7 +418,7 @@ const HODApprovalDashboard: React.FC = () => {
                 onClick={handleReject}
                 variant="outlined"
                 color="error"
-                disabled={actionLoading || !rejectReason.trim()}
+                disabled={actionLoading || rejectReason.trim().length < 10}
                 startIcon={<RejectIcon />}
               >
                 Reject

@@ -169,6 +169,29 @@ export const coursesAPI = {
     return response.data;
   },
   
+  // Query parameter approach - gets course with unresolved IDs for editing
+  getCourseForEditWithQuery: async (id: string, resolveNames: boolean = false) => {
+    const response = await api.get(`/courses/${id}?resolve_names=${resolveNames}`);
+    return response.data;
+  },
+  
+  // Dedicated endpoint approach - gets course via dedicated edit endpoint
+  getCourseForEditWithEndpoint: async (id: string, resolveNames: boolean = false) => {
+    const response = await api.get(`/courses/${id}/edit?resolve_names=${resolveNames}`);
+    return response.data;
+  },
+  
+  // Legacy method names for backward compatibility
+  getCourseForEdit: async (id: string) => {
+    const response = await api.get(`/courses/${id}?resolve_names=false`);
+    return response.data;
+  },
+  
+  getCourseForEditDedicated: async (id: string) => {
+    const response = await api.get(`/courses/${id}/edit?resolve_names=false`);
+    return response.data;
+  },
+  
   createCourse: async (data: any, userId?: string, departmentId?: string) => {
     const courseData = { ...data };
     if (userId) courseData.userId = userId;
@@ -241,7 +264,17 @@ export const coursesAPI = {
     if (userId) requestData.userId = userId;
     if (departmentId) requestData.departmentId = departmentId;
     
-    const response = await api.patch(`/courses/${id}/approve`, requestData);
+    const response = await api.patch(`/courses/${id}/publish`, requestData);
+    return response.data;
+  },
+
+  checkCanEdit: async (id: string) => {
+    const response = await api.get(`/courses/${id}/can-edit`);
+    return response.data;
+  },
+
+  createCourseVersion: async (id: string) => {
+    const response = await api.post(`/courses/${id}/create-version`);
     return response.data;
   },
 };

@@ -18,7 +18,6 @@ const Course = sequelize.define('Course', {
   code: {
     type: DataTypes.STRING(15),
     allowNull: false,
-    unique: true,
     validate: {
       notEmpty: true,
       len: [3, 15],
@@ -100,6 +99,14 @@ const Course = sequelize.define('Course', {
       key: 'id',
     },
   },
+  updated_by: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id',
+    },
+  },
   approved_by: {
     type: DataTypes.UUID,
     allowNull: true,
@@ -112,6 +119,14 @@ const Course = sequelize.define('Course', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  submitted_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  rejection_reason: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   status: {
     type: DataTypes.ENUM('draft', 'submitted', 'pending_approval', 'approved', 'pending_activation', 'active', 'disabled', 'archived'),
     defaultValue: 'draft',
@@ -120,16 +135,41 @@ const Course = sequelize.define('Course', {
     type: DataTypes.INTEGER,
     defaultValue: 1,
   },
+  parent_course_id: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'courses',
+      key: 'id',
+    },
+  },
+  is_latest_version: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
   is_elective: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
+  },
+  // Virtual field to get the base course code without version suffix
+  version_code: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      if (!this.code) {
+        return null;
+      }
+      // Always return the base course code without any version suffix
+      // The version information is available separately in the `version` field
+      return this.code.replace(/_V\d+$/, '');
+    },
   },
 }, {
   tableName: 'courses',
   indexes: [
     {
       unique: true,
-      fields: ['code'],
+      fields: ['code', 'version'],
+      name: 'unique_code_version'
     },
     {
       fields: ['department_id'],
@@ -139,6 +179,9 @@ const Course = sequelize.define('Course', {
     },
     {
       fields: ['created_by'],
+    },
+    {
+      fields: ['updated_by'],
     },
     {
       fields: ['approved_by'],

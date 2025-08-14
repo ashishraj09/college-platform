@@ -77,6 +77,13 @@ Course.belongsTo(User, {
 });
 
 Course.belongsTo(User, { 
+  foreignKey: 'updated_by', 
+  as: 'updater',
+  onDelete: 'SET NULL',
+  onUpdate: 'CASCADE'
+});
+
+Course.belongsTo(User, { 
   foreignKey: 'approved_by', 
   as: 'approver',
   onDelete: 'SET NULL',
@@ -126,6 +133,11 @@ User.hasMany(Enrollment, {
 User.hasMany(Course, { 
   foreignKey: 'created_by', 
   as: 'createdCourses' 
+});
+
+User.hasMany(Course, { 
+  foreignKey: 'updated_by', 
+  as: 'updatedCourses' 
 });
 
 User.hasMany(Course, { 

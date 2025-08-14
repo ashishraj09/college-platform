@@ -15,6 +15,7 @@ import {
   Grid,
   Paper,
 } from '@mui/material';
+import LoadingButton from '../common/LoadingButton';
 import {
   School as SchoolIcon,
   Book as BookIcon,
@@ -31,6 +32,7 @@ interface CourseDetailsDialogProps {
   onDelete?: () => void;
   onSubmit?: () => void;
   onPublish?: () => void;
+  submitLoading?: boolean;
 }
 
 const CourseDetailsDialog: React.FC<CourseDetailsDialogProps> = ({
@@ -41,6 +43,7 @@ const CourseDetailsDialog: React.FC<CourseDetailsDialogProps> = ({
   onDelete,
   onSubmit,
   onPublish,
+  submitLoading = false,
 }) => {
   if (!course) return null;
 
@@ -249,9 +252,16 @@ const CourseDetailsDialog: React.FC<CourseDetailsDialogProps> = ({
               </Button>
             )}
             {onSubmit && (
-              <Button onClick={onSubmit} color="warning" variant="outlined">
+              <LoadingButton 
+                onClick={onSubmit} 
+                color="warning" 
+                variant="outlined"
+                loading={submitLoading}
+                loadingText="Submitting..."
+                disabled={submitLoading}
+              >
                 Submit for Approval
-              </Button>
+              </LoadingButton>
             )}
             {onDelete && (
               <Button onClick={onDelete} color="error">

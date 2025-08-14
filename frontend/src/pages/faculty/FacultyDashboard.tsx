@@ -40,16 +40,23 @@ import { useAuth } from '../../contexts/AuthContext';
 import CreateCourseDialog from '../../components/faculty/CreateCourseDialog';
 import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
 import HODApprovalDashboard from '../../components/hod/HODApprovalDashboard';
+import LoadingButton from '../../components/common/LoadingButton';
+import EditCourseConfirmationDialog from '../../components/faculty/EditCourseConfirmationDialog';
 
 interface Course {
   id: string;
   name: string;
-  code: string;
+  code: string; // Base course code (e.g., "76Y67Y767")
+  version_code?: string; // Virtual field for display - versioned code (e.g., "76Y67Y767_V2")
   overview: string;
   credits: number;
   semester: number;
   status: 'draft' | 'submitted' | 'pending_approval' | 'approved' | 'pending_activation' | 'active' | 'disabled' | 'archived';
   is_elective: boolean;
+  rejection_reason?: string;
+  version: number;
+  parent_course_id?: string;
+  is_latest_version: boolean;
   createdAt: string;
   updatedAt: string;
   department?: {
@@ -91,6 +98,10 @@ const FacultyDashboard: React.FC = () => {
   const [courseToEdit, setCourseToEdit] = useState<Course | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDegreeDialogOpen, setCreateDegreeDialogOpen] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState<Record<string, boolean>>({});
+  const [editConfirmationOpen, setEditConfirmationOpen] = useState(false);
+  const [pendingEditCourse, setPendingEditCourse] = useState<Course | null>(null);
+  const [versioningLoading, setVersioningLoading] = useState(false);
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
@@ -230,13 +241,15 @@ const FacultyDashboard: React.FC = () => {
     try {
       switch (action) {
         case 'edit':
-          setCourseToEdit(course);
-          setEditDialogOpen(true);
+          // Show confirmation dialog for approved/active courses
+          setPendingEditCourse(course);
+          setEditConfirmationOpen(true);
           break;
         case 'view':
           navigate(`/faculty/course/${course.id}`);
           break;
         case 'submit':
+          setSubmitLoading(prev => ({ ...prev, [course.id]: true }));
           await coursesAPI.submitCourse(course.id, user?.id, user?.department?.id);
           enqueueSnackbar('Course submitted for approval successfully!', { variant: 'success' });
           loadData();
@@ -264,7 +277,59 @@ const FacultyDashboard: React.FC = () => {
     } catch (error) {
       console.error(`Error performing ${action} on course:`, error);
       enqueueSnackbar(`Error ${action}ing course. Please try again.`, { variant: 'error' });
+    } finally {
+      if (action === 'submit') {
+        setSubmitLoading(prev => ({ ...prev, [course.id]: false }));
+      }
     }
+  };
+
+  const handleEditConfirmation = async () => {
+    if (!pendingEditCourse) return;
+
+    try {
+      setVersioningLoading(true);
+      
+      // Check if the course can be edited first
+      const canEditResponse = await coursesAPI.checkCanEdit(pendingEditCourse.id);
+      
+      if (!canEditResponse.canEdit) {
+        enqueueSnackbar(canEditResponse.reason, { variant: 'error' });
+        setVersioningLoading(false);
+        setEditConfirmationOpen(false);
+        setPendingEditCourse(null);
+        return;
+      }
+      
+      const isApprovedOrActive = ['approved', 'active'].includes(pendingEditCourse.status);
+      
+      if (isApprovedOrActive) {
+        // Create new version for approved/active courses
+        const response = await coursesAPI.createCourseVersion(pendingEditCourse.id);
+        enqueueSnackbar(`Version ${response.version} created successfully!`, { variant: 'success' });
+        
+        // Set the new version as the course to edit
+        setCourseToEdit(response.course);
+        loadData(); // Refresh the course list
+      } else {
+        // Direct edit for draft/pending courses
+        setCourseToEdit(pendingEditCourse);
+      }
+      
+      setEditDialogOpen(true);
+    } catch (error) {
+      console.error('Error handling course edit:', error);
+      enqueueSnackbar('Error preparing course for editing. Please try again.', { variant: 'error' });
+    } finally {
+      setVersioningLoading(false);
+      setEditConfirmationOpen(false);
+      setPendingEditCourse(null);
+    }
+  };
+
+  const handleEditConfirmationCancel = () => {
+    setEditConfirmationOpen(false);
+    setPendingEditCourse(null);
   };
 
   const getStatusCounts = () => {
@@ -338,12 +403,38 @@ const FacultyDashboard: React.FC = () => {
           </Box>
           
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            {course.code} • {course.credits} Credits • Semester {course.semester}
+            {course.version_code || course.code} • {course.credits} Credits • Semester {course.semester}
           </Typography>
           
           <Typography variant="body2" sx={{ mb: 2 }} noWrap>
             {course.overview}
           </Typography>
+
+          {course.rejection_reason && course.status === 'draft' && (
+            <Alert 
+              severity="error" 
+              variant="outlined"
+              sx={{ 
+                mb: 2,
+                '& .MuiAlert-message': { width: '100%' },
+                '& .MuiAlert-icon': { alignItems: 'flex-start', mt: '2px' }
+              }}
+            >
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
+                  📋 Course Requires Revision
+                </Typography>
+                <Typography variant="body2" sx={{ lineHeight: 1.5, color: 'error.dark' }}>
+                  {course.rejection_reason}
+                </Typography>
+                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'error.light' }}>
+                  <Typography variant="caption" sx={{ color: 'error.main', fontStyle: 'italic' }}>
+                    💡 Please address the feedback above and resubmit your course for approval.
+                  </Typography>
+                </Box>
+              </Box>
+            </Alert>
+          )}
 
           {course.department && (
             <Typography variant="caption" display="block" sx={{ mb: 1 }}>
@@ -374,14 +465,28 @@ const FacultyDashboard: React.FC = () => {
 
         <CardActions sx={{ pt: 0 }}>
           {actions.map((action, index) => (
-            <Button
-              key={index}
-              size="small"
-              startIcon={action.icon}
-              onClick={() => handleCourseAction(action.action, course)}
-            >
-              {action.label}
-            </Button>
+            action.action === 'submit' ? (
+              <LoadingButton
+                key={index}
+                size="small"
+                startIcon={action.icon}
+                onClick={() => handleCourseAction(action.action, course)}
+                loading={submitLoading[course.id] || false}
+                loadingText="Submitting..."
+                disabled={submitLoading[course.id] || false}
+              >
+                {action.label}
+              </LoadingButton>
+            ) : (
+              <Button
+                key={index}
+                size="small"
+                startIcon={action.icon}
+                onClick={() => handleCourseAction(action.action, course)}
+              >
+                {action.label}
+              </Button>
+            )
           ))}
         </CardActions>
       </Card>
@@ -565,7 +670,7 @@ const FacultyDashboard: React.FC = () => {
         {selectedCourse && (
           <>
             <DialogTitle>
-              {selectedCourse.name} ({selectedCourse.code})
+              {selectedCourse.name} ({selectedCourse.version_code || selectedCourse.code})
             </DialogTitle>
             <DialogContent>
               <Typography variant="body1" paragraph>
@@ -627,6 +732,15 @@ const FacultyDashboard: React.FC = () => {
           }}
         />
       )}
+
+      {/* Edit Course Confirmation Dialog */}
+      <EditCourseConfirmationDialog
+        open={editConfirmationOpen}
+        onClose={handleEditConfirmationCancel}
+        onConfirm={handleEditConfirmation}
+        course={pendingEditCourse}
+        loading={versioningLoading}
+      />
     </Container>
   );
 };

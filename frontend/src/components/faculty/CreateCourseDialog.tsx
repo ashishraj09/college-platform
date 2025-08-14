@@ -71,6 +71,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const [degrees, setDegrees] = useState<any[]>([]);
   const [faculty, setFaculty] = useState<any[]>([]);
   const [error, setError] = useState('');
+  const [owner, setOwner] = useState<any>(null);
 
   const [form, setForm] = useState<CourseForm>({
     name: '',
@@ -98,36 +99,103 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     },
   });
 
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    code?: string;
+    overview?: string;
+    credits?: string;
+    semester?: string;
+    max_students?: string;
+    degree_id?: string;
+  }>({});
+
+  const validateField = (fieldName: string, value: any): string | undefined => {
+    switch (fieldName) {
+      case 'name':
+        if (!value?.trim()) return 'Course name is required';
+        if (value.trim().length < 3) return 'Course name must be at least 3 characters';
+        if (value.trim().length > 100) return 'Course name cannot exceed 100 characters';
+        break;
+      case 'code':
+        if (!value?.trim()) return 'Course code is required';
+        if (value.trim().length < 3) return 'Course code must be at least 3 characters';
+        if (value.trim().length > 10) return 'Course code cannot exceed 10 characters';
+        if (!/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
+        break;
+      case 'overview':
+        if (!value?.trim()) return 'Course overview is required';
+        if (value.trim().length < 10) return 'Overview must be at least 10 characters';
+        if (value.trim().length > 2000) return 'Overview cannot exceed 2000 characters';
+        break;
+      case 'credits':
+        if (value < 1 || value > 10) return 'Credits must be between 1 and 10';
+        break;
+      case 'semester':
+        if (value < 1 || value > 10) return 'Semester must be between 1 and 10';
+        break;
+      case 'max_students':
+        if (value < 1 || value > 500) return 'Max students must be between 1 and 500';
+        break;
+      case 'degree_id':
+        if (!value) return 'Degree selection is required';
+        break;
+    }
+    return undefined;
+  };
+
+  const updateFieldError = (fieldName: string, value: any) => {
+    const error = validateField(fieldName, value);
+    setFieldErrors(prev => ({
+      ...prev,
+      [fieldName]: error
+    }));
+  };
+
   useEffect(() => {
     if (open) {
       // Initialize form based on mode
       if (course && mode === 'edit') {
-        // Populate form with existing course data
-        setForm({
-          name: course.name || '',
-          code: course.code || '',
-          overview: course.overview || '',
-          credits: course.credits || 3,
-          semester: course.semester || 1,
-          department_id: course.department_id || '',
-          degree_id: course.degree_id || '',
-          is_elective: course.is_elective || false,
-          max_students: course.max_students || 50,
-          prerequisites: course.prerequisites || [],
-          study_details: {
-            learning_objectives: course.study_details?.learning_objectives || [''],
-            course_outcomes: course.study_details?.course_outcomes || [''],
-            assessment_methods: course.study_details?.assessment_methods || [''],
-            textbooks: course.study_details?.textbooks || [''],
-            references: course.study_details?.references || [''],
-          },
-          faculty_details: {
-            primary_instructor: course.faculty_details?.primary_instructor || course.faculty_details?.instructor || '',
-            co_instructors: course.faculty_details?.co_instructors || [],
-            guest_lecturers: course.faculty_details?.guest_lecturers || [],
-            lab_instructors: course.faculty_details?.lab_instructors || [],
-          },
-        });
+        // For edit mode, fetch fresh course data with raw UUIDs
+        const fetchCourseForEdit = async () => {
+          try {
+            const response = await coursesAPI.getCourseForEdit(course.id);
+            const courseData = response.course;
+            
+            // Set owner information
+            setOwner(courseData.creator);
+            
+            setForm({
+              name: courseData.name || '',
+              code: courseData.code || '',
+              overview: courseData.overview || '',
+              credits: courseData.credits || 3,
+              semester: courseData.semester || 1,
+              department_id: courseData.department_id || '',
+              degree_id: courseData.degree_id || '',
+              is_elective: courseData.is_elective || false,
+              max_students: courseData.max_students || 50,
+              prerequisites: courseData.prerequisites || [],
+              study_details: {
+                learning_objectives: courseData.study_details?.learning_objectives || [''],
+                course_outcomes: courseData.study_details?.course_outcomes || [''],
+                assessment_methods: courseData.study_details?.assessment_methods || [''],
+                textbooks: courseData.study_details?.textbooks || [''],
+                references: courseData.study_details?.references || [''],
+              },
+              faculty_details: {
+                primary_instructor: courseData.faculty_details?.primary_instructor || courseData.faculty_details?.instructor || '',
+                co_instructors: courseData.faculty_details?.co_instructors || [],
+                guest_lecturers: courseData.faculty_details?.guest_lecturers || [],
+                lab_instructors: courseData.faculty_details?.lab_instructors || [],
+              },
+            });
+          } catch (error) {
+            console.error('Error fetching course for edit:', error);
+            setError('Failed to load course data for editing');
+          }
+        };
+        
+        fetchCourseForEdit();
       } else if (mode === 'create') {
         // Reset form for new course
         setForm({
@@ -199,10 +267,18 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const handleInputChange = (field: keyof CourseForm) => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
+    const value = field === 'code' ? event.target.value.toUpperCase() : event.target.value;
+    const numericValue = ['credits', 'semester', 'max_students'].includes(field) 
+      ? parseInt(value) || 0 
+      : value;
+
     setForm({
       ...form,
-      [field]: event.target.value,
+      [field]: numericValue,
     });
+    
+    // Real-time validation
+    updateFieldError(field, numericValue);
     setError('');
   };
 
@@ -213,6 +289,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       ...form,
       [field]: event.target.value,
     });
+    
+    // Real-time validation
+    updateFieldError(field, event.target.value);
     setError('');
   };
 
@@ -267,15 +346,95 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     });
   };
 
-  const handleSubmit = async () => {
+  const validateForm = (): string | null => {
     // Check if user has a department assigned
     if (!user?.department?.id) {
-      setError('You must be assigned to a department to create courses. Please contact your administrator.');
-      return;
+      return 'You must be assigned to a department to create courses. Please contact your administrator.';
     }
 
-    if (!form.name || !form.code || !form.overview || !form.department_id || !form.degree_id) {
-      setError('Please fill in all required fields');
+    // Required field validation
+    if (!form.name.trim()) {
+      return 'Course name is required';
+    }
+    
+    if (form.name.trim().length < 3) {
+      return 'Course name must be at least 3 characters long';
+    }
+    
+    if (form.name.trim().length > 100) {
+      return 'Course name cannot exceed 100 characters';
+    }
+
+    if (!form.code.trim()) {
+      return 'Course code is required';
+    }
+    
+    if (form.code.trim().length < 3) {
+      return 'Course code must be at least 3 characters long';
+    }
+    
+    if (form.code.trim().length > 10) {
+      return 'Course code cannot exceed 10 characters';
+    }
+    
+    // Course code format validation (letters and numbers only)
+    if (!/^[A-Z0-9]+$/.test(form.code.trim())) {
+      return 'Course code must contain only uppercase letters and numbers';
+    }
+
+    if (!form.overview.trim()) {
+      return 'Course overview is required';
+    }
+    
+    if (form.overview.trim().length < 10) {
+      return 'Course overview must be at least 10 characters long';
+    }
+    
+    if (form.overview.trim().length > 2000) {
+      return 'Course overview cannot exceed 2000 characters';
+    }
+
+    if (!form.department_id) {
+      return 'Department selection is required';
+    }
+
+    if (!form.degree_id) {
+      return 'Degree selection is required';
+    }
+
+    // Numeric field validation
+    if (form.credits < 1 || form.credits > 10) {
+      return 'Credits must be between 1 and 10';
+    }
+
+    if (form.semester < 1 || form.semester > 10) {
+      return 'Semester must be between 1 and 10';
+    }
+
+    if (form.max_students < 1 || form.max_students > 500) {
+      return 'Maximum students must be between 1 and 500';
+    }
+
+    // Study details validation - ensure at least one item in each required section
+    if (form.study_details.learning_objectives.filter(obj => obj.trim()).length === 0) {
+      return 'At least one learning objective is required';
+    }
+
+    if (form.study_details.course_outcomes.filter(outcome => outcome.trim()).length === 0) {
+      return 'At least one course outcome is required';
+    }
+
+    if (form.study_details.assessment_methods.filter(method => method.trim()).length === 0) {
+      return 'At least one assessment method is required';
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -348,6 +507,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       },
     });
     setError('');
+    setFieldErrors({});
+    setOwner(null);
     onClose();
   };
 
@@ -414,6 +575,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 label="Course Name"
                 value={form.name}
                 onChange={handleInputChange('name')}
+                error={!!fieldErrors.name}
+                helperText={fieldErrors.name || "Enter the full name of the course"}
               />
               
               <TextField
@@ -422,6 +585,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 label="Course Code"
                 value={form.code}
                 onChange={handleInputChange('code')}
+                error={!!fieldErrors.code}
+                helperText={fieldErrors.code || "e.g., CS101 (uppercase letters and numbers only)"}
                 inputProps={{ style: { textTransform: 'uppercase' } }}
               />
 
@@ -434,7 +599,18 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 variant="filled"
               />
 
-              <FormControl fullWidth required>
+              {mode === 'edit' && owner && (
+                <TextField
+                  fullWidth
+                  label="Course Owner"
+                  value={`${owner.first_name} ${owner.last_name}`}
+                  disabled
+                  helperText={`Created by ${owner.email}`}
+                  variant="filled"
+                />
+              )}
+
+              <FormControl fullWidth required error={!!fieldErrors.degree_id}>
                 <InputLabel>Degree</InputLabel>
                 <Select
                   value={form.degree_id}
@@ -454,6 +630,11 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                     ))
                   )}
                 </Select>
+                {fieldErrors.degree_id && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                    {fieldErrors.degree_id}
+                  </Typography>
+                )}
               </FormControl>
             </Box>
 
@@ -465,6 +646,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 type="number"
                 value={form.credits}
                 onChange={handleInputChange('credits')}
+                error={!!fieldErrors.credits}
+                helperText={fieldErrors.credits || "1-10 credit hours"}
                 inputProps={{ min: 1, max: 10 }}
               />
 
@@ -475,6 +658,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 type="number"
                 value={form.semester}
                 onChange={handleInputChange('semester')}
+                error={!!fieldErrors.semester}
+                helperText={fieldErrors.semester || "Which semester (1-10)"}
                 inputProps={{ min: 1, max: 10 }}
               />
 
@@ -484,6 +669,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 type="number"
                 value={form.max_students}
                 onChange={handleInputChange('max_students')}
+                error={!!fieldErrors.max_students}
+                helperText={fieldErrors.max_students || "Maximum enrollment (1-500)"}
                 inputProps={{ min: 1, max: 500 }}
               />
             </Box>
@@ -508,7 +695,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
               label="Course Overview"
               value={form.overview}
               onChange={handleInputChange('overview')}
-              helperText="Provide a detailed overview of the course (10-2000 characters)"
+              error={!!fieldErrors.overview}
+              helperText={fieldErrors.overview || `Provide a detailed overview (10-2000 characters) - ${form.overview.length}/2000`}
               sx={{ mt: 2 }}
             />
           </Box>

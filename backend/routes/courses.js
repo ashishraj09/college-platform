@@ -55,6 +55,23 @@ router.get('/',
           model: Degree,
           as: 'degree',
           attributes: ['id', 'name', 'code']
+        },
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'first_name', 'last_name', 'email']
+        },
+        {
+          model: User,
+          as: 'updater',
+          attributes: ['id', 'first_name', 'last_name', 'email'],
+          required: false
+        },
+        {
+          model: User,
+          as: 'approver',
+          attributes: ['id', 'first_name', 'last_name', 'email'],
+          required: false
         }
       ],
       limit: parseInt(limit),
@@ -118,6 +135,18 @@ router.get('/my-courses',
           model: User,
           as: 'creator',
           attributes: ['id', 'first_name', 'last_name']
+        },
+        {
+          model: User,
+          as: 'updater',
+          attributes: ['id', 'first_name', 'last_name'],
+          required: false
+        },
+        {
+          model: User,
+          as: 'approver',
+          attributes: ['id', 'first_name', 'last_name'],
+          required: false
         }
       ],
       order: [['created_at', 'DESC']]
@@ -235,6 +264,18 @@ router.get('/department-courses',
           model: User,
           as: 'creator',
           attributes: ['id', 'first_name', 'last_name']
+        },
+        {
+          model: User,
+          as: 'updater',
+          attributes: ['id', 'first_name', 'last_name'],
+          required: false
+        },
+        {
+          model: User,
+          as: 'approver',
+          attributes: ['id', 'first_name', 'last_name'],
+          required: false
         }
       ],
       order: [['created_at', 'DESC']]
@@ -283,6 +324,7 @@ router.get('/:id',
           { model: Degree, as: 'degree' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
         ],
       });
 
@@ -290,8 +332,50 @@ router.get('/:id',
         return res.status(404).json({ error: 'Course not found' });
       }
 
-      // Resolve faculty UUIDs to names
-      if (course.faculty_details && typeof course.faculty_details === 'object') {
+      // Check if we should resolve faculty UUIDs to names (default: true, false for editing)
+      const resolveNames = req.query.resolve_names !== 'false';
+      
+      // If resolve_names=false (editing mode), apply edit validation
+      if (!resolveNames) {
+        let canEdit = true;
+        let reason = '';
+
+        // For active courses, check if there are newer versions in draft, pending approval, or approved status
+        if (course.status === 'active') {
+          const newerVersions = await Course.findAll({
+            where: {
+              [Op.or]: [
+                { parent_course_id: course.parent_course_id || course.id },
+                { parent_course_id: course.id }
+              ],
+              version: { [Op.gt]: course.version },
+              status: { [Op.in]: ['draft', 'pending_approval', 'approved'] }
+            },
+          });
+
+          if (newerVersions.length > 0) {
+            canEdit = false;
+            const statuses = [...new Set(newerVersions.map(v => v.status))].join(', ');
+            reason = `Cannot edit this active course (version ${course.version}) because newer version(s) exist with status: ${statuses}. Please work with the latest version or wait for the newer version to be processed.`;
+          }
+        }
+
+        // If course cannot be edited, return error
+        if (!canEdit) {
+          return res.status(403).json({ 
+            error: 'Course cannot be edited',
+            reason: reason,
+            canEdit: false,
+            courseStatus: course.status,
+            isLatestVersion: course.is_latest_version,
+            version: course.version,
+            newerVersionsCount: reason.includes('newer version(s) exist') ? 1 : 0
+          });
+        }
+      }
+      
+      // Resolve faculty UUIDs to names only if requested
+      if (resolveNames && course.faculty_details && typeof course.faculty_details === 'object') {
         const facultyDetails = { ...course.faculty_details };
         
         // Helper function to get instructor name by ID
@@ -354,6 +438,114 @@ router.get('/:id',
   }
 );
 
+// Get course for editing (dedicated endpoint)
+router.get('/:id/edit',
+  // authenticateToken, // Temporarily disabled for testing
+  async (req, res) => {
+    try {
+      const resolveNames = req.query.resolve_names !== 'false'; // Default to true
+      
+      const course = await Course.findByPk(req.params.id, {
+        include: [
+          { model: Department, as: 'department' },
+          { model: Degree, as: 'degree' },
+          { model: User, as:'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
+        ],
+      });
+
+      if (!course) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
+
+      // Check if course can be edited - same validation as can-edit endpoint
+      let canEdit = true;
+      let reason = '';
+
+      // For active courses, check if there are newer versions in draft, pending approval, or approved status
+      if (course.status === 'active') {
+        const newerVersions = await Course.findAll({
+          where: {
+            [Op.or]: [
+              { parent_course_id: course.parent_course_id || course.id },
+              { parent_course_id: course.id }
+            ],
+            version: { [Op.gt]: course.version },
+            status: { [Op.in]: ['draft', 'pending_approval', 'approved'] }
+          },
+        });
+
+        if (newerVersions.length > 0) {
+          canEdit = false;
+          const statuses = [...new Set(newerVersions.map(v => v.status))].join(', ');
+          reason = `Cannot edit this active course (version ${course.version}) because newer version(s) exist with status: ${statuses}. Please work with the latest version or wait for the newer version to be processed.`;
+        }
+      }
+
+      // If course cannot be edited, return error
+      if (!canEdit) {
+        return res.status(403).json({ 
+          error: 'Course cannot be edited',
+          reason: reason,
+          canEdit: false,
+          courseStatus: course.status,
+          isLatestVersion: course.is_latest_version,
+          version: course.version,
+          newerVersionsCount: reason.includes('newer version(s) exist') ? 1 : 0
+        });
+      }
+
+      // Resolve faculty UUIDs to names if requested (same logic as main GET route)
+      if (resolveNames && course.faculty_details && typeof course.faculty_details === 'object') {
+        const facultyDetails = { ...course.faculty_details };
+        
+        // Helper function to get instructor name by ID
+        const getInstructorName = async (instructorId) => {
+          if (!instructorId || typeof instructorId !== 'string') return instructorId;
+          
+          // Check if it's a UUID pattern
+          const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          if (!uuidPattern.test(instructorId)) return instructorId;
+          
+          try {
+            const user = await User.findByPk(instructorId, {
+              attributes: ['id', 'first_name', 'last_name']
+            });
+            return user ? `${user.first_name} ${user.last_name}` : instructorId;
+          } catch (err) {
+            console.error('Error fetching instructor:', err);
+            return instructorId;
+          }
+        };
+
+        // Process instructors
+        if (facultyDetails.instructors && Array.isArray(facultyDetails.instructors)) {
+          for (let i = 0; i < facultyDetails.instructors.length; i++) {
+            if (facultyDetails.instructors[i].instructorId) {
+              facultyDetails.instructors[i].instructorId = await getInstructorName(facultyDetails.instructors[i].instructorId);
+            }
+          }
+        }
+
+        // Process coordinator
+        if (facultyDetails.coordinator && facultyDetails.coordinator.coordinatorId) {
+          facultyDetails.coordinator.coordinatorId = await getInstructorName(facultyDetails.coordinator.coordinatorId);
+        }
+
+        // Update course with resolved names
+        course.faculty_details = facultyDetails;
+      }
+
+      // Return course data - with or without name resolution based on resolveNames parameter
+      res.json({ course });
+    } catch (error) {
+      console.error('Error fetching course for editing:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
 // Create new course (Faculty only)
 router.post('/',
   // authenticateToken, // Temporarily disabled for testing
@@ -397,8 +589,13 @@ router.post('/',
         return res.status(400).json({ error: 'Degree not found in specified department' });
       }
 
-      // Check for duplicate course code
-      const existingCourse = await Course.findOne({ where: { code: code.toUpperCase() } });
+      // Check for duplicate course code + version combination
+      const existingCourse = await Course.findOne({ 
+        where: { 
+          code: code.toUpperCase(),
+          version: 1 // For new courses, check if version 1 already exists
+        } 
+      });
       if (existingCourse) {
         return res.status(409).json({ error: 'Course code already exists' });
       }
@@ -453,6 +650,214 @@ router.post('/',
   }
 );
 
+// Create new version of existing course (Faculty only)
+router.post('/:id/create-version',
+  // authenticateToken, // Temporarily disabled for testing
+  // authorizeRoles('faculty'), // Temporarily disabled for testing
+  auditMiddleware('create', 'course', 'Course version created'),
+  async (req, res) => {
+    try {
+      // Get original course without resolving instructor names to preserve UUIDs
+      const originalCourse = await Course.findByPk(req.params.id, {
+        include: [
+          { model: Department, as: 'department' },
+          { model: Degree, as: 'degree' },
+        ],
+      });
+
+      if (!originalCourse) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
+
+      // Only allow versioning for approved or active courses
+      if (!['approved', 'active'].includes(originalCourse.status)) {
+        return res.status(400).json({ 
+          error: 'Can only create versions from approved or active courses' 
+        });
+      }
+
+      // Verify user is the creator or has permission
+      const user = req.user || { 
+        id: req.body.userId || originalCourse.created_by, 
+        user_type: 'faculty' 
+      };
+      
+      if (originalCourse.created_by !== user.id && user.user_type !== 'admin') {
+        return res.status(403).json({ error: 'Not authorized to create versions of this course' });
+      }
+
+      // Find the highest version number for this course family
+      const maxVersionCourse = await Course.findOne({
+        where: {
+          [Op.or]: [
+            { id: req.params.id },
+            { parent_course_id: req.params.id },
+          ],
+        },
+        order: [['version', 'DESC']],
+      });
+
+      const nextVersion = (maxVersionCourse?.version || 1) + 1;
+
+      // Get the base course code (without version suffix)
+      // If this is already a versioned course, get the original parent's code
+      let baseCode;
+      if (originalCourse.parent_course_id) {
+        // This is already a version, get the original parent course
+        const parentCourse = await Course.findByPk(originalCourse.parent_course_id);
+        baseCode = parentCourse ? parentCourse.code : originalCourse.code.replace(/_V\d+$/, '');
+      } else {
+        // This is the original course, use its code directly
+        baseCode = originalCourse.code;
+      }
+      
+      // Create new course version
+      const newCourseData = {
+        name: originalCourse.name,
+        code: baseCode, // Base code without version suffix
+        overview: originalCourse.overview,
+        study_details: originalCourse.study_details,
+        faculty_details: originalCourse.faculty_details,
+        credits: originalCourse.credits,
+        semester: originalCourse.semester,
+        prerequisites: originalCourse.prerequisites,
+        max_students: originalCourse.max_students,
+        department_id: originalCourse.department_id,
+        degree_id: originalCourse.degree_id,
+        is_elective: originalCourse.is_elective,
+        created_by: user.id,
+        version: nextVersion,
+        parent_course_id: originalCourse.parent_course_id || originalCourse.id,
+        is_latest_version: true,
+        status: 'draft',
+      };
+
+      // Mark all previous versions as not latest
+      await Course.update(
+        { is_latest_version: false },
+        {
+          where: {
+            [Op.or]: [
+              { id: req.params.id },
+              { parent_course_id: req.params.id },
+              { parent_course_id: originalCourse.parent_course_id || originalCourse.id },
+            ],
+          },
+        }
+      );
+
+      const newCourse = await Course.create(newCourseData);
+
+      // Fetch the created course with associations
+      const createdCourse = await Course.findByPk(newCourse.id, {
+        include: [
+          { model: Department, as: 'department' },
+          { model: Degree, as: 'degree' },
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+        ],
+      });
+
+      res.status(201).json({
+        message: `Course version ${nextVersion} created successfully`,
+        course: createdCourse,
+        version: nextVersion,
+      });
+    } catch (error) {
+      console.error('Error creating course version:', error);
+      
+      if (error.name === 'SequelizeUniqueConstraintError') {
+        return res.status(409).json({ error: 'Course version with this code already exists' });
+      }
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Check if course can be edited
+router.get('/:id/can-edit',
+  // authenticateToken, // Temporarily disabled for testing
+  async (req, res) => {
+    try {
+      const course = await Course.findByPk(req.params.id);
+
+      if (!course) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
+
+      let canEdit = true;
+      let reason = '';
+
+      // For active courses, check if there are newer versions in draft, pending approval, or approved status
+      if (course.status === 'active') {
+        const newerVersions = await Course.findAll({
+          where: {
+            [Op.or]: [
+              { parent_course_id: course.parent_course_id || course.id },
+              { parent_course_id: course.id }
+            ],
+            version: { [Op.gt]: course.version },
+            status: { [Op.in]: ['draft', 'pending_approval', 'approved'] }
+          },
+        });
+
+        if (newerVersions.length > 0) {
+          canEdit = false;
+          const statuses = [...new Set(newerVersions.map(v => v.status))].join(', ');
+          reason = `Cannot edit this active course (version ${course.version}) because newer version(s) exist with status: ${statuses}. Please work with the latest version or wait for the newer version to be processed.`;
+        }
+      } else {
+        // For non-active courses, check if there are any newer versions (existing logic)
+        const newerVersions = await Course.findAll({
+          where: {
+            [Op.or]: [
+              { parent_course_id: course.parent_course_id || course.id },
+              { parent_course_id: course.id }
+            ],
+            version: { [Op.gt]: course.version },
+          },
+        });
+
+        if (newerVersions.length > 0) {
+          canEdit = false;
+          reason = `Cannot edit this course (version ${course.version}) because newer version(s) exist. Please work with the latest version.`;
+        }
+      }
+
+      // Get newer versions info for response
+      const allNewerVersions = await Course.findAll({
+        where: {
+          [Op.or]: [
+            { parent_course_id: course.parent_course_id || course.id },
+            { parent_course_id: course.id }
+          ],
+          version: { [Op.gt]: course.version },
+        },
+        attributes: ['id', 'version', 'status', 'created_at'],
+        order: [['version', 'DESC']]
+      });
+
+      res.json({
+        canEdit,
+        reason,
+        courseStatus: course.status,
+        isLatestVersion: course.is_latest_version,
+        version: course.version,
+        newerVersionsCount: allNewerVersions.length,
+        newerVersions: allNewerVersions.map(v => ({
+          id: v.id,
+          version: v.version,
+          status: v.status,
+          created_at: v.created_at
+        }))
+      });
+    } catch (error) {
+      console.error('Error checking if course can be edited:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
 // Submit course for approval (Faculty only)
 router.patch('/:id/submit',
   // authenticateToken, // Temporarily disabled for testing
@@ -497,7 +902,11 @@ router.patch('/:id/submit',
         return res.status(400).json({ error: 'Only draft courses can be submitted' });
       }
 
-      await course.update({ status: 'pending_approval' });
+      await course.update({ 
+        status: 'pending_approval',
+        submitted_at: new Date(),
+        updated_by: user.id
+      });
 
       // Find HOD of the department
       const hod = await User.findOne({
@@ -548,13 +957,27 @@ router.patch('/:id/approve',
       }
 
       if (course.status !== 'pending_approval') {
-        return res.status(400).json({ error: 'Only pending approval courses can be approved' });
+        let message = 'Only pending approval courses can be approved';
+        if (course.status === 'approved') {
+          message = 'This course has already been approved';
+        } else if (course.status === 'draft') {
+          message = 'This course has not been submitted for approval yet';
+        } else if (course.status === 'active') {
+          message = 'This course is already active';
+        }
+        return res.status(400).json({ 
+          error: message,
+          currentStatus: course.status,
+          approvedAt: course.approved_at,
+          approvedBy: course.approved_by
+        });
       }
 
       await course.update({
         status: 'approved',
         approved_by: user.id || req.body.userId,
         approved_at: new Date(),
+        updated_by: user.id || req.body.userId,
       });
 
       res.json({
@@ -597,6 +1020,7 @@ router.patch('/:id/reject',
       await course.update({
         status: 'draft',
         rejection_reason: reason,
+        updated_by: user.id || req.body.userId,
       });
 
       res.json({
@@ -605,6 +1029,96 @@ router.patch('/:id/reject',
       });
     } catch (error) {
       console.error('Error rejecting course:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Publish/Activate course (Faculty only - for approved courses)
+router.patch('/:id/publish',
+  // authenticateToken, // Temporarily disabled for testing
+  // authorizeRoles('faculty'), // Temporarily disabled for testing
+  auditMiddleware('update', 'course', 'Course published/activated'),
+  async (req, res) => {
+    try {
+      const course = await Course.findByPk(req.params.id, {
+        include: [
+          { model: Department, as: 'department' },
+          { model: User, as: 'creator' },
+        ],
+      });
+
+      if (!course) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
+
+      // For development/testing when authentication is disabled
+      const user = req.user || { 
+        id: req.body.userId,
+        department_id: req.body.departmentId, 
+        user_type: 'faculty' 
+      };
+
+      // Validate that we have user context
+      if (!user.id || !user.department_id) {
+        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      }
+
+      // Only course creator or faculty in the same department can publish
+      if (course.created_by !== user.id && user.department_id !== course.department_id) {
+        return res.status(403).json({ error: 'Only course creator or department faculty can publish courses' });
+      }
+
+      if (course.status !== 'approved') {
+        let message = 'Only approved courses can be published';
+        if (course.status === 'draft') {
+          message = 'Course must be submitted and approved before publishing';
+        } else if (course.status === 'pending_approval') {
+          message = 'Course is still pending approval and cannot be published yet';
+        } else if (course.status === 'active') {
+          message = 'Course is already active/published';
+        }
+        return res.status(400).json({ 
+          error: message,
+          currentStatus: course.status 
+        });
+      }
+
+      // Handle version management if this is a versioned course
+      if (course.parent_course_id || course.version > 1) {
+        // This is a new version being published - archive previous active versions
+        const parentId = course.parent_course_id || course.id;
+        
+        await Course.update(
+          { status: 'archived' },
+          {
+            where: {
+              [Op.and]: [
+                {
+                  [Op.or]: [
+                    { id: parentId },
+                    { parent_course_id: parentId },
+                  ],
+                },
+                { status: 'active' },
+                { id: { [Op.ne]: course.id } },
+              ],
+            },
+          }
+        );
+      }
+
+      await course.update({
+        status: 'active',
+        updated_by: user.id || req.body.userId,
+      });
+
+      res.json({
+        message: 'Course published and is now active',
+        course,
+      });
+    } catch (error) {
+      console.error('Error publishing course:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -671,6 +1185,9 @@ router.put('/:id',
         updatedFields.code = updatedFields.code.toUpperCase();
       }
 
+      // Set the updated_by field
+      updatedFields.updated_by = user.id;
+
       await course.update(updatedFields);
 
       const updatedCourse = await Course.findByPk(course.id, {
@@ -678,6 +1195,7 @@ router.put('/:id',
           { model: Department, as: 'department' },
           { model: Degree, as: 'degree' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
         ],
       });
