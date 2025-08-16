@@ -59,7 +59,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             College Platform - {user?.user_type === 'admin' ? 'Admin' : user?.user_type === 'faculty' ? 'Faculty' : 'Student'} Dashboard
           </Typography>
           
-          {/* Navigation Links - Only show for faculty */}
+          {/* Navigation Links */}
           {user?.user_type === 'faculty' && (
             <Box sx={{ display: 'flex', gap: 1, mr: 2 }}>
               <Button
@@ -72,7 +72,27 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <Button
                 color="inherit"
                 startIcon={<SchoolIcon />}
-                onClick={() => navigate('/faculty/degrees')}
+                // onClick to /faculty/degrees removed
+              >
+                Degrees
+              </Button>
+            </Box>
+          )}
+
+          {/* Navigation Links - For students */}
+          {user?.user_type === 'student' && (
+            <Box sx={{ display: 'flex', gap: 1, mr: 2 }}>
+              <Button
+                color="inherit"
+                startIcon={<DashboardIcon />}
+                onClick={() => navigate('/student')}
+              >
+                My Degree
+              </Button>
+              <Button
+                color="inherit"
+                startIcon={<SchoolIcon />}
+                onClick={() => navigate('/student/degrees')}
               >
                 Degrees
               </Button>

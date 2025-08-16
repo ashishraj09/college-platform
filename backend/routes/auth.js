@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body } = require('express-validator');
-const { User, Department, Degree } = require('../models');
+const { User, Department, Degree, Course } = require('../models');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -372,6 +372,144 @@ router.post('/logout',
   // auditMiddleware('logout', 'system', 'User logout'), // Temporarily disabled
   (req, res) => {
   res.json({ message: 'Logged out successfully' });
+});
+
+// Temporary test endpoint to create demo users
+router.post('/create-demo-users', async (req, res) => {
+  try {
+    // Create department first
+    let department = await Department.findOne({ where: { code: 'CS' } });
+    if (!department) {
+      department = await Department.create({
+        name: 'Computer Science',
+        code: 'CS',
+        description: 'Computer Science Department',
+        status: 'active'
+      });
+    }
+
+    // Create degree
+    let degree = await Degree.findOne({ where: { code: 'BSC-CS' } });
+    if (!degree) {
+      degree = await Degree.create({
+        name: 'Bachelor of Science in Computer Science',
+        code: 'BSC-CS',
+        description: 'Computer Science degree program',
+        duration_years: 4,
+        department_id: department.id,
+        status: 'active',
+        courses_per_semester: JSON.stringify({
+          "1": 5, "2": 5, "3": 5, "4": 5,
+          "5": 4, "6": 4, "7": 4, "8": 4
+        })
+      });
+    }
+
+    // Create HOD user
+    const hodEmail = 'hod@example.com';
+    let hodUser = await User.findOne({ where: { email: hodEmail } });
+    if (!hodUser) {
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      hodUser = await User.create({
+        first_name: 'John',
+        last_name: 'Doe',
+        email: hodEmail,
+        password: hashedPassword,
+        user_type: 'faculty',
+        employee_id: 'HOD001',
+        status: 'active',
+        email_verified: true,
+        department_id: department.id,
+        degree_id: degree.id,
+        is_head_of_department: true
+      });
+    }
+
+    // Create student user
+    const studentEmail = 'student@example.com';
+    let studentUser = await User.findOne({ where: { email: studentEmail } });
+    if (!studentUser) {
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      studentUser = await User.create({
+        first_name: 'Jane',
+        last_name: 'Smith',
+        email: studentEmail,
+        password: hashedPassword,
+        user_type: 'student',
+        student_id: 'STU001',
+        status: 'active',
+        email_verified: true,
+        department_id: department.id,
+        degree_id: degree.id,
+        enrolled_date: new Date(),
+        enrolled_year: 2023,
+        current_semester: 3
+      });
+    }
+
+    // Create some courses
+    const courseData = [
+      {
+        name: 'Data Structures and Algorithms',
+        code: 'CS301',
+        overview: 'Fundamental data structures and algorithms',
+        credits: 3,
+        semester: 3,
+        is_elective: false
+      },
+      {
+        name: 'Database Systems',
+        code: 'CS302',
+        overview: 'Introduction to database management systems',
+        credits: 3,
+        semester: 3,
+        is_elective: false
+      },
+      {
+        name: 'Web Development',
+        code: 'CS303',
+        overview: 'Modern web development techniques',
+        credits: 3,
+        semester: 3,
+        is_elective: true
+      }
+    ];
+
+    for (const courseInfo of courseData) {
+      let course = await Course.findOne({ where: { code: courseInfo.code } });
+      if (!course) {
+        course = await Course.create({
+          ...courseInfo,
+          department_id: department.id,
+          degree_id: degree.id,
+          created_by: hodUser.id,
+          status: 'active',
+          study_details: JSON.stringify({
+            learning_objectives: ['Learn fundamental concepts'],
+            topics: ['Basic topics'],
+            assessment_methods: ['Exams', 'Assignments']
+          }),
+          faculty_details: JSON.stringify({
+            primary_instructor: 'Dr. John Doe',
+            co_instructors: [],
+            guest_lecturers: [],
+            lab_instructors: []
+          })
+        });
+      }
+    }
+
+    res.json({ 
+      message: 'Demo users created successfully',
+      users: {
+        hod: { email: 'hod@example.com', password: 'password123' },
+        student: { email: 'student@example.com', password: 'password123' }
+      }
+    });
+  } catch (error) {
+    console.error('Error creating demo users:', error);
+    res.status(500).json({ error: 'Failed to create demo users', details: error.message });
+  }
 });
 
 module.exports = router;

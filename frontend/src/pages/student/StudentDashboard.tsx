@@ -1,49 +1,31 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
+  Container,
+  Paper,
 } from '@mui/material';
+import { useSnackbar } from 'notistack';
+import MyDegreeTab from '../../components/student/MyDegreeTab';
 
 const StudentDashboard: React.FC = () => {
-  return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Student Dashboard
-      </Typography>
-      <Typography variant="body1" color="textSecondary" gutterBottom>
-        Welcome to your student dashboard
-      </Typography>
+  const { enqueueSnackbar } = useSnackbar();
 
-      <Box 
-        display="grid" 
-        gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }}
-        gap={3} 
-        sx={{ mt: 2 }}
-      >
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              My Courses
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              No courses enrolled yet
-            </Typography>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Enrollments
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              No pending enrollments
-            </Typography>
-          </CardContent>
-        </Card>
+  return (
+    <Container maxWidth="xl">
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          My Degree - Course Enrollment
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          Manage your course enrollments for your current semester
+        </Typography>
       </Box>
-    </Box>
+
+      <Paper sx={{ width: '100%', p: 3 }}>
+        <MyDegreeTab />
+      </Paper>
+    </Container>
   );
 };
 

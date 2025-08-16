@@ -15,6 +15,7 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  Typography,
 } from '@mui/material';
 import { School as SchoolIcon } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
@@ -34,6 +35,7 @@ interface DegreeForm {
   department_id: string;
   degree_type: string;
   total_credits: number;
+  courses_per_semester: { [key: string]: number };
   specializations: string;
   career_prospects: string;
   admission_requirements: string;
@@ -65,6 +67,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     department_id: '',
     degree_type: 'Bachelor',
     total_credits: 120,
+    courses_per_semester: {},
     specializations: '',
     career_prospects: '',
     admission_requirements: '',
@@ -145,6 +148,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
       department_id: '',
       degree_type: 'Bachelor',
       total_credits: 120,
+      courses_per_semester: {},
       specializations: '',
       career_prospects: '',
       admission_requirements: '',
@@ -262,6 +266,42 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                   onChange={handleInputChange('total_credits')}
                   inputProps={{ min: 1, max: 300 }}
                 />
+              </Box>
+
+              {/* Courses per Semester Section */}
+              <Box sx={{ mt: 2 }}>
+                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <SchoolIcon color="primary" />
+                  <Typography variant="h6">Courses per Semester</Typography>
+                </Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 2 }}>
+                  {Array.from({ length: form.duration_years * 2 }, (_, index) => {
+                    const semester = index + 1;
+                    return (
+                      <TextField
+                        key={semester}
+                        size="small"
+                        label={`Sem ${semester}`}
+                        type="number"
+                        value={form.courses_per_semester[semester.toString()] || ''}
+                        onChange={(e) => {
+                          const newCoursesPerSemester = { ...form.courses_per_semester };
+                          if (e.target.value) {
+                            newCoursesPerSemester[semester.toString()] = parseInt(e.target.value) || 0;
+                          } else {
+                            delete newCoursesPerSemester[semester.toString()];
+                          }
+                          setForm({ ...form, courses_per_semester: newCoursesPerSemester });
+                        }}
+                        inputProps={{ min: 0, max: 15 }}
+                        placeholder="0"
+                      />
+                    );
+                  })}
+                </Box>
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                  Specify the number of courses for each semester (leave empty if not applicable)
+                </Typography>
               </Box>
 
               <TextField

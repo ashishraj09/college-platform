@@ -1,11 +1,140 @@
 const express = require('express');
 const { body, query } = require('express-validator');
-const router = express.Router();
 const { Degree, Department, User, Course } = require('../models');
 const { Op } = require('sequelize');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
+
+const router = express.Router();
+// Add a comment to degree (conversation timeline)
+router.post('/:id/comment',
+  auditMiddleware('update', 'degree', 'Degree comment added'),
+  async (req, res) => {
+    try {
+      const { text } = req.body;
+      if (!text || text.trim().length < 2) return res.status(400).json({ error: 'Comment text required' });
+      const degree = await Degree.findByPk(req.params.id);
+      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+      const user = req.user || { id: req.body.userId, name: req.body.userName, user_type: req.body.userType };
+      const comment = {
+        text: text.trim(),
+        userId: user.id,
+        userName: user.name,
+        userType: user.user_type,
+        createdAt: new Date()
+      };
+      const comments = Array.isArray(degree.comments) ? degree.comments : [];
+      comments.push(comment);
+      await degree.update({ comments });
+      res.json({ message: 'Comment added', comment });
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+// Submit degree for approval (Faculty only)
+router.patch('/:id/submit',
+  auditMiddleware('update', 'degree', 'Degree submitted for approval'),
+  async (req, res) => {
+    try {
+      const degree = await Degree.findByPk(req.params.id);
+      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+      const user = req.user || { id: req.body.userId, department_id: req.body.departmentId, user_type: 'faculty' };
+      if (!user.id || !user.department_id) return res.status(400).json({ error: 'User context required' });
+      if (degree.created_by && degree.created_by !== user.id) return res.status(403).json({ error: 'Only creator can submit for approval' });
+      if (user.user_type !== 'admin' && user.department_id !== degree.department_id) return res.status(403).json({ error: 'Can only submit degrees in your own department' });
+      if (degree.status !== 'draft') return res.status(400).json({ error: 'Only draft degrees can be submitted' });
+      await degree.update({ status: 'pending_approval', updated_by: user.id });
+      res.json({ message: 'Degree submitted for approval', degree });
+    } catch (error) {
+      console.error('Error submitting degree:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Approve degree (HOD only)
+router.patch('/:id/approve',
+  auditMiddleware('update', 'degree', 'Degree approved'),
+  async (req, res) => {
+    try {
+      const degree = await Degree.findByPk(req.params.id);
+      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+      const user = req.user || { department_id: degree.department_id, is_head_of_department: true };
+      if (user.department_id !== degree.department_id || !user.is_head_of_department) return res.status(403).json({ error: 'Only Head of Department can approve degrees' });
+      if (degree.status !== 'pending_approval') return res.status(400).json({ error: 'Only pending approval degrees can be approved', currentStatus: degree.status });
+      await degree.update({ status: 'approved', approved_by: user.id || req.body.userId, updated_by: user.id || req.body.userId });
+      res.json({ message: 'Degree approved', degree });
+    } catch (error) {
+      console.error('Error approving degree:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Reject degree (HOD only)
+router.patch('/:id/reject',
+  [body('reason').trim().isLength({ min: 10, max: 500 }).withMessage('Rejection reason required (10-500 characters)')],
+  handleValidationErrors,
+  auditMiddleware('update', 'degree', 'Degree rejected'),
+  async (req, res) => {
+    try {
+      const { reason } = req.body;
+      const degree = await Degree.findByPk(req.params.id);
+      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+      const user = req.user || { department_id: degree.department_id, is_head_of_department: true };
+      if (user.department_id !== degree.department_id || !user.is_head_of_department) return res.status(403).json({ error: 'Only Head of Department can reject degrees' });
+      if (degree.status !== 'pending_approval') return res.status(400).json({ error: 'Only pending approval degrees can be rejected' });
+      await degree.update({ status: 'draft', feedback: reason, updated_by: user.id || req.body.userId });
+      res.json({ message: 'Degree rejected', degree });
+    } catch (error) {
+      console.error('Error rejecting degree:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Publish/Activate degree (Faculty only - for approved degrees)
+router.patch('/:id/publish',
+  auditMiddleware('update', 'degree', 'Degree published/activated'),
+  async (req, res) => {
+    try {
+      const degree = await Degree.findByPk(req.params.id);
+      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+      if (degree.status !== 'approved') return res.status(400).json({ error: 'Only approved degrees can be published' });
+      await degree.update({ status: 'active' });
+      res.json({ message: 'Degree published/activated', degree });
+    } catch (error) {
+      console.error('Error publishing degree:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
+// Create new version of degree
+router.post('/:id/create-version',
+  auditMiddleware('create', 'degree', 'Degree version created'),
+  async (req, res) => {
+    try {
+      const degree = await Degree.findByPk(req.params.id);
+      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+      // Create a new version (copy with incremented version)
+      const newVersion = await Degree.create({
+        ...degree.toJSON(),
+        id: undefined,
+        version: (degree.version || 1) + 1,
+        status: 'draft',
+        version_history: [...(degree.version_history || []), { version: degree.version, created_at: new Date() }],
+      });
+      res.status(201).json({ message: 'Degree version created', degree: newVersion });
+    } catch (error) {
+      console.error('Error creating degree version:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
 
 // Degree validation rules
 const degreeValidation = [
@@ -18,7 +147,7 @@ const degreeValidation = [
 
 // Get all degrees with optional filtering
 router.get('/', 
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
   try {
     const {
@@ -57,7 +186,7 @@ router.get('/',
 
 // Get faculty's department degrees (for department overview)
 router.get('/my-degrees', 
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
   try {
     // For development/testing when authentication is disabled
@@ -157,6 +286,9 @@ router.post('/',
         return res.status(409).json({ error: 'Degree code already exists' });
       }
 
+      // Debug: print incoming request body
+      console.log('CREATE DEGREE REQUEST:', JSON.stringify(req.body, null, 2));
+
       // Create degree
       const degree = await Degree.create({
         name: name.trim(),
@@ -165,6 +297,9 @@ router.post('/',
         duration_years,
         department_id,
         status: 'draft', // Default status
+        courses_per_semester: req.body.courses_per_semester || {},
+        enrollment_start_dates: req.body.enrollment_start_dates || {},
+        enrollment_end_dates: req.body.enrollment_end_dates || {},
       });
 
       // Fetch degree with associations
@@ -174,6 +309,8 @@ router.post('/',
         ],
       });
 
+      // Debug: print response data
+      console.log('CREATE DEGREE RESPONSE:', JSON.stringify(createdDegree, null, 2));
       res.status(201).json({
         message: 'Degree created successfully',
         degree: createdDegree,
@@ -223,47 +360,7 @@ router.get('/:id',
       console.error('Error fetching degree:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
-  }
-);
-
-// Get degrees by department
-router.get('/department/:departmentId',
-  // authenticateToken, // Temporarily disabled for testing
-  async (req, res) => {
-    try {
-      const { departmentId } = req.params;
-      
-      // For development/testing when authentication is disabled
-      // Use the departmentId from the request parameters as fallback
-      const user = req.user || { 
-        id: 'temp-user-id',
-        department_id: departmentId,
-        user_type: 'faculty'
-      };
-
-      // Security check: Users can only access degrees from their own department
-      // unless they are admin or office staff
-      if (user.user_type !== 'admin' && user.user_type !== 'office' && user.department_id !== departmentId) {
-        return res.status(403).json({ 
-          error: 'Access denied. You can only access degrees from your own department.' 
-        });
-      }
-
-      const degrees = await Degree.findAll({
-        where: { department_id: departmentId },
-        include: [
-          { model: Department, as: 'department' },
-        ],
-        order: [['name', 'ASC']],
-      });
-
-      res.json({ degrees });
-    } catch (error) {
-      console.error('Error fetching degrees by department:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-);
+  });
 
 // Update degree (Faculty only - same department)
 router.put('/:id',
@@ -298,7 +395,26 @@ router.put('/:id',
       }
 
       const updatedFields = {};
-      const allowedFields = ['name', 'code', 'description', 'duration_years'];
+      const allowedFields = [
+        'name',
+        'code',
+        'description',
+        'duration_years',
+        'courses_per_semester',
+        'enrollment_start_dates',
+        'enrollment_end_dates',
+        'status',
+        'prerequisites',
+        'study_details',
+        'faculty_details',
+        'version',
+        'version_history',
+        'feedback',
+        'approval_history',
+        'created_by',
+        'updated_by',
+        'approved_by'
+      ];
 
       allowedFields.forEach(field => {
         if (req.body[field] !== undefined) {
@@ -310,6 +426,9 @@ router.put('/:id',
         updatedFields.code = updatedFields.code.toUpperCase();
       }
 
+      // Debug: print incoming request body
+      console.log('UPDATE DEGREE REQUEST:', JSON.stringify(req.body, null, 2));
+
       await degree.update(updatedFields);
 
       const updatedDegree = await Degree.findByPk(degree.id, {
@@ -318,6 +437,8 @@ router.put('/:id',
         ],
       });
 
+      // Debug: print response data
+      console.log('UPDATE DEGREE RESPONSE:', JSON.stringify(updatedDegree, null, 2));
       res.json({
         message: 'Degree updated successfully',
         degree: updatedDegree,
@@ -338,8 +459,7 @@ router.put('/:id',
 
       res.status(500).json({ error: 'Internal server error' });
     }
-  }
-);
+  });
 
 // Submit degree for approval (Faculty only)
 router.patch('/:id/submit',
@@ -374,8 +494,7 @@ router.patch('/:id/submit',
       console.error('Error submitting degree:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
-  }
-);
+  });
 
 // Approve degree (HOD only)
 router.patch('/:id/approve',
@@ -412,8 +531,7 @@ router.patch('/:id/approve',
       console.error('Error approving degree:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
-  }
-);
+  });
 
 // Delete degree (Faculty - same department, Admin)
 router.delete('/:id',
@@ -456,7 +574,6 @@ router.delete('/:id',
       console.error('Error deleting degree:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
-  }
-);
+  });
 
 module.exports = router;

@@ -86,6 +86,14 @@ const User = sequelize.define('User', {
       max: new Date().getFullYear() + 10,
     },
   },
+  current_semester: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    validate: {
+      min: 1,
+      max: 8,
+    },
+  },
   is_head_of_department: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,

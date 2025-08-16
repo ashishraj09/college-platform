@@ -16,6 +16,12 @@ import {
   Alert,
   IconButton,
   Divider,
+  Checkbox,
+  FormControlLabel,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material';
 import {
   CheckCircle as ApproveIcon,
@@ -25,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { coursesAPI, degreesAPI } from '../../services/api';
+import { enrollmentAPI } from '../../services/enrollmentApi';
 
 interface ApprovalItem {
   id: string;
@@ -45,11 +52,38 @@ interface ApprovalItem {
   status: string;
 }
 
+interface PendingEnrollment {
+  id: string;
+  academic_year: string;
+  semester: number;
+  enrollment_status: string;
+  createdAt: string;
+  student: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    student_id: string;
+    degree: {
+      name: string;
+      code: string;
+    };
+  };
+  course: {
+    id: string;
+    name: string;
+    code: string;
+    credits: number;
+    semester: number;
+  };
+}
+
 const HODApprovalDashboard: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState(0);
   const [pendingCourses, setPendingCourses] = useState<any[]>([]);
   const [pendingDegrees, setPendingDegrees] = useState<any[]>([]);
+  const [pendingEnrollments, setPendingEnrollments] = useState<PendingEnrollment[]>([]);
+  const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<ApprovalItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -79,9 +113,10 @@ const HODApprovalDashboard: React.FC = () => {
   const loadPendingItems = async () => {
     try {
       setLoading(true);
-      const [coursesResponse, degreesResponse] = await Promise.all([
+      const [coursesResponse, degreesResponse, enrollmentsResponse] = await Promise.all([
         coursesAPI.getCourses({ status: 'pending_approval' }),
-        degreesAPI.getDegrees({ status: 'pending_approval' })
+        degreesAPI.getDegrees({ status: 'pending_approval' }),
+        enrollmentAPI.getPendingApprovals({})
       ]);
       
       // Transform courses to match ApprovalItem interface
@@ -109,6 +144,7 @@ const HODApprovalDashboard: React.FC = () => {
       
       setPendingCourses(transformedCourses);
       setPendingDegrees(transformedDegrees);
+      setPendingEnrollments(enrollmentsResponse.pendingApprovals || []);
     } catch (error) {
       console.error('Error loading pending items:', error);
       enqueueSnackbar('Failed to load pending approvals', { variant: 'error' });
@@ -195,6 +231,76 @@ const HODApprovalDashboard: React.FC = () => {
       loadPendingItems();
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Failed to reject item';
+      enqueueSnackbar(errorMessage, { variant: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEnrollmentSelection = (enrollmentId: string) => {
+    setSelectedEnrollments(prev => 
+      prev.includes(enrollmentId)
+        ? prev.filter(id => id !== enrollmentId)
+        : [...prev, enrollmentId]
+    );
+  };
+
+  const handleApproveEnrollments = async () => {
+    if (selectedEnrollments.length === 0) {
+      enqueueSnackbar('Please select at least one enrollment to approve', { variant: 'warning' });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await enrollmentAPI.hodDecision({
+        enrollment_ids: selectedEnrollments,
+        action: 'approve'
+      });
+
+      enqueueSnackbar(`${selectedEnrollments.length} enrollment(s) approved successfully`, { 
+        variant: 'success' 
+      });
+      
+      setSelectedEnrollments([]);
+      loadPendingItems();
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to approve enrollments';
+      enqueueSnackbar(errorMessage, { variant: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectEnrollments = async () => {
+    if (selectedEnrollments.length === 0) {
+      enqueueSnackbar('Please select at least one enrollment to reject', { variant: 'warning' });
+      return;
+    }
+
+    const trimmedReason = rejectReason.trim();
+    if (!trimmedReason) {
+      enqueueSnackbar('Please provide a rejection reason', { variant: 'error' });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await enrollmentAPI.hodDecision({
+        enrollment_ids: selectedEnrollments,
+        action: 'reject',
+        rejection_reason: trimmedReason
+      });
+
+      enqueueSnackbar(`${selectedEnrollments.length} enrollment(s) rejected successfully`, { 
+        variant: 'success' 
+      });
+      
+      setSelectedEnrollments([]);
+      setRejectReason('');
+      loadPendingItems();
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to reject enrollments';
       enqueueSnackbar(errorMessage, { variant: 'error' });
     } finally {
       setActionLoading(false);
@@ -289,6 +395,7 @@ const HODApprovalDashboard: React.FC = () => {
           <Tabs value={activeTab} onChange={handleTabChange}>
             <Tab label={`Pending Courses (${pendingCourses.length})`} />
             <Tab label={`Pending Degrees (${pendingDegrees.length})`} />
+            <Tab label={`Pending Enrollments (${pendingEnrollments.length})`} />
           </Tabs>
         </Box>
 
@@ -313,6 +420,104 @@ const HODApprovalDashboard: React.FC = () => {
                 </Alert>
               ) : (
                 pendingDegrees.map((degree) => renderApprovalCard(degree, 'degree'))
+              )}
+            </Box>
+          )}
+
+          {activeTab === 2 && (
+            <Box>
+              {pendingEnrollments.length === 0 ? (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  No student enrollments pending approval
+                </Alert>
+              ) : (
+                <>
+                  {/* Bulk Action Controls */}
+                  <Box sx={{ mb: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Bulk Actions ({selectedEnrollments.length} selected)
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        startIcon={<ApproveIcon />}
+                        onClick={handleApproveEnrollments}
+                        disabled={selectedEnrollments.length === 0 || actionLoading}
+                      >
+                        Approve Selected
+                      </Button>
+                      <TextField
+                        size="small"
+                        placeholder="Rejection reason (required for reject)"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        sx={{ minWidth: 250 }}
+                      />
+                      <Button
+                        variant="contained"
+                        color="error"
+                        startIcon={<RejectIcon />}
+                        onClick={handleRejectEnrollments}
+                        disabled={selectedEnrollments.length === 0 || actionLoading || !rejectReason.trim()}
+                      >
+                        Reject Selected
+                      </Button>
+                    </Box>
+                  </Box>
+
+                  {/* Enrollment List */}
+                  <List>
+                    {pendingEnrollments.map((enrollment) => (
+                      <ListItem key={enrollment.id} divider>
+                        <ListItemIcon>
+                          <Checkbox
+                            checked={selectedEnrollments.includes(enrollment.id)}
+                            onChange={() => handleEnrollmentSelection(enrollment.id)}
+                          />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={
+                            <Box>
+                              <Typography variant="subtitle1" component="div">
+                                {enrollment.student.first_name} {enrollment.student.last_name} ({enrollment.student.student_id})
+                              </Typography>
+                              <Typography variant="body2" color="textSecondary" component="div">
+                                Course: {enrollment.course.name} ({enrollment.course.code})
+                              </Typography>
+                            </Box>
+                          }
+                          secondary={
+                            <Box sx={{ mt: 1 }}>
+                              <Chip 
+                                label={`${enrollment.course.credits} Credits`} 
+                                size="small" 
+                                sx={{ mr: 1 }} 
+                              />
+                              <Chip 
+                                label={`Semester ${enrollment.semester}`} 
+                                size="small" 
+                                sx={{ mr: 1 }} 
+                              />
+                              <Chip 
+                                label={enrollment.academic_year} 
+                                size="small" 
+                                color="primary" 
+                                sx={{ mr: 1 }} 
+                              />
+                              <Typography variant="caption" color="textSecondary" component="div" sx={{ mt: 1 }}>
+                                Degree: {enrollment.student.degree.name} ({enrollment.student.degree.code})
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary" component="div">
+                                Submitted: {new Date(enrollment.createdAt).toLocaleDateString()}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </>
               )}
             </Box>
           )}

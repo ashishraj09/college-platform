@@ -123,10 +123,6 @@ const Course = sequelize.define('Course', {
     type: DataTypes.DATE,
     allowNull: true,
   },
-  rejection_reason: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
   status: {
     type: DataTypes.ENUM('draft', 'submitted', 'pending_approval', 'approved', 'pending_activation', 'active', 'disabled', 'archived'),
     defaultValue: 'draft',

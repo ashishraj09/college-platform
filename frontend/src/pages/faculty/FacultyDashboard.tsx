@@ -5,741 +5,393 @@ import {
   Card,
   CardContent,
   CardActions,
-  Button,
   Box,
   Chip,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Paper,
   Alert,
-  Badge,
   Tabs,
   Tab,
+  Button,
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Edit as EditIcon,
-  Visibility as VisibilityIcon,
   School as SchoolIcon,
-  Send as SendIcon,
-  CheckCircle as ApproveIcon,
-  Publish as PublishIcon,
-  Delete as DeleteIcon,
+  MenuBook as CourseIcon,
   Drafts as DraftIcon,
   PendingActions as PendingIcon,
+  CheckCircle as ApproveIcon,
   PlayArrow as ActiveIcon,
-  Business as DepartmentIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { coursesAPI, degreesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
 import CreateCourseDialog from '../../components/faculty/CreateCourseDialog';
-import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
-import HODApprovalDashboard from '../../components/hod/HODApprovalDashboard';
-import LoadingButton from '../../components/common/LoadingButton';
+// import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
 import EditCourseConfirmationDialog from '../../components/faculty/EditCourseConfirmationDialog';
-
-interface Course {
-  id: string;
-  name: string;
-  code: string; // Base course code (e.g., "76Y67Y767")
-  version_code?: string; // Virtual field for display - versioned code (e.g., "76Y67Y767_V2")
-  overview: string;
-  credits: number;
-  semester: number;
-  status: 'draft' | 'submitted' | 'pending_approval' | 'approved' | 'pending_activation' | 'active' | 'disabled' | 'archived';
-  is_elective: boolean;
-  rejection_reason?: string;
-  version: number;
-  parent_course_id?: string;
-  is_latest_version: boolean;
-  createdAt: string;
-  updatedAt: string;
-  department?: {
-    name: string;
-    code: string;
-  };
-  degree?: {
-    name: string;
-    code: string;
-  };
-  creator?: {
-    id: string;
-    first_name: string;
-    last_name: string;
-  };
-}
-
-interface Degree {
-  id: string;
-  name: string;
-  code: string;
-  description?: string;
-  duration_years: number;
-  status: string;
-  createdAt: string;
-  department?: {
-    name: string;
-    code: string;
-  };
-}
+import DegreeDialog from '../../components/common/DegreeDialog';
+import SubmitForApprovalDialog from '../../components/common/SubmitForApprovalDialog';
+import {
+  getAvailableEntityActions,
+  handleEntityAction,
+  getStatusIcon,
+  EntityType,
+  Entity,
+} from './facultyDashboardHelpers';
 
 const FacultyDashboard: React.FC = () => {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [degrees, setDegrees] = useState<Degree[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [degrees, setDegrees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [currentTab, setCurrentTab] = useState(0);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [courseToEdit, setCourseToEdit] = useState<Course | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDegreeDialogOpen, setCreateDegreeDialogOpen] = useState(false);
-  const [submitLoading, setSubmitLoading] = useState<Record<string, boolean>>({});
-  const [editConfirmationOpen, setEditConfirmationOpen] = useState(false);
-  const [pendingEditCourse, setPendingEditCourse] = useState<Course | null>(null);
-  const [versioningLoading, setVersioningLoading] = useState(false);
-  const navigate = useNavigate();
+  const [mainTab, setMainTab] = useState(0); // 0: Courses, 1: Degrees
+  const [courseTab, setCourseTab] = useState(0);
+  const [degreeTab, setDegreeTab] = useState(0);
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
-
-  // Check if user is HOD (Head of Department)
+  const navigate = useNavigate();
   const isHOD = user?.is_head_of_department === true;
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      
-      const [coursesData, degreesData] = await Promise.all([
-        coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
-        degreesAPI.getFacultyDegrees(user?.department?.id),
-      ]);
-      
-      // Handle courses data - the API returns { all: courses, categorized, summary }
-      if (coursesData && coursesData.all) {
-        setCourses(coursesData.all);
-      } else if (Array.isArray(coursesData)) {
-        setCourses(coursesData);
-      } else {
-        setCourses([]);
-      }
-      
-      // Handle degrees data - check multiple possible structures
-      let degrees = [];
-      if (degreesData?.all) {
-        degrees = degreesData.all;
-      } else if (Array.isArray(degreesData)) {
-        degrees = degreesData;
-      } else if (degreesData?.data) {
-        degrees = Array.isArray(degreesData.data) ? degreesData.data : degreesData.data.all || [];
-      }
-      setDegrees(degrees);
-      
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      enqueueSnackbar('Error loading data. Please try again.', { variant: 'error' });
-      // Set empty arrays on error to prevent further crashes
-      setCourses([]);
-      setDegrees([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [editCourseDialogOpen, setEditCourseDialogOpen] = useState(false);
+  const [courseToEdit, setCourseToEdit] = useState<Entity | null>(null);
+  const [editDegreeDialogOpen, setEditDegreeDialogOpen] = useState(false);
+  const [degreeToEdit, setDegreeToEdit] = useState<Entity | null>(null);
+  const [submitCourseDialogOpen, setSubmitCourseDialogOpen] = useState(false);
+  const [courseToSubmit, setCourseToSubmit] = useState<Entity | null>(null);
+  const [submitDegreeDialogOpen, setSubmitDegreeDialogOpen] = useState(false);
+  const [degreeToSubmit, setDegreeToSubmit] = useState<Entity | null>(null);
+  // Add create dialogs
+  const [createCourseDialogOpen, setCreateCourseDialogOpen] = useState(false);
+  const [createDegreeDialogOpen, setCreateDegreeDialogOpen] = useState(false);
+  const [degreeDialogMode, setDegreeDialogMode] = useState<'create' | 'edit'>('create');
+  const [degreeDialogData, setDegreeDialogData] = useState<any>(null);
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return 'default';
-      case 'submitted':
-      case 'pending_approval':
-        return 'info';
-      case 'approved':
-        return 'success';
-      case 'pending_activation':
-        return 'secondary';
-      case 'active':
-        return 'success';
-      case 'disabled':
-        return 'error';
-      case 'archived':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return <DraftIcon />;
-      case 'submitted':
-      case 'pending_approval':
-        return <PendingIcon />;
-      case 'approved':
-        return <ApproveIcon />;
-      case 'active':
-        return <ActiveIcon />;
-      default:
-        return <SchoolIcon />;
-    }
-  };
-
-  const getAvailableActions = (course: Course) => {
-    const actions = [];
-
-    // Basic actions based on status (for course creator)
-    switch (course.status) {
-      case 'draft':
-        actions.push(
-          { action: 'edit', label: 'Edit Course', icon: <EditIcon /> },
-          { action: 'submit', label: 'Submit for Approval', icon: <SendIcon /> },
-          { action: 'delete', label: 'Delete Course', icon: <DeleteIcon /> }
-        );
-        break;
-      case 'submitted':
-      case 'pending_approval':
-        actions.push(
-          { action: 'view', label: 'View Course', icon: <VisibilityIcon /> }
-        );
-        // Add HOD actions for pending approval courses
-        if (isHOD && course.status === 'pending_approval') {
-          actions.push(
-            { action: 'approve', label: 'Approve Course', icon: <ApproveIcon /> }
-          );
-        }
-        break;
-      case 'approved':
-        actions.push(
-          { action: 'edit', label: 'Edit Course', icon: <EditIcon /> },
-          { action: 'publish', label: 'Publish Course', icon: <PublishIcon /> },
-          { action: 'view', label: 'View Course', icon: <VisibilityIcon /> }
-        );
-        break;
-      case 'active':
-        actions.push(
-          { action: 'edit', label: 'Edit Course', icon: <EditIcon /> },
-          { action: 'view', label: 'View Course', icon: <VisibilityIcon /> }
-        );
-        break;
-      default:
-        actions.push(
-          { action: 'view', label: 'View Course', icon: <VisibilityIcon /> }
-        );
-    }
-
-    return actions;
-  };
-
-  const handleCourseAction = async (action: string, course: Course) => {
-    try {
-      switch (action) {
-        case 'edit':
-          // Show confirmation dialog for approved/active courses
-          setPendingEditCourse(course);
-          setEditConfirmationOpen(true);
-          break;
-        case 'view':
-          navigate(`/faculty/course/${course.id}`);
-          break;
-        case 'submit':
-          setSubmitLoading(prev => ({ ...prev, [course.id]: true }));
-          await coursesAPI.submitCourse(course.id, user?.id, user?.department?.id);
-          enqueueSnackbar('Course submitted for approval successfully!', { variant: 'success' });
-          loadData();
-          break;
-        case 'approve':
-          if (window.confirm('Are you sure you want to approve this course?')) {
-            await coursesAPI.approveCourse(course.id);
-            enqueueSnackbar('Course approved successfully!', { variant: 'success' });
-            loadData();
-          }
-          break;
-        case 'publish':
-          await coursesAPI.publishCourse(course.id, user?.id, user?.department?.id);
-          enqueueSnackbar('Course published successfully!', { variant: 'success' });
-          loadData();
-          break;
-        case 'delete':
-          if (window.confirm('Are you sure you want to delete this course?')) {
-            await coursesAPI.deleteCourse(course.id, user?.id, user?.department?.id);
-            enqueueSnackbar('Course deleted successfully!', { variant: 'success' });
-            loadData();
-          }
-          break;
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [coursesData, degreesData] = await Promise.all([
+          coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
+          degreesAPI.getFacultyDegrees(user?.department?.id),
+        ]);
+        setCourses(coursesData?.all || []);
+        setDegrees(degreesData?.all || []);
+      } catch (err) {
+        enqueueSnackbar('Error loading data', { variant: 'error' });
+        setCourses([]);
+        setDegrees([]);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error(`Error performing ${action} on course:`, error);
-      enqueueSnackbar(`Error ${action}ing course. Please try again.`, { variant: 'error' });
-    } finally {
-      if (action === 'submit') {
-        setSubmitLoading(prev => ({ ...prev, [course.id]: false }));
-      }
-    }
-  };
-
-  const handleEditConfirmation = async () => {
-    if (!pendingEditCourse) return;
-
-    try {
-      setVersioningLoading(true);
-      
-      // Check if the course can be edited first
-      const canEditResponse = await coursesAPI.checkCanEdit(pendingEditCourse.id);
-      
-      if (!canEditResponse.canEdit) {
-        enqueueSnackbar(canEditResponse.reason, { variant: 'error' });
-        setVersioningLoading(false);
-        setEditConfirmationOpen(false);
-        setPendingEditCourse(null);
-        return;
-      }
-      
-      const isApprovedOrActive = ['approved', 'active'].includes(pendingEditCourse.status);
-      
-      if (isApprovedOrActive) {
-        // Create new version for approved/active courses
-        const response = await coursesAPI.createCourseVersion(pendingEditCourse.id);
-        enqueueSnackbar(`Version ${response.version} created successfully!`, { variant: 'success' });
-        
-        // Set the new version as the course to edit
-        setCourseToEdit(response.course);
-        loadData(); // Refresh the course list
-      } else {
-        // Direct edit for draft/pending courses
-        setCourseToEdit(pendingEditCourse);
-      }
-      
-      setEditDialogOpen(true);
-    } catch (error) {
-      console.error('Error handling course edit:', error);
-      enqueueSnackbar('Error preparing course for editing. Please try again.', { variant: 'error' });
-    } finally {
-      setVersioningLoading(false);
-      setEditConfirmationOpen(false);
-      setPendingEditCourse(null);
-    }
-  };
-
-  const handleEditConfirmationCancel = () => {
-    setEditConfirmationOpen(false);
-    setPendingEditCourse(null);
-  };
-
-  const getStatusCounts = () => {
-    const counts = {
-      draft: 0,
-      pending_approval: 0,
-      approved: 0,
-      active: 0
     };
+    loadData();
+  }, [user]);
 
-    courses.forEach(course => {
-      if (counts.hasOwnProperty(course.status)) {
-        counts[course.status as keyof typeof counts]++;
+  const handleAction = async (
+    action: string,
+    entity: Entity,
+    type: EntityType
+  ) => {
+    if (action === 'submit') {
+      if (type === 'course') {
+        setCourseToSubmit(entity);
+        setSubmitCourseDialogOpen(true);
+      } else {
+        setDegreeToSubmit(entity);
+        setSubmitDegreeDialogOpen(true);
       }
-    });
-
-    return counts;
-  };
-
-  const getCoursesByStatus = (status: string) => {
-    return courses.filter(course => course.status === status);
-  };
-
-  const statusCounts = getStatusCounts();
-
-  const tabsConfig = [
-    { 
-      key: 'draft', 
-      label: 'Draft', 
-      icon: <DraftIcon />, 
-      color: 'default',
-      courses: getCoursesByStatus('draft')
-    },
-    { 
-      key: 'pending_approval', 
-      label: 'Pending Approval', 
-      icon: <PendingIcon />, 
-      color: 'info',
-      courses: getCoursesByStatus('pending_approval').concat(getCoursesByStatus('submitted'))
-    },
-    { 
-      key: 'approved', 
-      label: 'Approved', 
-      icon: <ApproveIcon />, 
-      color: 'success',
-      courses: getCoursesByStatus('approved')
-    },
-    { 
-      key: 'active', 
-      label: 'Active', 
-      icon: <ActiveIcon />, 
-      color: 'success',
-      courses: getCoursesByStatus('active')
+      return;
     }
-  ];
-
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setCurrentTab(newValue);
+    if (action === 'edit') {
+      if (type === 'course') {
+        setCourseToEdit(entity);
+        setEditCourseDialogOpen(true);
+      } else {
+        setDegreeToEdit(entity);
+        setEditDegreeDialogOpen(true);
+      }
+      return;
+    }
+    // Add navigation for view
+    if (action === 'view') {
+      if (type === 'course') {
+        navigate(`/faculty/course/${entity.id}`);
+      }
+      // Add degree view navigation if available
+      return;
+    }
+    // Add other actions as needed
   };
-
-  const renderCourseCard = (course: Course) => {
-    const actions = getAvailableActions(course);
-    
-    return (
-      <Card key={course.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
-        <CardContent sx={{ flexGrow: 1 }}>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h6" component="h2">
-              {course.name}
-            </Typography>
-          </Box>
-          
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            {course.version_code || course.code} • {course.credits} Credits • Semester {course.semester}
-          </Typography>
-          
-          <Typography variant="body2" sx={{ mb: 2 }} noWrap>
-            {course.overview}
-          </Typography>
-
-          {course.rejection_reason && course.status === 'draft' && (
-            <Alert 
-              severity="error" 
-              variant="outlined"
-              sx={{ 
-                mb: 2,
-                '& .MuiAlert-message': { width: '100%' },
-                '& .MuiAlert-icon': { alignItems: 'flex-start', mt: '2px' }
-              }}
-            >
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
-                  📋 Course Requires Revision
-                </Typography>
-                <Typography variant="body2" sx={{ lineHeight: 1.5, color: 'error.dark' }}>
-                  {course.rejection_reason}
-                </Typography>
-                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'error.light' }}>
-                  <Typography variant="caption" sx={{ color: 'error.main', fontStyle: 'italic' }}>
-                    💡 Please address the feedback above and resubmit your course for approval.
-                  </Typography>
-                </Box>
-              </Box>
-            </Alert>
-          )}
-
-          {course.department && (
-            <Typography variant="caption" display="block" sx={{ mb: 1 }}>
-              <DepartmentIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-              {course.department.name}
-            </Typography>
-          )}
-
-          {course.degree && (
-            <Typography variant="caption" display="block" sx={{ mb: 2 }}>
-              <SchoolIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-              {course.degree.name}
-            </Typography>
-          )}
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip
-              icon={getStatusIcon(course.status)}
-              label={course.status.replace('_', ' ').toUpperCase()}
-              color={getStatusColor(course.status) as any}
-              size="small"
-            />
-            {course.is_elective && (
-              <Chip label="Elective" variant="outlined" size="small" />
-            )}
-          </Box>
-        </CardContent>
-
-        <CardActions sx={{ pt: 0 }}>
-          {actions.map((action, index) => (
-            action.action === 'submit' ? (
-              <LoadingButton
-                key={index}
-                size="small"
-                startIcon={action.icon}
-                onClick={() => handleCourseAction(action.action, course)}
-                loading={submitLoading[course.id] || false}
-                loadingText="Submitting..."
-                disabled={submitLoading[course.id] || false}
-              >
-                {action.label}
-              </LoadingButton>
-            ) : (
-              <Button
-                key={index}
-                size="small"
-                startIcon={action.icon}
-                onClick={() => handleCourseAction(action.action, course)}
-              >
-                {action.label}
-              </Button>
-            )
-          ))}
-        </CardActions>
-      </Card>
-    );
-  };
-
-  // Filter courses to show actionable statuses
-  const actionableCourses = courses.filter(course => 
-    ['draft', 'approved', 'pending_approval', 'active', 'submitted'].includes(course.status)
-  );
-
-  const totalCourses = actionableCourses.length;
 
   if (loading) {
     return (
-      <Container>
+      <Container maxWidth="xl">
         <Typography>Loading...</Typography>
       </Container>
     );
   }
 
+  // Status configs for tabs and overview
+  const STATUS_CONFIG = [
+    { key: 'draft', label: 'Draft', color: 'default', icon: <DraftIcon style={{ fontSize: 40, color: '#616161' }} /> },
+    { key: 'pending_approval', label: 'Pending Approval', color: 'info', icon: <PendingIcon style={{ fontSize: 40, color: '#0288d1' }} /> },
+    { key: 'approved', label: 'Approved', color: 'success', icon: <ApproveIcon style={{ fontSize: 40, color: '#2e7d32' }} /> },
+    { key: 'active', label: 'Active', color: 'success', icon: <ActiveIcon style={{ fontSize: 40, color: '#388e3c' }} /> },
+  ];
+
+  // Tab configs for courses and degrees
+  const courseTabsConfig = [
+    { key: 'draft', label: 'Draft', color: 'default', icon: <DraftIcon style={{ fontSize: 24, color: '#616161' }} />, entities: courses.filter(c => c.status === 'draft') },
+    { key: 'pending_approval', label: 'Pending Approval', color: 'info', icon: <PendingIcon style={{ fontSize: 24, color: '#0288d1' }} />, entities: courses.filter(c => c.status === 'pending_approval' || c.status === 'submitted') },
+    { key: 'approved', label: 'Approved', color: 'success', icon: <ApproveIcon style={{ fontSize: 24, color: '#2e7d32' }} />, entities: courses.filter(c => c.status === 'approved') },
+    { key: 'active', label: 'Active', color: 'success', icon: <ActiveIcon style={{ fontSize: 24, color: '#388e3c' }} />, entities: courses.filter(c => c.status === 'active') },
+  ];
+  const degreeTabsConfig = [
+    { key: 'draft', label: 'Draft', color: 'default', icon: <DraftIcon style={{ fontSize: 24, color: '#616161' }} />, entities: degrees.filter(d => d.status === 'draft') },
+    { key: 'pending_approval', label: 'Pending Approval', color: 'info', icon: <PendingIcon style={{ fontSize: 24, color: '#0288d1' }} />, entities: degrees.filter(d => d.status === 'pending_approval' || d.status === 'submitted') },
+    { key: 'approved', label: 'Approved', color: 'success', icon: <ApproveIcon style={{ fontSize: 24, color: '#2e7d32' }} />, entities: degrees.filter(d => d.status === 'approved') },
+    { key: 'active', label: 'Active', color: 'success', icon: <ActiveIcon style={{ fontSize: 24, color: '#388e3c' }} />, entities: degrees.filter(d => d.status === 'active') },
+  ];
+
+  // Status overview component
+  const StatusOverview = ({ items, statusConfig, title }: { items: any[]; statusConfig: any[]; title: React.ReactNode }) => {
+    const getStatusCounts = () => {
+      const counts: Record<string, number> = {};
+      statusConfig.forEach(cfg => { counts[cfg.key] = 0; });
+      items.forEach(item => {
+        if (counts.hasOwnProperty(item.status)) {
+          counts[item.status]++;
+        }
+      });
+      return counts;
+    };
+    const statusCounts = getStatusCounts();
+    return (
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+        {statusConfig.map(({ key, label, color, icon }) => (
+          <Card key={key} sx={{ textAlign: 'center', minWidth: 180, p: 2 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
+                {icon}
+              </Box>
+              <Typography variant="h4">{statusCounts[key]}</Typography>
+              <Typography variant="body2" color="text.secondary">{label}</Typography>
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
+    );
+  };
+
+  // Entity card renderer
+  const FacultyItemCard = ({ item, actions, onAction }: { item: any; actions: any[]; onAction: (action: string, item: any) => void }) => (
+    <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
+      <CardContent sx={{ flexGrow: 1 }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h6" component="h2">{item.name}</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            {/* ...existing code... */}
+        </Box>
+        {/* ...existing code... */}
+        {item.department && (
+          <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+            Dept: {item.department.name}
+          </Typography>
+        )}
+        {item.degree && (
+          <Typography variant="caption" display="block" sx={{ mb: 2 }}>
+            Degree: {item.degree.name}
+          </Typography>
+        )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            {item.is_elective && <Chip label="Elective" variant="outlined" size="small" />}
+          </Box>
+        <Typography variant="body2" color="text.secondary" gutterBottom>
+          {(item.version_code || item.code) + (item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : '')}
+        </Typography>
+        <Typography variant="body2" sx={{ mb: 2 }} noWrap>{item.overview || item.description}</Typography>
+        {item.rejection_reason && item.status === 'draft' && (
+          <Alert severity="error" variant="outlined" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
+              📋 Requires Revision
+            </Typography>
+            <Typography variant="body2" sx={{ lineHeight: 1.5, color: 'error.dark' }}>
+              {item.rejection_reason}
+            </Typography>
+            <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'error.light' }}>
+              <Typography variant="caption" sx={{ color: 'error.main', fontStyle: 'italic' }}>
+                💡 Please address the feedback above and resubmit for approval.
+              </Typography>
+            </Box>
+          </Alert>
+        )}
+          {/* ...existing code... */}
+      </CardContent>
+      <CardActions sx={{ pt: 0 }}>
+        {actions.map((action, index) => (
+          <Button key={index} size="small" startIcon={action.icon} onClick={() => onAction(action.action, item)}>
+            {action.label}
+          </Button>
+        ))}
+      </CardActions>
+    </Card>
+  );
+
   return (
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Faculty Dashboard
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Manage your courses and degrees
-        </Typography>
+        <Typography variant="h4" gutterBottom>Faculty Dashboard</Typography>
+        <Typography variant="body1" color="text.secondary">Manage your courses and degrees</Typography>
       </Box>
-
-      {/* Status Overview Cards */}
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <SchoolIcon /> Course Status Overview
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {[
-            { key: 'draft', label: 'Draft', icon: <DraftIcon />, color: 'default' },
-            { key: 'pending_approval', label: 'Pending Approval', icon: <PendingIcon />, color: 'info' },
-            { key: 'approved', label: 'Approved', icon: <ApproveIcon />, color: 'success' },
-            { key: 'active', label: 'Active', icon: <ActiveIcon />, color: 'success' }
-          ].map(({ key, label, icon, color }) => (
-            <Card key={key} sx={{ textAlign: 'center', minWidth: 180, p: 2 }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                  <Badge badgeContent={key === 'pending_approval' ? 
-                    (statusCounts.pending_approval || 0) + getCoursesByStatus('submitted').length : 
-                    statusCounts[key as keyof typeof statusCounts]} color={color as any}>
-                    {React.cloneElement(icon, { sx: { fontSize: 40, color: `${color}.main` } })}
-                  </Badge>
-                </Box>
-                <Typography variant="h4" component="div">
-                  {key === 'pending_approval' ? 
-                    (statusCounts.pending_approval || 0) + getCoursesByStatus('submitted').length : 
-                    statusCounts[key as keyof typeof statusCounts]}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {label}
-                </Typography>
-              </CardContent>
-            </Card>
-          ))}
-        </Box>
-      </Paper>
-
-      {/* Course Management Section */}
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <SchoolIcon /> My Courses ({totalCourses})
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            {isHOD && (
-              <Button
-                variant="outlined"
-                startIcon={<SchoolIcon />}
-                onClick={() => setCreateDegreeDialogOpen(true)}
-              >
-                Create Degree
-              </Button>
-            )}
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              Create New Course
-            </Button>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 3 }}>
+        <Button
+          variant="outlined"
+          startIcon={<SchoolIcon />}
+          onClick={() => {
+            setDegreeDialogMode('create');
+            setDegreeDialogData(null);
+            setCreateDegreeDialogOpen(true);
+          }}
+        >
+          Create Degree
+        </Button>
+        <Button
+          variant="contained"
+          startIcon={<CourseIcon />}
+          onClick={() => setCreateCourseDialogOpen(true)}
+        >
+          Create New Course
+        </Button>
+      </Box>
+      <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)} sx={{ mb: 3 }}>
+        <Tab label="Courses" />
+        <Tab label="Degrees" />
+      </Tabs>
+      {/* Courses Tab */}
+      {mainTab === 0 && (
+        <>
+          <StatusOverview items={courses} statusConfig={STATUS_CONFIG} title={<span>Course Status Overview</span>} />
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              My Courses ({courses.length})
+            </Typography>
           </Box>
-        </Box>
-        
-        {totalCourses === 0 ? (
-          <Alert severity="info">
-            No courses found. Create your first course to get started!
-          </Alert>
-        ) : (
-          <>
-            <Tabs 
-              value={currentTab} 
-              onChange={handleTabChange} 
-              variant="fullWidth"
-              sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
-            >
-              {tabsConfig.map((tab, index) => (
-                <Tab
-                  key={tab.key}
-                  icon={tab.icon}
-                  iconPosition="start"
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {tab.label}
-                      <Badge 
-                        badgeContent={tab.courses.length} 
-                        color={tab.color as any}
-                        sx={{ ml: 1 }}
-                      />
-                    </Box>
-                  }
-                  sx={{
-                    minHeight: 48,
-                    textTransform: 'none',
-                    fontSize: '0.9rem',
-                    fontWeight: currentTab === index ? 600 : 400,
-                  }}
-                />
-              ))}
-            </Tabs>
-
-            {tabsConfig.map((tab, index) => (
-              <Box 
-                key={tab.key}
-                role="tabpanel"
-                hidden={currentTab !== index}
-                sx={{ mt: 2 }}
-              >
-                {currentTab === index && (
-                  <>
-                    {tab.courses.length === 0 ? (
-                      <Alert severity="info" sx={{ mt: 2 }}>
-                        No courses in {tab.label.toLowerCase()} status.
-                      </Alert>
-                    ) : (
-                      <>
-                        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="h6" color="text.secondary">
-                            {tab.courses.length} course{tab.courses.length !== 1 ? 's' : ''} in {tab.label.toLowerCase()} status
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 3 }}>
-                          {tab.courses.map(renderCourseCard)}
-                        </Box>
-                      </>
-                    )}
-                  </>
-                )}
-              </Box>
+          <Tabs value={courseTab} onChange={(_, v) => setCourseTab(v)} variant="fullWidth" sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+            {courseTabsConfig.map((tab, index) => (
+              <Tab key={tab.key} icon={tab.icon} iconPosition="start" label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>{tab.label}<Chip label={tab.entities.length} size="small" color={tab.color as any} sx={{ ml: 1 }} /></Box>} />
             ))}
-          </>
-        )}
-      </Paper>
-
-      {/* HOD Approval Dashboard - only show for HODs */}
-      {isHOD && (
-        <Paper sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ApproveIcon /> HOD Approvals
-          </Typography>
-          <HODApprovalDashboard />
-        </Paper>
+          </Tabs>
+          {courseTabsConfig.map((tab, index) => (
+            <Box key={tab.key} role="tabpanel" hidden={courseTab !== index} sx={{ mt: 2 }}>
+              {courseTab === index && (
+                tab.entities.length === 0 ? (
+                  <Alert severity="info" sx={{ mt: 2 }}>No courses in {tab.label.toLowerCase()} status.</Alert>
+                ) : (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 3 }}>
+                    {tab.entities.map(course => (
+                      <FacultyItemCard item={course} actions={getAvailableEntityActions(course, 'course', isHOD)} onAction={(action, item) => handleAction(action, item, 'course')} />
+                    ))}
+                  </Box>
+                )
+              )}
+            </Box>
+          ))}
+        </>
       )}
-
-      {/* Course Details Dialog */}
-      <Dialog
-        open={Boolean(selectedCourse)}
-        onClose={() => setSelectedCourse(null)}
-        maxWidth="md"
-        fullWidth
-      >
-        {selectedCourse && (
-          <>
-            <DialogTitle>
-              {selectedCourse.name} ({selectedCourse.version_code || selectedCourse.code})
-            </DialogTitle>
-            <DialogContent>
-              <Typography variant="body1" paragraph>
-                {selectedCourse.overview}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Credits: {selectedCourse.credits} | Semester: {selectedCourse.semester}
-              </Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setSelectedCourse(null)}>Close</Button>
-              <Button variant="contained" onClick={() => {
-                navigate(`/faculty/course/${selectedCourse.id}`);
-                setSelectedCourse(null);
-              }}>
-                View Details
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
-
+      {/* Degrees Tab */}
+      {mainTab === 1 && (
+        <>
+          <StatusOverview items={degrees} statusConfig={STATUS_CONFIG} title={<span>Degree Status Overview</span>} />
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              My Degrees ({degrees.length})
+            </Typography>
+          </Box>
+          <Tabs value={degreeTab} onChange={(_, v) => setDegreeTab(v)} variant="fullWidth" sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+            {degreeTabsConfig.map((tab, index) => (
+              <Tab key={tab.key} icon={tab.icon} iconPosition="start" label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>{tab.label}<Chip label={tab.entities.length} size="small" color={tab.color as any} sx={{ ml: 1 }} /></Box>} />
+            ))}
+          </Tabs>
+          {degreeTabsConfig.map((tab, index) => (
+            <Box key={tab.key} role="tabpanel" hidden={degreeTab !== index} sx={{ mt: 2 }}>
+              {degreeTab === index && (
+                tab.entities.length === 0 ? (
+                  <Alert severity="info" sx={{ mt: 2 }}>No degrees in {tab.label.toLowerCase()} status.</Alert>
+                ) : (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 3 }}>
+                    {tab.entities.map(degree => (
+                      <FacultyItemCard item={degree} actions={getAvailableEntityActions(degree, 'degree', isHOD)} onAction={(action, item) => handleAction(action, item, 'degree')} />
+                    ))}
+                  </Box>
+                )
+              )}
+            </Box>
+          ))}
+        </>
+      )}
       {/* Create Course Dialog */}
       <CreateCourseDialog
-        open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        onSuccess={() => {
-          loadData();
-          setCreateDialogOpen(false);
-        }}
+        open={createCourseDialogOpen}
+        onClose={() => setCreateCourseDialogOpen(false)}
+        onSuccess={() => setCreateCourseDialogOpen(false)}
         mode="create"
       />
-
       {/* Edit Course Dialog */}
       <CreateCourseDialog
-        open={editDialogOpen}
-        onClose={() => {
-          setEditDialogOpen(false);
-          setCourseToEdit(null);
-        }}
-        onSuccess={() => {
-          loadData();
-          setEditDialogOpen(false);
-          setCourseToEdit(null);
-        }}
+        open={editCourseDialogOpen}
+        onClose={() => setEditCourseDialogOpen(false)}
+        onSuccess={() => setEditCourseDialogOpen(false)}
         course={courseToEdit}
         mode="edit"
       />
-
-      {/* Create Degree Dialog - HOD only */}
-      {isHOD && (
-        <CreateDegreeDialog
-          open={createDegreeDialogOpen}
-          onClose={() => setCreateDegreeDialogOpen(false)}
-          onSuccess={() => {
-            loadData();
-            setCreateDegreeDialogOpen(false);
-            enqueueSnackbar('Degree created successfully!', { variant: 'success' });
-          }}
-        />
-      )}
-
-      {/* Edit Course Confirmation Dialog */}
-      <EditCourseConfirmationDialog
-        open={editConfirmationOpen}
-        onClose={handleEditConfirmationCancel}
-        onConfirm={handleEditConfirmation}
-        course={pendingEditCourse}
-        loading={versioningLoading}
+      {/* Create Degree Dialog (advanced) */}
+      <DegreeDialog
+        open={createDegreeDialogOpen}
+        onClose={() => setCreateDegreeDialogOpen(false)}
+        onSuccess={() => {
+          setCreateDegreeDialogOpen(false);
+          // Optionally reload data
+        }}
+        initialData={{
+          userDepartmentId: user?.department?.id,
+          userDepartmentName: user?.department?.name
+        }}
+        mode={degreeDialogMode}
+      />
+      {/* Edit Degree Dialog */}
+      <DegreeDialog
+        open={editDegreeDialogOpen}
+        onClose={() => setEditDegreeDialogOpen(false)}
+        onSuccess={() => setEditDegreeDialogOpen(false)}
+        initialData={degreeToEdit ? {
+          ...degreeToEdit,
+          userDepartmentId: user?.department?.id,
+          userDepartmentName: user?.department?.name
+        } : undefined}
+        mode="edit"
+      />
+      {/* Course Submit Dialog */}
+      <SubmitForApprovalDialog
+        open={submitCourseDialogOpen}
+        title="Submit Course for Approval"
+        messageLabel="Message to Reviewer (Optional)"
+        messageRequired={false}
+        messageValue={''}
+        onMessageChange={() => {}}
+        loading={false}
+        onCancel={() => setSubmitCourseDialogOpen(false)}
+        onSubmit={() => setSubmitCourseDialogOpen(false)}
+      />
+      {/* Degree Submit Dialog */}
+      <SubmitForApprovalDialog
+        open={submitDegreeDialogOpen}
+        title="Submit Degree for Approval"
+        messageLabel="Message to Reviewer (Optional)"
+        messageRequired={false}
+        messageValue={''}
+        onMessageChange={() => {}}
+        loading={false}
+        onCancel={() => setSubmitDegreeDialogOpen(false)}
+        onSubmit={() => setSubmitDegreeDialogOpen(false)}
       />
     </Container>
   );

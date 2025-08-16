@@ -2,6 +2,10 @@ const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 
 const authenticateToken = async (req, res, next) => {
+  // Dev mode bypass: if header X-Dev-Bypass-Auth is true, skip auth
+  if (process.env.NODE_ENV === 'development' && req.headers['x-dev-bypass-auth'] === 'true') {
+    return next();
+  }
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];

@@ -1,5 +1,19 @@
 import axios from 'axios';
 
+// Unified Message API
+export const messageAPI = {
+  // Get messages for a given type and reference_id
+  getMessages: async (type: 'course' | 'degree' | 'enrollment', referenceId: string) => {
+    const response = await api.get(`/messages?type=${type}&reference_id=${referenceId}`);
+    return response.data;
+  },
+  // Post a new message
+  postMessage: async (type: 'course' | 'degree' | 'enrollment', referenceId: string, senderId: string, message: string) => {
+    const response = await api.post('/messages', { type, reference_id: referenceId, sender_id: senderId, message });
+    return response.data;
+  },
+};
+
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
 
 // Create axios instance
@@ -10,7 +24,7 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and dev bypass header
 api.interceptors.request.use(
   (config) => {
     const tokens = localStorage.getItem('tokens');
@@ -23,6 +37,13 @@ api.interceptors.request.use(
       } catch (error) {
         console.error('Error parsing tokens:', error);
       }
+    }
+    // Add dev bypass header if enabled
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.REACT_APP_BYPASS_AUTH === 'true'
+    ) {
+      config.headers['X-Dev-Bypass-Auth'] = 'true';
     }
     return config;
   },
@@ -277,6 +298,11 @@ export const coursesAPI = {
     const response = await api.post(`/courses/${id}/create-version`);
     return response.data;
   },
+    // Submit course for approval with optional message
+    submitCourseForApproval: async (id: string, message: string) => {
+      const response = await api.post(`/courses/${id}/submit-for-approval`, { message });
+      return response.data;
+    },
 };
 
 // Departments API
@@ -321,6 +347,14 @@ export const departmentsAPI = {
 
 // Degrees API
 export const degreesAPI = {
+  postComment: async (degreeId: string, text: string, userId: string, userName: string, userType: string) => {
+    const response = await api.post(`/degrees/${degreeId}/comment`, { text, userId, userName, userType });
+    return response.data;
+  },
+  getComments: async (degreeId: string) => {
+    const response = await api.get(`/degrees/${degreeId}`);
+    return response.data.degree.comments || [];
+  },
   getDegrees: async (params?: any) => {
     const response = await api.get('/degrees', { params });
     return response.data;
@@ -360,8 +394,8 @@ export const degreesAPI = {
     return response.data;
   },
 
-  submitDegree: async (id: string) => {
-    const response = await api.patch(`/degrees/${id}/submit`);
+  submitDegree: async (id: string, userId?: string, departmentId?: string) => {
+    const response = await api.patch(`/degrees/${id}/submit`, { userId, departmentId });
     return response.data;
   },
 
@@ -405,6 +439,17 @@ export const enrollmentsAPI = {
   
   rejectEnrollment: async (id: string, reason: string) => {
     const response = await api.patch(`/enrollments/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  // HOD specific functions
+  getPendingApprovals: async (params?: any) => {
+    const response = await api.get('/enrollments/pending-approvals', { params });
+    return response.data;
+  },
+
+  hodDecision: async (data: { enrollment_ids: string[], action: 'approve' | 'reject', rejection_reason?: string }) => {
+    const response = await api.post('/enrollments/hod-decision', data);
     return response.data;
   },
 };

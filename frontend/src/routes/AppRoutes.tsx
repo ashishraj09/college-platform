@@ -4,6 +4,7 @@ import { useAppSelector } from '../hooks/redux';
 
 // Import components (will be created)
 import LoginPage from '../pages/auth/LoginPage';
+import CreateDegreePage from '../pages/CreateDegreePage';
 import ActivateAccountPage from '../pages/auth/ActivateAccountPage';
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
@@ -13,12 +14,17 @@ import CreateUser from '../pages/admin/CreateUser';
 import TestPage from '../pages/TestPage';
 import FacultyDashboard from '../pages/faculty/FacultyDashboard';
 import CourseDetailsView from '../pages/faculty/CourseDetailsView';
-import DegreesPage from '../pages/faculty/DegreesPage';
+// import DegreesPage from '../pages/faculty/DegreesPage';
 import DegreeDetailsPage from '../pages/faculty/DegreeDetailsPage';
 import StudentDashboard from '../pages/student/StudentDashboard';
+import StudentDegreesPage from '../pages/student/DegreesPage';
 import OfficeDashboard from '../pages/office/OfficeDashboard';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 import DataDebugger from '../components/debug/DataDebugger';
+import HODDashboard from '../pages/hod/HODDashboard';
+import FacultyApprovalPage from '../pages/hod/FacultyApprovalPage';
+import EnrollmentApprovalPage from '../pages/hod/EnrollmentApprovalPage';
+import DepartmentManagementPage from '../pages/hod/DepartmentManagementPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
@@ -43,6 +49,8 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
+      {/* Create Degree Page (all users) */}
+      <Route path="/degrees/create" element={<CreateDegreePage />} />
       {/* Test Route */}
       <Route 
         path="/test" 
@@ -100,13 +108,31 @@ const AppRoutes: React.FC = () => {
             <DashboardLayout>
               <Routes>
                 <Route index element={<FacultyDashboard />} />
-                <Route path="degrees" element={<DegreesPage />} />
+                <Route path="new-dashboard" element={<FacultyDashboard />} />
+                {/* <Route path="degrees" element={<DegreesPage />} /> */}
                 <Route path="degrees/:degreeId" element={<DegreeDetailsPage />} />
                 <Route path="course/:courseId" element={<CourseDetailsView />} />
                 <Route path="courses/:courseId" element={<CourseDetailsView />} />
                 <Route path="courses/create" element={<Navigate to="/faculty" replace />} />
-                <Route path="degrees/create" element={<Navigate to="/faculty" replace />} />
+                {/* <Route path="degrees/create" element={<Navigate to="/faculty" replace />} /> */}
                 <Route path="*" element={<Navigate to="/faculty" replace />} />
+              </Routes>
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/hod/*"
+        element={
+          <ProtectedRoute requiredRole="faculty">
+            <DashboardLayout>
+              <Routes>
+                <Route index element={<HODDashboard />} />
+                <Route path="faculty-approvals" element={<FacultyApprovalPage />} />
+                <Route path="enrollment-approvals" element={<EnrollmentApprovalPage />} />
+                <Route path="department-management" element={<DepartmentManagementPage />} />
+                <Route path="*" element={<Navigate to="/hod" replace />} />
               </Routes>
             </DashboardLayout>
           </ProtectedRoute>
@@ -118,7 +144,11 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute requiredRole="student">
             <DashboardLayout>
-              <StudentDashboard />
+              <Routes>
+                <Route index element={<StudentDashboard />} />
+                <Route path="degrees" element={<StudentDegreesPage />} />
+                <Route path="*" element={<Navigate to="/student" replace />} />
+              </Routes>
             </DashboardLayout>
           </ProtectedRoute>
         }

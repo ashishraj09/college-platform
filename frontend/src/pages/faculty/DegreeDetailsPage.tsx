@@ -8,12 +8,7 @@ import {
   Chip,
   Alert,
   Paper,
-  Divider,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Grid,
+  // Removed unused imports
   Tab,
   Tabs,
   Accordion,
@@ -22,7 +17,7 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
-  School as SchoolIcon,
+  // Removed unused SchoolIcon
   AccessTime as DurationIcon,
   Star as CreditsIcon,
   Work as CareerIcon,
@@ -33,9 +28,9 @@ import {
   AttachMoney as FeesIcon,
   MenuBook as CourseIcon,
   ExpandMore as ExpandMoreIcon,
-  CheckCircle as CheckIcon,
+  // Removed unused icon
 } from '@mui/icons-material';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { degreesAPI, coursesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
@@ -83,7 +78,7 @@ interface Course {
 
 const DegreeDetailsPage: React.FC = () => {
   const { degreeId } = useParams<{ degreeId: string }>();
-  const navigate = useNavigate();
+  // Removed unused navigate
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const [degree, setDegree] = useState<DegreeDetails | null>(null);
@@ -91,6 +86,7 @@ const DegreeDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (degreeId) {
       loadDegreeDetails();
@@ -152,7 +148,7 @@ const DegreeDetailsPage: React.FC = () => {
       <Box sx={{ mb: 3 }}>
         <Button
           startIcon={<BackIcon />}
-          onClick={() => navigate('/faculty/degrees')}
+          // onClick to /faculty/degrees removed
           sx={{ mb: 2 }}
         >
           Back to Degrees

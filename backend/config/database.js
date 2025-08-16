@@ -7,17 +7,20 @@ const sequelize = new Sequelize({
   username: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   dialect: process.env.DB_DIALECT,
-  dialectOptions: process.env.NODE_ENV === 'production' && process.env.DB_SSL === 'true' ? {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false,
-    },
-  } : {},
+  dialectOptions: {
+    ...(process.env.NODE_ENV === 'production' && process.env.DB_SSL === 'true' ? {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
+    } : {}),
+    connectTimeout: 60000,
+  },
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   pool: {
     max: 10,
     min: 0,
-    acquire: 30000,
+    acquire: 60000,
     idle: 10000,
   },
   define: {

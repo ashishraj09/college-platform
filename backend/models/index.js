@@ -3,7 +3,12 @@ const Department = require('./Department');
 const Degree = require('./Degree');
 const Course = require('./Course');
 const Enrollment = require('./Enrollment');
+const EnrollmentDraft = require('./EnrollmentDraft');
 const AuditLog = require('./AuditLog');
+const Message = require('./Message');
+// Message associations
+Message.belongsTo(User, { foreignKey: 'sender_id', as: 'sender', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+User.hasMany(Message, { foreignKey: 'sender_id', as: 'messages' });
 
 // User associations
 User.belongsTo(Department, { 
@@ -124,10 +129,23 @@ Enrollment.belongsTo(User, {
   onUpdate: 'CASCADE'
 });
 
+// EnrollmentDraft associations
+EnrollmentDraft.belongsTo(User, { 
+  foreignKey: 'student_id', 
+  as: 'student',
+  onDelete: 'CASCADE',
+  onUpdate: 'CASCADE'
+});
+
 // User reverse associations for enrollments
 User.hasMany(Enrollment, { 
   foreignKey: 'student_id', 
   as: 'enrollments' 
+});
+
+User.hasMany(EnrollmentDraft, { 
+  foreignKey: 'student_id', 
+  as: 'enrollmentDrafts' 
 });
 
 User.hasMany(Course, { 
@@ -164,5 +182,7 @@ module.exports = {
   Degree,
   Course,
   Enrollment,
+  EnrollmentDraft,
   AuditLog,
+  Message,
 };

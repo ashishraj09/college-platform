@@ -15,13 +15,11 @@ const Enrollment = sequelize.define('Enrollment', {
       key: 'id',
     },
   },
-  course_id: {
-    type: DataTypes.UUID,
+  course_ids: {
+    type: DataTypes.JSON,
     allowNull: false,
-    references: {
-      model: 'courses',
-      key: 'id',
-    },
+    defaultValue: [],
+    // Array of UUIDs for group enrollment
   },
   enrollment_status: {
     type: DataTypes.ENUM('pending_hod_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
@@ -67,33 +65,19 @@ const Enrollment = sequelize.define('Enrollment', {
     allowNull: false,
     validate: {
       min: 1,
-      max: 2,
+      max: 10,
     },
   },
-  grade: {
-    type: DataTypes.ENUM('A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'F', 'I', 'W'),
-    allowNull: true,
-  },
-  grade_points: {
-    type: DataTypes.DECIMAL(3, 2),
-    allowNull: true,
-    validate: {
-      min: 0,
-      max: 4.0,
-    },
-  },
+  // ...removed grade and grade_points fields...
 }, {
   tableName: 'enrollments',
   indexes: [
     {
       unique: true,
-      fields: ['student_id', 'course_id', 'academic_year', 'semester'],
+      fields: ['student_id', 'academic_year', 'semester'],
     },
     {
       fields: ['student_id'],
-    },
-    {
-      fields: ['course_id'],
     },
     {
       fields: ['enrollment_status'],

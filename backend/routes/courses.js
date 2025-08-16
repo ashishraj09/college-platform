@@ -23,7 +23,7 @@ const courseValidation = [
 
 // Get all courses with optional filtering
 router.get('/', 
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
   try {
     const {

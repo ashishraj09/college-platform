@@ -65,3 +65,24 @@ temp/
 # Package locks (choose one approach)
 # package-lock.json
 # yarn.lock
+
+# Development and utility scripts (temporary)
+**/fix-*.js
+**/fix-*.sql
+**/create-test-*.js
+**/seed-*.js
+**/migration-*.js
+**/*-backup.*
+**/*-old.*
+**/*.backup
+**/*.bak
+
+# Cache and temporary files
+**/*.tmp
+**/*.cache
+**/*.log
+**/.cache/
+
+# Documentation builds
+docs/build/
+docs/.docusaurus/
