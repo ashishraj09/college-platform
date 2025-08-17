@@ -574,6 +574,9 @@ const AdminDashboard: React.FC = () => {
                       <TableCell>Last Name</TableCell>
                       <TableCell>Email</TableCell>
                       <TableCell>Employee ID</TableCell>
+                      <TableCell>Department</TableCell>
+                      <TableCell>HOD</TableCell>
+                      <TableCell>Last Login</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
@@ -586,6 +589,23 @@ const AdminDashboard: React.FC = () => {
                           <TableCell>{user.last_name}</TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>{user.employee_id}</TableCell>
+                          <TableCell>{user.department?.name || '-'}</TableCell>
+                          <TableCell>
+                            {user.is_head_of_department ? <Chip label="HOD" color="primary" /> : null}
+                          </TableCell>
+                          <TableCell>
+                            {user.last_login ?
+                              new Date(user.last_login).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                              })
+                              : 'Never'}
+                          </TableCell>
                           <TableCell>
                             <Chip label={user.status} color={getStatusColor(user.status)} />
                           </TableCell>

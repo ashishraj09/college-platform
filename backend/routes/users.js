@@ -49,7 +49,20 @@ router.get('/',
             attributes: ['id', 'name', 'code']
           }
         ],
-        attributes: ['id', 'first_name', 'last_name', 'email', 'user_type', 'status', 'department_id', 'created_at'],
+        attributes: [
+          'id',
+          'first_name',
+          'last_name',
+          'email',
+          'user_type',
+          'status',
+          'department_id',
+          'employee_id',
+          'student_id',
+          'is_head_of_department',
+          'last_login',
+          'created_at'
+        ],
         limit,
         offset,
         order: [['created_at', 'DESC']],
