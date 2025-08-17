@@ -36,6 +36,7 @@ const Department = sequelize.define('Department', {
   },
 }, {
   tableName: 'departments',
+  timestamps: true,
   indexes: [
     {
       unique: true,

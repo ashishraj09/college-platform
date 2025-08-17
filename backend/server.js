@@ -21,6 +21,29 @@ const enrollmentRoutes = require('./routes/enrollments');
 const auditRoutes = require('./routes/audit');
 
 const app = express();
+// Disable ETag to prevent 304 Not Modified responses
+app.set('etag', false);
+
+// Request/response logger middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`\n--- Incoming Request ---`);
+  console.log(`${req.method} ${req.originalUrl}`);
+  console.log('Headers:', req.headers);
+  if (req.body && Object.keys(req.body).length) {
+    console.log('Body:', req.body);
+  }
+  // Capture response
+  const oldJson = res.json;
+  res.json = function (data) {
+    const duration = Date.now() - start;
+    console.log(`--- Outgoing Response (${duration}ms) ---`);
+    console.log('Status:', res.statusCode);
+    console.log('Response:', data);
+    return oldJson.call(this, data);
+  };
+  next();
+});
 
 // Security middleware
 app.use(helmet());
@@ -90,6 +113,8 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/degrees', degreeRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/audit', auditRoutes);
+const timelineRoutes = require('./routes/timeline');
+app.use('/api/timeline', timelineRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

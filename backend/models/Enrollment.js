@@ -71,6 +71,7 @@ const Enrollment = sequelize.define('Enrollment', {
   // ...removed grade and grade_points fields...
 }, {
   tableName: 'enrollments',
+  timestamps: true,
   indexes: [
     {
       unique: true,

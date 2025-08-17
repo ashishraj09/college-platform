@@ -1,19 +1,6 @@
+// src/services/api.ts
+
 import axios from 'axios';
-
-// Unified Message API
-export const messageAPI = {
-  // Get messages for a given type and reference_id
-  getMessages: async (type: 'course' | 'degree' | 'enrollment', referenceId: string) => {
-    const response = await api.get(`/messages?type=${type}&reference_id=${referenceId}`);
-    return response.data;
-  },
-  // Post a new message
-  postMessage: async (type: 'course' | 'degree' | 'enrollment', referenceId: string, senderId: string, message: string) => {
-    const response = await api.post('/messages', { type, reference_id: referenceId, sender_id: senderId, message });
-    return response.data;
-  },
-};
-
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
 
 // Create axios instance
@@ -52,406 +39,128 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle token refresh
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      const tokens = localStorage.getItem('tokens');
-      if (tokens) {
-        try {
-          const parsedTokens = JSON.parse(tokens);
-          if (parsedTokens.refresh) {
-            const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-              refresh_token: parsedTokens.refresh,
-            });
-            
-            const newTokens = response.data.tokens;
-            localStorage.setItem('tokens', JSON.stringify(newTokens));
-            
-            // Retry the original request with new token
-            originalRequest.headers.Authorization = `Bearer ${newTokens.access}`;
-            return api(originalRequest);
-          }
-        } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
-          localStorage.removeItem('tokens');
-          window.location.href = '/login';
-        }
-      }
-    }
-    
-    return Promise.reject(error);
-  }
-);
 
-// Auth API
+// --- Auth API ---
 export const authAPI = {
-  login: async (credentials: { email: string; password: string }) => {
-    const response = await api.post('/auth/login', credentials);
-    return response.data;
-  },
-  
-  logout: async () => {
-    const response = await api.post('/auth/logout');
-    return response.data;
-  },
-  
-  refreshToken: async (refreshToken: string) => {
-    const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
-    return response.data;
-  },
-  
-  getProfile: async () => {
-    const response = await api.get('/auth/profile');
-    return response.data;
-  },
-  
-  forgotPassword: async (email: string) => {
-    const response = await api.post('/auth/forgot-password', { email });
-    return response.data;
-  },
-  
-  resetPassword: async (data: { token: string; password: string }) => {
-    const response = await api.post('/auth/reset-password', data);
-    return response.data;
-  },
-
-  register: async (userData: {
-    email: string;
-    first_name: string;
-    last_name: string;
-    user_type: 'student' | 'faculty' | 'office' | 'admin';
-    password?: string;
-    student_id?: string;
-    employee_id?: string;
-    department_id?: string;
-    degree_id?: string;
-    enrolled_date?: string;
-    enrolled_year?: number;
-    is_head_of_department?: boolean;
-  }) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
-  },
+  login: async (data: any) => (await api.post('/auth/login', data)).data,
+  register: async (data: any) => (await api.post('/auth/register', data)).data,
+  logout: async () => (await api.post('/auth/logout')).data,
+  me: async () => (await api.get('/auth/me')).data,
+  forgotPassword: async (email: string) => (await api.post('/auth/forgot-password', { email })).data,
+  resetPassword: async (payload: { token: string; password: string }) => (await api.post('/auth/reset-password', payload)).data,
+  getProfile: async () => (await api.get('/auth/me')).data,
 };
 
-// Users API
+// --- Users API ---
 export const usersAPI = {
-  getUsers: async (params?: any) => {
-    const response = await api.get('/users', { params });
-    return response.data;
-  },
-  
-  getUserById: async (id: string) => {
-    const response = await api.get(`/users/${id}`);
-    return response.data;
-  },
-  
-  updateUser: async (id: string, data: any) => {
-    const response = await api.put(`/users/${id}`, data);
-    return response.data;
-  },
-  
-  deleteUser: async (id: string) => {
-    const response = await api.delete(`/users/${id}`);
-    return response.data;
-  },
-  
-  getUsersByDepartment: async (departmentId: string, options?: { user_type?: string, status?: string }) => {
+  getUsers: async (params?: any) => (await api.get('/users', { params })).data,
+  getUserById: async (id: string) => (await api.get(`/users/${id}`)).data,
+  createUser: async (data: any) => (await api.post('/users', data)).data,
+  updateUser: async (id: string, data: any) => (await api.put(`/users/${id}`, data)).data,
+  deleteUser: async (id: string) => (await api.delete(`/users/${id}`)).data,
+  getUsersByDepartment: async (departmentId: string, options?: { user_type?: string; status?: string }) => {
     const params = new URLSearchParams();
     if (options?.user_type) params.append('user_type', options.user_type);
     if (options?.status) params.append('status', options.status);
-    
-    const url = `/users/department/${departmentId}${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await api.get(url);
-    return response.data;
+    const { data } = await api.get(`/users/department/${departmentId}${params.toString() ? `?${params}` : ''}`);
+    return data;
   },
-
-  resetUserPassword: async (userId: string) => {
-    const response = await api.post(`/users/${userId}/reset-password`);
-    return response.data;
-  },
+  resetUserPassword: async (id: string) => (await api.post(`/users/${id}/reset-password`)).data,
 };
 
-// Courses API
+// --- Courses API (backwards-compatible) ---
 export const coursesAPI = {
-  getCourses: async (params?: any) => {
-    const response = await api.get('/courses', { params });
-    return response.data;
-  },
-  
-  getCourseById: async (id: string) => {
-    const response = await api.get(`/courses/${id}`);
-    return response.data;
-  },
-  
-  // Query parameter approach - gets course with unresolved IDs for editing
-  getCourseForEditWithQuery: async (id: string, resolveNames: boolean = false) => {
-    const response = await api.get(`/courses/${id}?resolve_names=${resolveNames}`);
-    return response.data;
-  },
-  
-  // Dedicated endpoint approach - gets course via dedicated edit endpoint
-  getCourseForEditWithEndpoint: async (id: string, resolveNames: boolean = false) => {
-    const response = await api.get(`/courses/${id}/edit?resolve_names=${resolveNames}`);
-    return response.data;
-  },
-  
-  // Legacy method names for backward compatibility
-  getCourseForEdit: async (id: string) => {
-    const response = await api.get(`/courses/${id}?resolve_names=false`);
-    return response.data;
-  },
-  
-  getCourseForEditDedicated: async (id: string) => {
-    const response = await api.get(`/courses/${id}/edit?resolve_names=false`);
-    return response.data;
-  },
-  
-  createCourse: async (data: any, userId?: string, departmentId?: string) => {
-    const courseData = { ...data };
-    if (userId) courseData.userId = userId;
-    if (departmentId) courseData.departmentId = departmentId;
-    
-    const response = await api.post('/courses', courseData);
-    return response.data;
-  },
-  
-  updateCourse: async (id: string, data: any, userId?: string, departmentId?: string) => {
-    const courseData = { ...data };
-    if (userId) courseData.userId = userId;
-    if (departmentId) courseData.departmentId = departmentId;
-    
-    const response = await api.put(`/courses/${id}`, courseData);
-    return response.data;
-  },
-  
-  deleteCourse: async (id: string, userId?: string, departmentId?: string) => {
-    const requestData: any = {};
-    if (userId) requestData.userId = userId;
-    if (departmentId) requestData.departmentId = departmentId;
-    
-    const response = await api.delete(`/courses/${id}`, { data: requestData });
-    return response.data;
-  },
-  
-  approveCourse: async (id: string) => {
-    const response = await api.patch(`/courses/${id}/approve`);
-    return response.data;
-  },
-  
-  rejectCourse: async (id: string, reason: string) => {
-    const response = await api.patch(`/courses/${id}/reject`, { reason });
-    return response.data;
-  },
-
-  getFacultyCourses: async (userDepartmentId?: string, userId?: string) => {
-    const params: any = {};
-    if (userDepartmentId) {
-      params.departmentId = userDepartmentId;
+  getCourses: async (params?: any) => (await api.get('/courses', { params })).data,
+  getCourseById: async (id: string) => (await api.get(`/courses/${id}`)).data,
+  getCourseForEdit: async (id: string, resolveNames = false) => (await api.get(`/courses/${id}/edit?resolve_names=${resolveNames}`)).data,
+  createCourse: async (payload: any, userId?: string, deptId?: string) => {
+    if (userId === undefined && deptId === undefined) {
+      return (await api.post('/courses', payload)).data;
     }
-    if (userId) {
-      params.userId = userId;
+    return (await api.post('/courses', { ...payload, userId, deptId })).data;
+  },
+  updateCourse: async (id: string, payload: any, userId?: string, deptId?: string) => {
+    if (userId === undefined && deptId === undefined) {
+      return (await api.put(`/courses/${id}`, payload)).data;
     }
-    const response = await api.get('/courses/my-courses', { params });
-    return response.data;
+    return (await api.put(`/courses/${id}`, { ...payload, userId, deptId })).data;
   },
-
-  getDepartmentCourses: async (userDepartmentId?: string) => {
-    const params: any = {};
-    if (userDepartmentId) {
-      params.departmentId = userDepartmentId;
-    }
-    const response = await api.get('/courses/department-courses', { params });
-    return response.data;
+  deleteCourse: async (id: string, payload?: any) => (await api.delete(`/courses/${id}`, { data: payload })).data,
+  approveCourse: async (id: string) => (await api.patch(`/courses/${id}/approve`)).data,
+  rejectCourse: async (id: string, reason: string) => (await api.patch(`/courses/${id}/reject`, { reason })).data,
+  getFacultyCourses: async (deptId?: string, userId?: string) => {
+    // Use /my-courses route as per backend
+    return (await api.get('/courses/my-courses', { params: { departmentId: deptId, userId } })).data;
   },
-
-  submitCourse: async (id: string, userId?: string, departmentId?: string) => {
-    const requestData: any = {};
-    if (userId) requestData.userId = userId;
-    if (departmentId) requestData.departmentId = departmentId;
-    
-    const response = await api.patch(`/courses/${id}/submit`, requestData);
-    return response.data;
-  },
-
-  publishCourse: async (id: string, userId?: string, departmentId?: string) => {
-    const requestData: any = {};
-    if (userId) requestData.userId = userId;
-    if (departmentId) requestData.departmentId = departmentId;
-    
-    const response = await api.patch(`/courses/${id}/publish`, requestData);
-    return response.data;
-  },
-
-  checkCanEdit: async (id: string) => {
-    const response = await api.get(`/courses/${id}/can-edit`);
-    return response.data;
-  },
-
-  createCourseVersion: async (id: string) => {
-    const response = await api.post(`/courses/${id}/create-version`);
-    return response.data;
-  },
-    // Submit course for approval with optional message
-    submitCourseForApproval: async (id: string, message: string) => {
-      const response = await api.post(`/courses/${id}/submit-for-approval`, { message });
-      return response.data;
-    },
+  getDepartmentCourses: async (params?: { departmentId?: string }) => (await api.get('/courses/department-courses', { params })).data,
+  submitCourse: async (id: string, payload?: any) => (await api.patch(`/courses/${id}/submit`, payload)).data,
+  publishCourse: async (id: string, payload?: any) => (await api.patch(`/courses/${id}/publish`, payload)).data,
+  checkCanEdit: async (id: string) => (await api.get(`/courses/${id}/can-edit`)).data,
+  createCourseVersion: async (id: string) => (await api.post(`/courses/${id}/create-version`)).data,
+  submitCourseForApproval: async (id: string, message: string, userId?: string, departmentId?: string) => (await api.patch(`/courses/${id}/submit`, { message, userId, departmentId })).data,
 };
 
-// Departments API
-export const departmentsAPI = {
-  getDepartments: async (params?: any) => {
-    const response = await api.get('/departments', { params });
-    return response.data;
-  },
-  
-  getDepartmentById: async (id: string) => {
-    const response = await api.get(`/departments/${id}`);
-    return response.data;
-  },
-  
-  createDepartment: async (data: any, userId?: string, departmentId?: string) => {
-    const departmentData = { ...data };
-    if (userId) departmentData.userId = userId;
-    if (departmentId) departmentData.departmentId = departmentId;
-    
-    const response = await api.post('/departments', departmentData);
-    return response.data;
-  },
-  
-  updateDepartment: async (id: string, data: any, userId?: string, departmentId?: string) => {
-    const departmentData = { ...data };
-    if (userId) departmentData.userId = userId;
-    if (departmentId) departmentData.departmentId = departmentId;
-    
-    const response = await api.put(`/departments/${id}`, departmentData);
-    return response.data;
-  },
-  
-  deleteDepartment: async (id: string, userId?: string, departmentId?: string) => {
-    const requestData: any = {};
-    if (userId) requestData.userId = userId;
-    if (departmentId) requestData.departmentId = departmentId;
-    
-    const response = await api.delete(`/departments/${id}`, { data: requestData });
-    return response.data;
-  },
-};
-
-// Degrees API
+// --- Degrees API (backwards-compatible) ---
 export const degreesAPI = {
-  postComment: async (degreeId: string, text: string, userId: string, userName: string, userType: string) => {
-    const response = await api.post(`/degrees/${degreeId}/comment`, { text, userId, userName, userType });
-    return response.data;
+  getDegrees: async (params?: any) => (await api.get('/degrees', { params })).data,
+  getDegreeById: async (id: string) => (await api.get(`/degrees/${id}`)).data,
+  createDegree: async (payload: any) => (await api.post('/degrees', payload)).data,
+  updateDegree: async (id: string, payload: any) => (await api.put(`/degrees/${id}`, payload)).data,
+  deleteDegree: async (id: string) => (await api.delete(`/degrees/${id}`)).data,
+  getDegreesByDepartment: async (departmentId: string) => (await api.get(`/degrees/department/${departmentId}`)).data,
+  submitDegreeForApproval: async (id: string, message: string, userId?: string, departmentId?: string) => (await api.patch(`/degrees/${id}/submit`, { message, userId, departmentId })).data,
+  getFacultyDegrees: async (deptId?: string) => {
+    // Use /degrees/my-degrees route as per backend
+    return (await api.get('/degrees/my-degrees', { params: { departmentId: deptId } })).data;
   },
+  submitDegree: async (id: string, payload?: any) => (await api.patch(`/degrees/${id}/submit`, payload)).data,
+  approveDegree: async (id: string) => (await api.patch(`/degrees/${id}/approve`)).data,
+  rejectDegree: async (id: string, reason: string) => (await api.patch(`/degrees/${id}/reject`, { reason })).data,
+  postComment: async (degreeId: string, text: string, userId: string, userName: string, userType: string) => (await api.post(`/degrees/${degreeId}/comment`, { text, userId, userName, userType })).data,
   getComments: async (degreeId: string) => {
-    const response = await api.get(`/degrees/${degreeId}`);
-    return response.data.degree.comments || [];
-  },
-  getDegrees: async (params?: any) => {
-    const response = await api.get('/degrees', { params });
-    return response.data;
-  },
-  
-  getDegreeById: async (id: string) => {
-    const response = await api.get(`/degrees/${id}`);
-    return response.data;
-  },
-  
-  createDegree: async (data: any) => {
-    const response = await api.post('/degrees', data);
-    return response.data;
-  },
-  
-  updateDegree: async (id: string, data: any) => {
-    const response = await api.put(`/degrees/${id}`, data);
-    return response.data;
-  },
-  
-  deleteDegree: async (id: string) => {
-    const response = await api.delete(`/degrees/${id}`);
-    return response.data;
-  },
-  
-  getDegreesByDepartment: async (departmentId: string) => {
-    const response = await api.get(`/degrees/department/${departmentId}`);
-    return response.data;
-  },
-
-  getFacultyDegrees: async (userDepartmentId?: string) => {
-    const params: any = {};
-    if (userDepartmentId) {
-      params.departmentId = userDepartmentId;
-    }
-    const response = await api.get('/degrees/my-degrees', { params });
-    return response.data;
-  },
-
-  submitDegree: async (id: string, userId?: string, departmentId?: string) => {
-    const response = await api.patch(`/degrees/${id}/submit`, { userId, departmentId });
-    return response.data;
-  },
-
-  approveDegree: async (id: string) => {
-    const response = await api.patch(`/degrees/${id}/approve`);
-    return response.data;
-  },
-
-  rejectDegree: async (id: string, reason: string) => {
-    const response = await api.patch(`/degrees/${id}/reject`, { reason });
-    return response.data;
+    const { data } = await api.get(`/degrees/${degreeId}`);
+    return data.degree.comments || [];
   },
 };
 
-// Enrollments API
+// --- Departments API ---
+export const departmentsAPI = {
+  getDepartments: async (params?: any) => (await api.get('/departments', { params })).data,
+  getDepartmentById: async (id: string) => (await api.get(`/departments/${id}`)).data,
+  createDepartment: async (payload: any) => (await api.post('/departments', payload)).data,
+  updateDepartment: async (id: string, payload: any) => (await api.put(`/departments/${id}`, payload)).data,
+  deleteDepartment: async (id: string, payload?: any) => (await api.delete(`/departments/${id}`, { data: payload })).data,
+};
+
+// --- Enrollments API ---
 export const enrollmentsAPI = {
-  getEnrollments: async (params?: any) => {
-    const response = await api.get('/enrollments', { params });
-    return response.data;
-  },
-  
-  getEnrollmentById: async (id: string) => {
-    const response = await api.get(`/enrollments/${id}`);
-    return response.data;
-  },
-  
-  createEnrollment: async (data: any) => {
-    const response = await api.post('/enrollments', data);
-    return response.data;
-  },
-  
-  updateEnrollment: async (id: string, data: any) => {
-    const response = await api.put(`/enrollments/${id}`, data);
-    return response.data;
-  },
-  
-  approveEnrollment: async (id: string, approverType: 'hod' | 'office') => {
-    const response = await api.patch(`/enrollments/${id}/approve`, { approver_type: approverType });
-    return response.data;
-  },
-  
-  rejectEnrollment: async (id: string, reason: string) => {
-    const response = await api.patch(`/enrollments/${id}/reject`, { reason });
-    return response.data;
-  },
-
-  // HOD specific functions
-  getPendingApprovals: async (params?: any) => {
-    const response = await api.get('/enrollments/pending-approvals', { params });
-    return response.data;
-  },
-
-  hodDecision: async (data: { enrollment_ids: string[], action: 'approve' | 'reject', rejection_reason?: string }) => {
-    const response = await api.post('/enrollments/hod-decision', data);
-    return response.data;
-  },
+  getEnrollments: async (params?: any) => (await api.get('/enrollments', { params })).data,
+  getEnrollmentById: async (id: string) => (await api.get(`/enrollments/${id}`)).data,
+  createEnrollment: async (payload: any) => (await api.post('/enrollments', payload)).data,
+  updateEnrollment: async (id: string, payload: any) => (await api.put(`/enrollments/${id}`, payload)).data,
+  approveEnrollment: async (id: string, approverType: 'hod' | 'office') => (await api.patch(`/enrollments/${id}/approve`, { approver_type: approverType })).data,
+  rejectEnrollment: async (id: string, reason: string) => (await api.patch(`/enrollments/${id}/reject`, { reason })).data,
+  getPendingApprovals: async (params?: any) => (await api.get('/enrollments/pending-approvals', { params })).data,
+  hodDecision: async (payload: { enrollment_ids: string[]; action: 'approve' | 'reject'; rejection_reason?: string }) => (await api.post('/enrollments/hod-decision', payload)).data,
 };
 
+// --- Message API ---
+export const messageAPI = {
+  getInbox: (userId: string) => api.get(`/messages/inbox/${userId}`),
+  getSent: (userId: string) => api.get(`/messages/sent/${userId}`),
+  sendMessage: (data: any) => api.post('/messages', data),
+  deleteMessage: (id: string) => api.delete(`/messages/${id}`),
+};
+
+// --- Timeline API (entityType + entityId) ---
+export const timelineAPI = {
+  getTimeline: async (entityType: string, entityId: string) => (await api.get(`/timeline/${entityType}/${entityId}`)).data,
+  getTimelineForUser: async (userId: string) => (await api.get(`/timeline/user/${userId}`)).data,
+  getTimelineForDepartment: async (departmentId: string) => (await api.get(`/timeline/department/${departmentId}`)).data,
+  createTimelineEvent: async (payload: any) => (await api.post('/timeline', payload)).data,
+  updateTimelineEvent: async (id: string, payload: any) => (await api.put(`/timeline/${id}`, payload)).data,
+  deleteTimelineEvent: async (id: string) => (await api.delete(`/timeline/${id}`)).data,
+};
+
+// --- Default export ---
 export default api;

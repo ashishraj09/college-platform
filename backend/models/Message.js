@@ -28,14 +28,9 @@ const Message = sequelize.define('Message', {
     type: DataTypes.TEXT,
     allowNull: false,
   },
-  created_at: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-    allowNull: false,
-  },
 }, {
   tableName: 'messages',
-  timestamps: false,
+  timestamps: true,
   indexes: [
     { fields: ['type', 'reference_id'] },
     { fields: ['sender_id'] },

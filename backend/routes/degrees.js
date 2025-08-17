@@ -47,6 +47,18 @@ router.patch('/:id/submit',
       if (user.user_type !== 'admin' && user.department_id !== degree.department_id) return res.status(403).json({ error: 'Can only submit degrees in your own department' });
       if (degree.status !== 'draft') return res.status(400).json({ error: 'Only draft degrees can be submitted' });
       await degree.update({ status: 'pending_approval', updated_by: user.id });
+
+      // Add message to messages table
+      const Message = require('../models/Message');
+      if (req.body.message) {
+        await Message.create({
+          type: 'degree',
+          reference_id: degree.id,
+          sender_id: user.id,
+          message: req.body.message,
+        });
+      }
+
       res.json({ message: 'Degree submitted for approval', degree });
     } catch (error) {
       console.error('Error submitting degree:', error);
@@ -88,6 +100,16 @@ router.patch('/:id/reject',
       if (user.department_id !== degree.department_id || !user.is_head_of_department) return res.status(403).json({ error: 'Only Head of Department can reject degrees' });
       if (degree.status !== 'pending_approval') return res.status(400).json({ error: 'Only pending approval degrees can be rejected' });
       await degree.update({ status: 'draft', feedback: reason, updated_by: user.id || req.body.userId });
+
+      // Add rejection message to messages table
+      const Message = require('../models/Message');
+      await Message.create({
+        type: 'degree',
+        reference_id: degree.id,
+        sender_id: user.id || req.body.userId,
+        message: `Degree rejected: ${reason}`,
+      });
+
       res.json({ message: 'Degree rejected', degree });
     } catch (error) {
       console.error('Error rejecting degree:', error);
@@ -253,7 +275,7 @@ router.get('/my-degrees',
 
 // Create new degree (Faculty only)
 router.post('/',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   // authorizeRoles('faculty'), // Temporarily disabled for testing
   degreeValidation,
   handleValidationErrors,
@@ -364,7 +386,7 @@ router.get('/:id',
 
 // Update degree (Faculty only - same department)
 router.put('/:id',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   // authorizeRoles('faculty', 'admin'), // Temporarily disabled for testing
   degreeValidation,
   handleValidationErrors,
@@ -463,7 +485,7 @@ router.put('/:id',
 
 // Submit degree for approval (Faculty only)
 router.patch('/:id/submit',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   // authorizeRoles('faculty'), // Temporarily disabled for testing
   auditMiddleware('update', 'degree', 'Degree submitted for approval'),
   async (req, res) => {
@@ -498,7 +520,7 @@ router.patch('/:id/submit',
 
 // Approve degree (HOD only)
 router.patch('/:id/approve',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   // authorizeRoles('faculty'), // Only faculty (HOD) can approve
   auditMiddleware('update', 'degree', 'Degree approved'),
   async (req, res) => {
@@ -535,7 +557,7 @@ router.patch('/:id/approve',
 
 // Delete degree (Faculty - same department, Admin)
 router.delete('/:id',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   // authorizeRoles('faculty', 'admin'), // Temporarily disabled for testing
   captureOriginalData(Degree, 'id'),
   auditMiddleware('delete', 'degree', 'Degree deleted'),

@@ -1,6 +1,6 @@
 const { AuditLog } = require('../models');
 
-const logAuditEvent = async (userId, action, entityType, entityId = null, oldValues = null, newValues = null, metadata = null, description = null) => {
+const logAuditEvent = async (userId, action, entityType, entityId = null, oldValues = null, newValues = null, metadata = null, description = null, ip_address = null, user_agent = null) => {
   try {
     await AuditLog.create({
       user_id: userId,
@@ -10,6 +10,8 @@ const logAuditEvent = async (userId, action, entityType, entityId = null, oldVal
       old_values: oldValues,
       new_values: newValues,
       metadata,
+      ip_address,
+      user_agent,
       description,
     });
   } catch (error) {
@@ -27,13 +29,14 @@ const auditMiddleware = (action, entityType, description = null) => {
       if (res.statusCode < 400 && req.user) {
         const userId = req.user.id;
         const entityId = data?.id || req.params?.id || null;
+        const ip_address = req.ip;
+        const user_agent = req.get('User-Agent');
         const metadata = {
-          ip_address: req.ip,
-          user_agent: req.get('User-Agent'),
           method: req.method,
           url: req.originalUrl,
           status_code: res.statusCode,
         };
+
 
         let oldValues = null;
         let newValues = null;
@@ -42,8 +45,22 @@ const auditMiddleware = (action, entityType, description = null) => {
         if (action === 'create' && data) {
           newValues = data;
         } else if (action === 'update') {
-          oldValues = req.originalData || null;
-          newValues = data;
+          const original = req.originalData || {};
+          const updated = data || {};
+          oldValues = {};
+          newValues = {};
+          // Only include fields that changed
+          Object.keys(updated).forEach(key => {
+            if (original[key] !== undefined && original[key] !== updated[key]) {
+              oldValues[key] = original[key];
+              newValues[key] = updated[key];
+            }
+          });
+          // If no changes, set to null
+          if (Object.keys(newValues).length === 0) {
+            oldValues = null;
+            newValues = null;
+          }
         } else if (action === 'delete') {
           oldValues = req.originalData || null;
         }
@@ -58,7 +75,9 @@ const auditMiddleware = (action, entityType, description = null) => {
             oldValues,
             newValues,
             metadata,
-            description
+            description,
+            ip_address,
+            user_agent
           );
         });
       }

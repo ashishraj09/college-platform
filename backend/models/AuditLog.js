@@ -57,6 +57,7 @@ const AuditLog = sequelize.define('AuditLog', {
   },
 }, {
   tableName: 'audit_logs',
+  timestamps: true, // Ensure created_at and updated_at are present
   indexes: [
     {
       fields: ['user_id'],

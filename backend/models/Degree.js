@@ -140,6 +140,7 @@ const Degree = sequelize.define('Degree', {
     },
 }, {
   tableName: 'degrees',
+  timestamps: true,
   indexes: [
     {
       unique: true,

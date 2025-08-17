@@ -88,7 +88,7 @@ router.get('/',
 
 // Get faculty courses with enhanced categorization
 router.get('/my-courses', 
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
   try {
     const { userId, departmentId } = req.query;
@@ -155,15 +155,11 @@ router.get('/my-courses',
     // Helper function to resolve instructor names
     const resolveInstructorNames = async (facultyDetails) => {
       if (!facultyDetails || typeof facultyDetails !== 'object') return facultyDetails;
-      
       const resolved = { ...facultyDetails };
-      
       const getInstructorName = async (instructorId) => {
         if (!instructorId || typeof instructorId !== 'string') return instructorId;
-        
         const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
         if (!uuidPattern.test(instructorId)) return instructorId;
-        
         try {
           const user = await User.findByPk(instructorId, {
             attributes: ['id', 'first_name', 'last_name']
@@ -173,7 +169,6 @@ router.get('/my-courses',
           return instructorId;
         }
       };
-
       // Resolve various instructor fields
       if (resolved.primary_instructor) {
         resolved.primary_instructor = await getInstructorName(resolved.primary_instructor);
@@ -190,7 +185,6 @@ router.get('/my-courses',
       if (resolved.lab_instructors && Array.isArray(resolved.lab_instructors)) {
         resolved.lab_instructors = await Promise.all(resolved.lab_instructors.map(getInstructorName));
       }
-      
       return resolved;
     };
 
@@ -211,7 +205,6 @@ router.get('/my-courses',
     const summary = {
       total: courses.length,
       draft: categorized.draft.length,
-      pending_approval: categorized.pending_approval.length,
       approved: categorized.approved.length,
       active: categorized.active.length
     };
@@ -229,7 +222,7 @@ router.get('/my-courses',
 
 // Get all courses from faculty's department (for department overview)
 router.get('/department-courses', 
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
   try {
     const { userId, departmentId } = req.query;
@@ -244,8 +237,7 @@ router.get('/department-courses',
     if (!user.department_id) {
       return res.status(400).json({ error: 'User context required - missing departmentId parameter' });
     }
-
-    const courses = await Course.findAll({
+  const courses = await Course.findAll({
       where: {
         department_id: user.department_id
       },
@@ -269,8 +261,7 @@ router.get('/department-courses',
           model: User,
           as: 'updater',
           attributes: ['id', 'first_name', 'last_name'],
-          required: false
-        },
+  },
         {
           model: User,
           as: 'approver',
@@ -281,8 +272,7 @@ router.get('/department-courses',
       order: [['created_at', 'DESC']]
     });
 
-    // Group by status for department overview
-    const coursesByStatus = {
+  const coursesByStatus = {
       draft: courses.filter(course => course.status === 'draft'),
       pending_approval: courses.filter(course => ['submitted', 'pending_approval'].includes(course.status)),
       approved: courses.filter(course => course.status === 'approved'),
@@ -296,7 +286,7 @@ router.get('/department-courses',
       departmentInfo: courses.length > 0 ? {
         id: courses[0].department.id,
         name: courses[0].department.name,
-        code: courses[0].department.code
+      authenticateToken,
       } : null,
       summary: {
         total: courses.length,
@@ -315,7 +305,7 @@ router.get('/department-courses',
 
 //Get course by ID
 router.get('/:id',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
     try {
       const course = await Course.findByPk(req.params.id, {
@@ -440,7 +430,7 @@ router.get('/:id',
 
 // Get course for editing (dedicated endpoint)
 router.get('/:id/edit',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
     try {
       const resolveNames = req.query.resolve_names !== 'false'; // Default to true
@@ -548,8 +538,8 @@ router.get('/:id/edit',
 
 // Create new course (Faculty only)
 router.post('/',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty'), // Temporarily disabled for testing
+  authenticateToken,
+  authorizeRoles('faculty'),
   courseValidation,
   handleValidationErrors,
   auditMiddleware('create', 'course', 'Course created'),
@@ -652,8 +642,8 @@ router.post('/',
 
 // Create new version of existing course (Faculty only)
 router.post('/:id/create-version',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty'), // Temporarily disabled for testing
+  authenticateToken,
+  authorizeRoles('faculty'),
   auditMiddleware('create', 'course', 'Course version created'),
   async (req, res) => {
     try {
@@ -776,7 +766,7 @@ router.post('/:id/create-version',
 
 // Check if course can be edited
 router.get('/:id/can-edit',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
     try {
       const course = await Course.findByPk(req.params.id);
@@ -860,8 +850,7 @@ router.get('/:id/can-edit',
 
 // Submit course for approval (Faculty only)
 router.patch('/:id/submit',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty'), // Temporarily disabled for testing
+  captureOriginalData(Course, 'id'),
   auditMiddleware('update', 'course', 'Course submitted for approval'),
   async (req, res) => {
     try {
@@ -908,6 +897,17 @@ router.patch('/:id/submit',
         updated_by: user.id
       });
 
+      // Add message to messages table
+      const Message = require('../models/Message');
+      if (req.body.message) {
+        await Message.create({
+          type: 'course',
+          reference_id: course.id,
+          sender_id: user.id,
+          message: req.body.message,
+        });
+      }
+
       // Find HOD of the department
       const hod = await User.findOne({
         where: {
@@ -939,8 +939,8 @@ router.patch('/:id/submit',
 
 // Approve course (HOD only)
 router.patch('/:id/approve',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty'), // Only faculty (HOD) can approve
+  authenticateToken,
+  authorizeRoles('faculty', 'admin'),
   auditMiddleware('update', 'course', 'Course approved'),
   async (req, res) => {
     try {
@@ -993,10 +993,11 @@ router.patch('/:id/approve',
 
 // Reject course (HOD only)
 router.patch('/:id/reject',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty'), // Only faculty (HOD) can reject
   [body('reason').trim().isLength({ min: 10, max: 500 }).withMessage('Rejection reason is required (10-500 characters)')],
   handleValidationErrors,
+  authenticateToken,
+  authorizeRoles('faculty', 'admin'),
+  captureOriginalData(Course, 'id'),
   auditMiddleware('update', 'course', 'Course rejected'),
   async (req, res) => {
     try {
@@ -1023,6 +1024,15 @@ router.patch('/:id/reject',
         updated_by: user.id || req.body.userId,
       });
 
+      // Add rejection message to messages table
+      const Message = require('../models/Message');
+      await Message.create({
+        type: 'course',
+        reference_id: course.id,
+        sender_id: user.id || req.body.userId,
+        message: `Course change rejected: ${reason}`,
+      });
+
       res.json({
         message: 'Course rejected successfully',
         course,
@@ -1036,8 +1046,8 @@ router.patch('/:id/reject',
 
 // Publish/Activate course (Faculty only - for approved courses)
 router.patch('/:id/publish',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty'), // Temporarily disabled for testing
+  authenticateToken,
+  authorizeRoles('faculty', 'admin'),
   auditMiddleware('update', 'course', 'Course published/activated'),
   async (req, res) => {
     try {
@@ -1126,8 +1136,8 @@ router.patch('/:id/publish',
 
 // Update course (Faculty - creator only)
 router.put('/:id',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty'), // Temporarily disabled for testing
+  authenticateToken,
+  authorizeRoles('faculty', 'admin'),
   courseValidation,
   handleValidationErrors,
   captureOriginalData(Course, 'id'),
@@ -1225,8 +1235,8 @@ router.put('/:id',
 
 // Delete course (Faculty - creator only, Admin)
 router.delete('/:id',
-  // authenticateToken, // Temporarily disabled for testing  
-  // authorizeRoles('faculty', 'admin'), // Temporarily disabled for testing
+  authenticateToken,
+  authorizeRoles('faculty', 'admin'),
   captureOriginalData(Course, 'id'),
   auditMiddleware('delete', 'course', 'Course deleted'),
   async (req, res) => {

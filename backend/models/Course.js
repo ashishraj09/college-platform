@@ -161,6 +161,7 @@ const Course = sequelize.define('Course', {
   },
 }, {
   tableName: 'courses',
+  timestamps: true,
   indexes: [
     {
       unique: true,

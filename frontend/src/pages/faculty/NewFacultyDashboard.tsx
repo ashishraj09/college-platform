@@ -37,22 +37,8 @@ import {
   EntityType,
   Entity,
 } from './facultyDashboardHelpers';
-import TimelineIcon from '@mui/icons-material/Timeline';
-import TimelineDialog, { TimelineEvent } from '../../components/common/TimelineDialog';
-import { timelineAPI } from '../../services/api';
 
-const FacultyDashboard: React.FC = () => {
-  // Approval message state for dialogs
-  const [courseApprovalMessage, setCourseApprovalMessage] = useState('');
-  const [degreeApprovalMessage, setDegreeApprovalMessage] = useState('');
-  const [submittingCourse, setSubmittingCourse] = useState(false);
-  const [submittingDegree, setSubmittingDegree] = useState(false);
-  const [submitCourseError, setSubmitCourseError] = useState('');
-  const [submitDegreeError, setSubmitDegreeError] = useState('');
-  // Timeline dialog state
-  const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-  const [timelineEntityName, setTimelineEntityName] = useState('');
+const NewFacultyDashboard: React.FC = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [degrees, setDegrees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,24 +64,24 @@ const FacultyDashboard: React.FC = () => {
   const [degreeDialogMode, setDegreeDialogMode] = useState<'create' | 'edit'>('create');
   const [degreeDialogData, setDegreeDialogData] = useState<any>(null);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [coursesData, degreesData] = await Promise.all([
-        coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
-        degreesAPI.getFacultyDegrees(user?.department?.id),
-      ]);
-      setCourses(coursesData?.all || []);
-      setDegrees(degreesData?.all || []);
-    } catch (err) {
-      enqueueSnackbar('Error loading data', { variant: 'error' });
-      setCourses([]);
-      setDegrees([]);
-    } finally {
-      setLoading(false);
-    }
-  };
   useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [coursesData, degreesData] = await Promise.all([
+          coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
+          degreesAPI.getFacultyDegrees(user?.department?.id),
+        ]);
+        setCourses(coursesData?.all || []);
+        setDegrees(degreesData?.all || []);
+      } catch (err) {
+        enqueueSnackbar('Error loading data', { variant: 'error' });
+        setCourses([]);
+        setDegrees([]);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadData();
   }, [user]);
 
@@ -197,11 +183,7 @@ const FacultyDashboard: React.FC = () => {
 
   // Entity card renderer
   const FacultyItemCard = ({ item, actions, onAction }: { item: any; actions: any[]; onAction: (action: string, item: any) => void }) => (
-  // Accept entityType as prop for clarity
-  // ...existing code...
-  // Update signature to accept entityType
-  // Usage below will be updated
-  <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
+    <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
       <CardContent sx={{ flexGrow: 1 }}>
         <Box sx={{ mb: 2 }}>
           <Typography variant="h6" component="h2">{item.name}</Typography>
@@ -250,58 +232,12 @@ const FacultyDashboard: React.FC = () => {
             {action.label}
           </Button>
         ))}
-          <Button
-            size="small"
-            startIcon={<TimelineIcon />}
-            onClick={async () => {
-              setTimelineEntityName(item.name || item.code || item.id);
-              try {
-                console.log('Fetching timeline for:', item);
-                console.log('Fetching timeline for:', item.degree);
-                // Use explicit entityType prop
-                const data = await timelineAPI.getTimeline(item.entityType, item.id);
-                // Merge audit and messages into a single timeline array
-                const auditEvents = Array.isArray(data.audit) ? data.audit.map((a: any) => ({
-                  type: 'audit',
-                  id: a.id,
-                  action: a.action,
-                  user: a.user,
-                  description: a.description,
-                  timestamp: a.timestamp || a.createdAt || null
-                })) : [];
-                const messageEvents = Array.isArray(data.messages) ? data.messages.map((m: any) => ({
-                  type: 'message',
-                  id: m.id,
-                  message: m.message,
-                  user: m.user,
-                  timestamp: m.timestamp || m.createdAt || null
-                })) : [];
-                // Sort by timestamp descending (most recent first)
-                const timeline = [...auditEvents, ...messageEvents].sort((a, b) => {
-                  if (!a.timestamp || !b.timestamp) return 0;
-                  return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-                });
-                setTimelineEvents(timeline);
-              } catch (err) {
-                setTimelineEvents([]);
-              }
-              setTimelineDialogOpen(true);
-            }}
-          >
-            Timeline
-          </Button>
       </CardActions>
     </Card>
   );
 
   return (
     <Container maxWidth="xl">
-      <TimelineDialog
-        open={timelineDialogOpen}
-        onClose={() => setTimelineDialogOpen(false)}
-  events={timelineEvents}
-        entityName={timelineEntityName}
-      />
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" gutterBottom>Faculty Dashboard</Typography>
         <Typography variant="body1" color="text.secondary">Manage your courses and degrees</Typography>
@@ -352,12 +288,7 @@ const FacultyDashboard: React.FC = () => {
                 ) : (
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 3 }}>
                     {tab.entities.map(course => (
-                      <FacultyItemCard
-                        key={course.id}
-                        item={{ ...course, entityType: 'course' }}
-                        actions={getAvailableEntityActions(course, 'course', isHOD)}
-                        onAction={(action, item) => handleAction(action, item, 'course')}
-                      />
+                      <FacultyItemCard item={course} actions={getAvailableEntityActions(course, 'course', isHOD)} onAction={(action, item) => handleAction(action, item, 'course')} />
                     ))}
                   </Box>
                 )
@@ -388,12 +319,7 @@ const FacultyDashboard: React.FC = () => {
                 ) : (
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 3 }}>
                     {tab.entities.map(degree => (
-                      <FacultyItemCard
-                        key={degree.id}
-                        item={{ ...degree, entityType: 'degree' }}
-                        actions={getAvailableEntityActions(degree, 'degree', isHOD)}
-                        onAction={(action, item) => handleAction(action, item, 'degree')}
-                      />
+                      <FacultyItemCard item={degree} actions={getAvailableEntityActions(degree, 'degree', isHOD)} onAction={(action, item) => handleAction(action, item, 'degree')} />
                     ))}
                   </Box>
                 )
@@ -449,43 +375,11 @@ const FacultyDashboard: React.FC = () => {
         title="Submit Course for Approval"
         messageLabel="Message to Reviewer (Optional)"
         messageRequired={false}
-        messageValue={courseApprovalMessage}
-        onMessageChange={setCourseApprovalMessage}
-        loading={submittingCourse}
-        onCancel={() => {
-          setSubmitCourseDialogOpen(false);
-          setCourseApprovalMessage('');
-          setSubmitCourseError('');
-        }}
-        onSubmit={async () => {
-          if (!courseToSubmit) return;
-          setSubmittingCourse(true);
-          setSubmitCourseError('');
-          try {
-            await coursesAPI.submitCourseForApproval(
-              courseToSubmit.id,
-              courseApprovalMessage,
-              user?.id,
-              user?.department?.id
-            );
-            enqueueSnackbar('Course submitted for approval!', { variant: 'success' });
-            setSubmitCourseDialogOpen(false);
-            setCourseApprovalMessage('');
-            await loadData();
-          } catch (err) {
-            let errorMsg = 'Failed to submit for approval';
-            if (typeof err === 'object' && err !== null) {
-              if ('message' in err && typeof (err as any).message === 'string') {
-                errorMsg = (err as any).message;
-              }
-              if ('response' in err && (err as any).response?.data?.error) {
-                errorMsg = (err as any).response.data.error;
-              }
-            }
-            setSubmitCourseError(errorMsg);
-          }
-          setSubmittingCourse(false);
-        }}
+        messageValue={''}
+        onMessageChange={() => {}}
+        loading={false}
+        onCancel={() => setSubmitCourseDialogOpen(false)}
+        onSubmit={() => setSubmitCourseDialogOpen(false)}
       />
       {/* Degree Submit Dialog */}
       <SubmitForApprovalDialog
@@ -493,46 +387,14 @@ const FacultyDashboard: React.FC = () => {
         title="Submit Degree for Approval"
         messageLabel="Message to Reviewer (Optional)"
         messageRequired={false}
-        messageValue={degreeApprovalMessage}
-        onMessageChange={setDegreeApprovalMessage}
-        loading={submittingDegree}
-        onCancel={() => {
-          setSubmitDegreeDialogOpen(false);
-          setDegreeApprovalMessage('');
-          setSubmitDegreeError('');
-        }}
-        onSubmit={async () => {
-          if (!degreeToSubmit) return;
-          setSubmittingDegree(true);
-          setSubmitDegreeError('');
-          try {
-            await degreesAPI.submitDegreeForApproval(
-              degreeToSubmit.id,
-              degreeApprovalMessage,
-              user?.id,
-              user?.department?.id
-            );
-            enqueueSnackbar('Degree submitted for approval!', { variant: 'success' });
-            setSubmitDegreeDialogOpen(false);
-            setDegreeApprovalMessage('');
-            await loadData();
-          } catch (err) {
-            let errorMsg = 'Failed to submit for approval';
-            if (typeof err === 'object' && err !== null) {
-              if ('message' in err && typeof (err as any).message === 'string') {
-                errorMsg = (err as any).message;
-              }
-              if ('response' in err && (err as any).response?.data?.error) {
-                errorMsg = (err as any).response.data.error;
-              }
-            }
-            setSubmitDegreeError(errorMsg);
-          }
-          setSubmittingDegree(false);
-        }}
+        messageValue={''}
+        onMessageChange={() => {}}
+        loading={false}
+        onCancel={() => setSubmitDegreeDialogOpen(false)}
+        onSubmit={() => setSubmitDegreeDialogOpen(false)}
       />
     </Container>
   );
 };
 
-export default FacultyDashboard;
+export default NewFacultyDashboard;
