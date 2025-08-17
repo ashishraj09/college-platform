@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
 import { setTokens, setUser, logout, setLoading, setError } from '../store/slices/authSlice';
@@ -51,6 +51,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch(logout());
     }
   };
+
+  // Fetch latest user profile on page refresh
+  useEffect(() => {
+    if (tokens && isAuthenticated) {
+      authAPI.getProfile()
+        .then(profile => {
+          dispatch(setUser(profile));
+        })
+        .catch(err => {
+          console.error('Failed to refresh user profile:', err);
+        });
+    }
+  }, [tokens, isAuthenticated, dispatch]);
 
   const value: AuthContextType = {
     user,

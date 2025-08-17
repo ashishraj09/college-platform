@@ -1,9 +1,9 @@
 const express = require('express');
+const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { body } = require('express-validator');
 const { User, Department, Degree, Course } = require('../models');
 const { Op } = require('sequelize');
-const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware } = require('../middleware/audit');
 const { 
@@ -17,8 +17,8 @@ const {
   sendWelcomeEmail, 
   sendPasswordResetEmail 
 } = require('../utils/email');
+const { authenticateToken } = require('../middleware/auth');
 
-const router = express.Router();
 
 // Register validation rules
 const registerValidation = [
@@ -331,12 +331,14 @@ router.post('/reset-password',
       const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 12;
       const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-      // Update user
+
+      // Update user and set email_verified to true if not already
       await user.update({
         password: hashedPassword,
         password_reset_token: null,
         password_reset_expires: null,
         status: user.status === 'pending' ? 'active' : user.status,
+        email_verified: true,
       });
 
       res.json({ message: 'Password reset successfully' });
@@ -509,6 +511,33 @@ router.post('/create-demo-users', async (req, res) => {
   } catch (error) {
     console.error('Error creating demo users:', error);
     res.status(500).json({ error: 'Failed to create demo users', details: error.message });
+  }
+});
+
+// Get current authenticated user's profile
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] },
+      include: [
+        {
+          model: Department,
+          as: 'department',
+          attributes: ['id', 'name', 'code'],
+        },
+        {
+          model: Degree,
+          as: 'degree',
+          attributes: ['id', 'name', 'code'],
+        }
+      ]
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
