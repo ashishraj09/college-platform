@@ -18,19 +18,15 @@ import {
   Paper,
   IconButton,
   Chip,
-  Avatar,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   DialogContentText,
-  FormControlLabel,
-  Switch,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Tooltip,
   TablePagination,
   CircularProgress,
 } from '@mui/material';
@@ -40,19 +36,14 @@ import {
   Class, 
   Assignment,
   Search as SearchIcon,
-  Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Block as BlockIcon,
   LockReset as PasswordResetIcon,
-  LockReset as LockResetIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
+import CreateDepartmentDialog from '../../components/admin/CreateDepartmentDialog';
 import { useNavigate } from 'react-router-dom';
 import { usersAPI, departmentsAPI } from '../../services/api';
-import CreateDepartmentDialog from '../../components/admin/CreateDepartmentDialog';
-import LoadingButton from '../../components/common/LoadingButton';
-
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -80,6 +71,11 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const AdminDashboard: React.FC = () => {
+  // ...existing code...
+  useEffect(() => {
+    fetchAllUsers();
+    loadDepartments();
+  }, []);
   const [tabValue, setTabValue] = useState(0);
   const [createDepartmentOpen, setCreateDepartmentOpen] = useState(false);
   const [users, setUsers] = useState<any[] | null>(null);
@@ -267,58 +263,104 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Define fetchAllUsers as a standalone async function
-  const fetchAllUsers = async () => {
-    setPageLoading(true);
-    const studentRes = await loadUsers('student', pagination.student.page, pagination.student.limit);
-    const facultyRes = await loadUsers('faculty', pagination.faculty.page, pagination.faculty.limit);
-    const officeRes = await loadUsers('office', pagination.office.page, pagination.office.limit);
-    setUsers([
-      ...studentRes.users,
-      ...facultyRes.users,
-      ...officeRes.users,
-    ]);
-    setPagination({
-      student: studentRes.pagination,
-      faculty: facultyRes.pagination,
-      office: officeRes.pagination,
-    });
-    setPageLoading(false);
+  // Generic sorting state for all tables
+  const [sortConfig, setSortConfig] = useState<{ tab: number; column: string; direction: 'asc' | 'desc' }>({ tab: 0, column: '', direction: 'asc' });
+
+  // Generic sort handler
+  const handleSort = (tab: number, column: string) => {
+    setSortConfig(prev => ({
+      tab,
+      column,
+      direction: prev.tab === tab && prev.column === column ? (prev.direction === 'asc' ? 'desc' : 'asc') : 'asc'
+    }));
   };
 
-  useEffect(() => {
-    fetchAllUsers();
-  }, [pagination.student.page, pagination.faculty.page, pagination.office.page]);
+  // Generic sort function
+  const getSortedData = (data: any[], tab: number) => {
+    if (!sortConfig.column || sortConfig.tab !== tab) return data;
+    return [...data].sort((a, b) => {
+      let aVal = a[sortConfig.column];
+      let bVal = b[sortConfig.column];
+      // Special cases
+      if (sortConfig.column === 'department') {
+        aVal = a.department?.name || '';
+        bVal = b.department?.name || '';
+      }
+      if (sortConfig.column === 'last_login') {
+        aVal = a.last_login ? new Date(a.last_login).getTime() : 0;
+        bVal = b.last_login ? new Date(b.last_login).getTime() : 0;
+      }
+      if (sortConfig.column === 'is_head_of_department') {
+        aVal = !!a.is_head_of_department ? 1 : 0;
+        bVal = !!b.is_head_of_department ? 1 : 0;
+      }
+      if (sortConfig.column === 'status') {
+        aVal = a.status || '';
+        bVal = b.status || '';
+      }
+      // For string comparison
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
 
-  useEffect(() => {
-    loadDepartments();
-  }, []);
+  // Fetch all users for all types and update state
+  const fetchAllUsers = async () => {
+    setLoading(true);
+    try {
+      const studentRes = await loadUsers('student', pagination.student.page, pagination.student.limit);
+      const facultyRes = await loadUsers('faculty', pagination.faculty.page, pagination.faculty.limit);
+      const officeRes = await loadUsers('office', pagination.office.page, pagination.office.limit);
+      const allUsers = [
+        ...studentRes.users,
+        ...facultyRes.users,
+        ...officeRes.users,
+      ];
+      setUsers(allUsers);
+      setPagination(prev => ({
+        ...prev,
+        student: studentRes.pagination,
+        faculty: facultyRes.pagination,
+        office: officeRes.pagination,
+      }));
+    } catch (error) {
+      enqueueSnackbar('Failed to fetch users', { variant: 'error' });
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Null-safe stats definition
+  // Stats for dashboard cards
   const stats = [
     {
-      title: 'Total Students',
-      count: Array.isArray(users) ? users.filter(u => u.user_type === 'student').length : 0,
-      icon: <People sx={{ fontSize: 40 }} />, 
-      color: '#1976d2'
+      title: 'Students',
+      count: pagination.student.total,
+      color: 'primary',
+      icon: <People />,
     },
     {
-      title: 'Faculty Members',
-      count: Array.isArray(users) ? users.filter(u => u.user_type === 'faculty').length : 0,
-      icon: <School sx={{ fontSize: 40 }} />, 
-      color: '#388e3c'
+      title: 'Faculty',
+      count: pagination.faculty.total,
+      color: 'secondary',
+      icon: <School />,
     },
     {
       title: 'Office Staff',
-      count: Array.isArray(users) ? users.filter(u => u.user_type === 'office').length : 0,
-      icon: <Class sx={{ fontSize: 40 }} />, 
-      color: '#f57c00'
+      count: pagination.office.total,
+      color: 'info',
+      icon: <Class />,
     },
     {
       title: 'Departments',
       count: Array.isArray(departments) ? departments.length : 0,
-      icon: <Assignment sx={{ fontSize: 40 }} />, 
-      color: '#d32f2f'
+      color: 'success',
+      icon: <Assignment />,
     },
   ];
 
@@ -497,38 +539,52 @@ const AdminDashboard: React.FC = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>First Name</TableCell>
-                      <TableCell>Last Name</TableCell>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Student ID</TableCell>
-                      <TableCell>Status</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'first_name')} style={{ cursor: 'pointer' }}>First Name {sortConfig.tab === 0 && sortConfig.column === 'first_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'last_name')} style={{ cursor: 'pointer' }}>Last Name {sortConfig.tab === 0 && sortConfig.column === 'last_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'email')} style={{ cursor: 'pointer' }}>Email {sortConfig.tab === 0 && sortConfig.column === 'email' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'student_id')} style={{ cursor: 'pointer' }}>Student ID {sortConfig.tab === 0 && sortConfig.column === 'student_id' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'department')} style={{ cursor: 'pointer' }}>Department {sortConfig.tab === 0 && sortConfig.column === 'department' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'last_login')} style={{ cursor: 'pointer' }}>Last Login {sortConfig.tab === 0 && sortConfig.column === 'last_login' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 0 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(filteredData.length > 0 ? filteredData : users)?.map((user) => (
-                      user.user_type === 'student' && (
-                        <TableRow key={user.id}>
-                          <TableCell>{user.first_name}</TableCell>
-                          <TableCell>{user.last_name}</TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>{user.student_id}</TableCell>
-                          <TableCell>
-                            <Chip label={user.status} color={getStatusColor(user.status)} />
-                          </TableCell>
-                          <TableCell>
-                            <IconButton onClick={() => handleEditUser(user)}>
-                              <EditIcon />
-                            </IconButton>
-                            <IconButton onClick={() => handlePasswordReset(user)}>
-                              <PasswordResetIcon />
-                            </IconButton>
-                            <IconButton onClick={() => handleDeactivateUser(user)}>
-                              {user.status === 'active' ? <BlockIcon /> : null}
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      )
+                    {getSortedData((filteredData.length > 0 ? filteredData : users)?.filter((user: any) => user.user_type === 'student') || [], 0).map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>{user.first_name}</TableCell>
+                        <TableCell>{user.last_name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.student_id}</TableCell>
+                        <TableCell>{user.department?.name || '-'}</TableCell>
+                        <TableCell>
+                          {user.last_login ?
+                            new Date(user.last_login).toLocaleString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: false
+                            })
+                            : 'Never'}
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={user.status} color={getStatusColor(user.status)} />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => handleEditUser(user)}>
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handlePasswordReset(user)}>
+                            <PasswordResetIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handleDeactivateUser(user)}>
+                            {user.status === 'active' ? <BlockIcon /> : null}
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
                     ))}
                   </TableBody>
                 </Table>
@@ -570,58 +626,56 @@ const AdminDashboard: React.FC = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>First Name</TableCell>
-                      <TableCell>Last Name</TableCell>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Employee ID</TableCell>
-                      <TableCell>Department</TableCell>
-                      <TableCell>HOD</TableCell>
-                      <TableCell>Last Login</TableCell>
-                      <TableCell>Status</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'first_name')} style={{ cursor: 'pointer' }}>First Name {sortConfig.tab === 1 && sortConfig.column === 'first_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'last_name')} style={{ cursor: 'pointer' }}>Last Name {sortConfig.tab === 1 && sortConfig.column === 'last_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'email')} style={{ cursor: 'pointer' }}>Email {sortConfig.tab === 1 && sortConfig.column === 'email' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'employee_id')} style={{ cursor: 'pointer' }}>Employee ID {sortConfig.tab === 1 && sortConfig.column === 'employee_id' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'department')} style={{ cursor: 'pointer' }}>Department {sortConfig.tab === 1 && sortConfig.column === 'department' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'is_head_of_department')} style={{ cursor: 'pointer' }}>HOD {sortConfig.tab === 1 && sortConfig.column === 'is_head_of_department' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'last_login')} style={{ cursor: 'pointer' }}>Last Login {sortConfig.tab === 1 && sortConfig.column === 'last_login' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(1, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 1 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(filteredData.length > 0 ? filteredData : users)?.map((user) => (
-                      user.user_type === 'faculty' && (
-                        <TableRow key={user.id}>
-                          <TableCell>{user.first_name}</TableCell>
-                          <TableCell>{user.last_name}</TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>{user.employee_id}</TableCell>
-                          <TableCell>{user.department?.name || '-'}</TableCell>
-                          <TableCell>
-                            {user.is_head_of_department ? <Chip label="HOD" color="primary" /> : null}
-                          </TableCell>
-                          <TableCell>
-                            {user.last_login ?
-                              new Date(user.last_login).toLocaleString('en-GB', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                                hour12: false
-                              })
-                              : 'Never'}
-                          </TableCell>
-                          <TableCell>
-                            <Chip label={user.status} color={getStatusColor(user.status)} />
-                          </TableCell>
-                          <TableCell>
-                            <IconButton onClick={() => handleEditUser(user)}>
-                              <EditIcon />
-                            </IconButton>
-                            <IconButton onClick={() => handlePasswordReset(user)}>
-                              <PasswordResetIcon />
-                            </IconButton>
-                            <IconButton onClick={() => handleDeactivateUser(user)}>
-                              {user.status === 'active' ? <BlockIcon /> : null}
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      )
+                    {getSortedData((filteredData.length > 0 ? filteredData : users)?.filter((user: any) => user.user_type === 'faculty') || [], 1).map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>{user.first_name}</TableCell>
+                        <TableCell>{user.last_name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.employee_id}</TableCell>
+                        <TableCell>{user.department?.name || '-'}</TableCell>
+                        <TableCell>
+                          {user.is_head_of_department ? <Chip label="HOD" color="primary" /> : null}
+                        </TableCell>
+                        <TableCell>
+                          {user.last_login ?
+                            new Date(user.last_login).toLocaleString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: false
+                            })
+                            : 'Never'}
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={user.status} color={getStatusColor(user.status)} />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => handleEditUser(user)}>
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handlePasswordReset(user)}>
+                            <PasswordResetIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handleDeactivateUser(user)}>
+                            {user.status === 'active' ? <BlockIcon /> : null}
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
                     ))}
                   </TableBody>
                 </Table>
@@ -663,38 +717,50 @@ const AdminDashboard: React.FC = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>First Name</TableCell>
-                      <TableCell>Last Name</TableCell>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Employee ID</TableCell>
-                      <TableCell>Status</TableCell>
+                      <TableCell onClick={() => handleSort(2, 'first_name')} style={{ cursor: 'pointer' }}>First Name {sortConfig.tab === 2 && sortConfig.column === 'first_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(2, 'last_name')} style={{ cursor: 'pointer' }}>Last Name {sortConfig.tab === 2 && sortConfig.column === 'last_name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(2, 'email')} style={{ cursor: 'pointer' }}>Email {sortConfig.tab === 2 && sortConfig.column === 'email' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(2, 'employee_id')} style={{ cursor: 'pointer' }}>Employee ID {sortConfig.tab === 2 && sortConfig.column === 'employee_id' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(2, 'last_login')} style={{ cursor: 'pointer' }}>Last Login {sortConfig.tab === 2 && sortConfig.column === 'last_login' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(2, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 2 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(filteredData.length > 0 ? filteredData : users)?.map((user) => (
-                      user.user_type === 'office' && (
-                        <TableRow key={user.id}>
-                          <TableCell>{user.first_name}</TableCell>
-                          <TableCell>{user.last_name}</TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>{user.employee_id}</TableCell>
-                          <TableCell>
-                            <Chip label={user.status} color={getStatusColor(user.status)} />
-                          </TableCell>
-                          <TableCell>
-                            <IconButton onClick={() => handleEditUser(user)}>
-                              <EditIcon />
-                            </IconButton>
-                            <IconButton onClick={() => handlePasswordReset(user)}>
-                              <PasswordResetIcon />
-                            </IconButton>
-                            <IconButton onClick={() => handleDeactivateUser(user)}>
-                              {user.status === 'active' ? <BlockIcon /> : null}
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      )
+                    {getSortedData((filteredData.length > 0 ? filteredData : users)?.filter((user: any) => user.user_type === 'office') || [], 2).map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>{user.first_name}</TableCell>
+                        <TableCell>{user.last_name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.employee_id}</TableCell>
+                        <TableCell>
+                          {user.last_login ?
+                            new Date(user.last_login).toLocaleString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: false
+                            })
+                            : 'Never'}
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={user.status} color={getStatusColor(user.status)} />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => handleEditUser(user)}>
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handlePasswordReset(user)}>
+                            <PasswordResetIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handleDeactivateUser(user)}>
+                            {user.status === 'active' ? <BlockIcon /> : null}
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
                     ))}
                   </TableBody>
                 </Table>
@@ -736,15 +802,15 @@ const AdminDashboard: React.FC = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Code</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Status</TableCell>
+                      <TableCell onClick={() => handleSort(3, 'name')} style={{ cursor: 'pointer' }}>Name {sortConfig.tab === 3 && sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(3, 'code')} style={{ cursor: 'pointer' }}>Code {sortConfig.tab === 3 && sortConfig.column === 'code' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(3, 'description')} style={{ cursor: 'pointer' }}>Description {sortConfig.tab === 3 && sortConfig.column === 'description' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(3, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 3 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(filteredData.length > 0 ? filteredData : departments)?.map((department) => (
+                    {getSortedData(filteredData.length > 0 ? filteredData : departments || [], 3).map((department) => (
                       <TableRow key={department.id}>
                         <TableCell>{department.name}</TableCell>
                         <TableCell>{department.code}</TableCell>
