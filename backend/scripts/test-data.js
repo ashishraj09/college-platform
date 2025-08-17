@@ -3,6 +3,8 @@ const { User, Department, Degree, Course, Message, AuditLog } = require('../mode
 const { sequelize } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const faker = require('@faker-js/faker').faker;
+const bcrypt = require('bcrypt');
+const SALT_ROUNDS = 10;
 
 // Utility to clean database before seeding
 async function cleanDatabase() {
@@ -18,6 +20,11 @@ function fakeEmail() {
   return `${faker.internet.userName().toLowerCase()}@myskytower.com`;
 }
 
+
+async function hashPassword(password) {
+  return await bcrypt.hash(password, SALT_ROUNDS);
+}
+
 async function seedTestData() {
   await sequelize.sync();
   await cleanDatabase();
@@ -28,7 +35,7 @@ async function seedTestData() {
     first_name: 'Admin',
     last_name: 'User',
     email: 'admin@myskytower.com',
-    password: 'admin123', // Should be hashed in production
+    password: await hashPassword('admin123'),
     user_type: 'admin',
     employee_id: 'ADMIN001',
     status: 'active',
@@ -58,7 +65,7 @@ async function seedTestData() {
         first_name: faker.person.firstName(),
         last_name: faker.person.lastName(),
         email: fakeEmail(),
-        password: 'password123', // Should be hashed in production
+        password: await hashPassword('password123'),
         user_type: 'faculty',
         employee_id: `EMP${dept.code}${f + 1}`,
         department_id: dept.id,
@@ -121,7 +128,7 @@ async function seedTestData() {
         first_name: faker.person.firstName(),
         last_name: faker.person.lastName(),
         email: fakeEmail(),
-        password: 'password123', // Should be hashed in production
+        password: await hashPassword('password123'),
         user_type: 'student',
         student_id: `STU${dept.code}${s + 1}`,
         degree_id: degrees.find(d => d.department_id === dept.id).id,
@@ -138,7 +145,6 @@ async function seedTestData() {
   process.exit(0);
 }
 
-seedTestData().catch(err => {
-  console.error('Error seeding test data:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  seedTestData();
+}

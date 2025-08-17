@@ -10,8 +10,8 @@ const router = express.Router();
 
 // Get all users (temporarily public for testing)
 router.get('/',
-  // authenticateToken,
-  // authorizeRoles('admin', 'office'),
+  authenticateToken,
+  authorizeRoles('admin', 'office'),
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
@@ -43,10 +43,13 @@ router.get('/',
       const { count, rows: users } = await User.findAndCountAll({
         where,
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          {
+            model: Department,
+            as: 'department',
+            attributes: ['id', 'name', 'code']
+          }
         ],
-        attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
+        attributes: ['id', 'first_name', 'last_name', 'email', 'user_type', 'status', 'department_id', 'created_at'],
         limit,
         offset,
         order: [['created_at', 'DESC']],

@@ -14,7 +14,7 @@ const api = axios.create({
 // Request interceptor to add auth token and dev bypass header
 api.interceptors.request.use(
   (config) => {
-    const tokens = localStorage.getItem('tokens');
+    const tokens = sessionStorage.getItem('tokens');
     if (tokens) {
       try {
         const parsedTokens = JSON.parse(tokens);

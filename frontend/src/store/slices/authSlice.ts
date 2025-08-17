@@ -71,8 +71,8 @@ const authSlice = createSlice({
       state.error = null;
     },
     initializeAuth: (state) => {
-      const savedTokens = localStorage.getItem('tokens');
-      const savedUser = localStorage.getItem('user');
+      const savedTokens = sessionStorage.getItem('tokens');
+      const savedUser = sessionStorage.getItem('user');
       if (savedTokens && savedUser) {
         try {
           state.tokens = JSON.parse(savedTokens);
@@ -94,11 +94,11 @@ const authSlice = createSlice({
     setTokens: (state, action: PayloadAction<AuthTokens>) => {
       state.tokens = action.payload;
       state.isAuthenticated = true;
-      localStorage.setItem('tokens', JSON.stringify(action.payload));
+      sessionStorage.setItem('tokens', JSON.stringify(action.payload));
     },
     setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
-      localStorage.setItem('user', JSON.stringify(action.payload));
+      sessionStorage.setItem('user', JSON.stringify(action.payload));
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
@@ -111,8 +111,8 @@ const authSlice = createSlice({
       state.tokens = null;
       state.isAuthenticated = false;
       state.error = null;
-      localStorage.removeItem('tokens');
-      localStorage.removeItem('user');
+      sessionStorage.removeItem('tokens');
+      sessionStorage.removeItem('user');
     },
   },
 });

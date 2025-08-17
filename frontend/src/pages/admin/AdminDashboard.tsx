@@ -31,6 +31,8 @@ import {
   Select,
   MenuItem,
   Tooltip,
+  TablePagination,
+  CircularProgress,
 } from '@mui/material';
 import { 
   People, 
@@ -43,6 +45,7 @@ import {
   Delete as DeleteIcon,
   Block as BlockIcon,
   LockReset as PasswordResetIcon,
+  LockReset as LockResetIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
@@ -79,8 +82,8 @@ function TabPanel(props: TabPanelProps) {
 const AdminDashboard: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [createDepartmentOpen, setCreateDepartmentOpen] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[] | null>(null);
+  const [departments, setDepartments] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [passwordResetLoading, setPasswordResetLoading] = useState<Record<string, boolean>>({});
   const [userActionLoading, setUserActionLoading] = useState<Record<string, boolean>>({});
@@ -112,6 +115,14 @@ const AdminDashboard: React.FC = () => {
     onConfirm: () => {},
   });
   
+  // Add pagination state for each user type
+  const [pagination, setPagination] = useState({
+    student: { page: 1, limit: 20, total: 0, pages: 1 },
+    faculty: { page: 1, limit: 20, total: 0, pages: 1 },
+    office: { page: 1, limit: 20, total: 0, pages: 1 },
+  });
+  const [pageLoading, setPageLoading] = useState(false);
+
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
 
@@ -219,7 +230,8 @@ const AdminDashboard: React.FC = () => {
     try {
       const newStatus = action === 'activate' ? 'active' : 'inactive';
       await usersAPI.updateUser(userId, { status: newStatus });
-      loadUsers();
+      // loadUsers();
+      fetchAllUsers();
       enqueueSnackbar(`User ${action}d successfully!`, { variant: 'success' });
     } catch (error) {
       console.error(`Error ${action}ing user:`, error);
@@ -230,89 +242,123 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Handle ResizeObserver errors that commonly occur with MUI tables and responsive layouts
-  useEffect(() => {
-    const handleResizeObserverError = (event: ErrorEvent) => {
-      if (event.message?.includes('ResizeObserver loop completed with undelivered notifications')) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-
-    window.addEventListener('error', handleResizeObserverError);
-    
-    return () => {
-      window.removeEventListener('error', handleResizeObserverError);
-    };
-  }, []);
-
-  // Load data
-  const loadUsers = async () => {
+  // Update loadUsers to support user_type and pagination
+  const loadUsers = async (userType: string, page: number = 1, limit: number = 20) => {
     try {
-      const response = await usersAPI.getUsers();
-      const usersData = response.users || response;
-      setUsers(Array.isArray(usersData) ? usersData : []);
+      const response = await usersAPI.getUsers({ user_type: userType, page, limit });
+      return {
+        users: Array.isArray(response.users) ? response.users : [],
+        pagination: response.pagination || { page, limit, total: 0, pages: 1 },
+      };
     } catch (error) {
       console.error('Error loading users:', error);
-      setUsers([]);
+      return { users: [], pagination: { page, limit, total: 0, pages: 1 } };
     }
   };
 
+  // Load data
   const loadDepartments = async () => {
     try {
       const response = await departmentsAPI.getDepartments();
       setDepartments(response.departments || response);
     } catch (error) {
       console.error('Error loading departments:', error);
+      setDepartments([]);
     }
   };
 
+  // Define fetchAllUsers as a standalone async function
+  const fetchAllUsers = async () => {
+    setPageLoading(true);
+    const studentRes = await loadUsers('student', pagination.student.page, pagination.student.limit);
+    const facultyRes = await loadUsers('faculty', pagination.faculty.page, pagination.faculty.limit);
+    const officeRes = await loadUsers('office', pagination.office.page, pagination.office.limit);
+    setUsers([
+      ...studentRes.users,
+      ...facultyRes.users,
+      ...officeRes.users,
+    ]);
+    setPagination({
+      student: studentRes.pagination,
+      faculty: facultyRes.pagination,
+      office: officeRes.pagination,
+    });
+    setPageLoading(false);
+  };
+
   useEffect(() => {
-    loadUsers();
+    fetchAllUsers();
+  }, [pagination.student.page, pagination.faculty.page, pagination.office.page]);
+
+  useEffect(() => {
     loadDepartments();
   }, []);
+
+  // Null-safe stats definition
+  const stats = [
+    {
+      title: 'Total Students',
+      count: Array.isArray(users) ? users.filter(u => u.user_type === 'student').length : 0,
+      icon: <People sx={{ fontSize: 40 }} />, 
+      color: '#1976d2'
+    },
+    {
+      title: 'Faculty Members',
+      count: Array.isArray(users) ? users.filter(u => u.user_type === 'faculty').length : 0,
+      icon: <School sx={{ fontSize: 40 }} />, 
+      color: '#388e3c'
+    },
+    {
+      title: 'Office Staff',
+      count: Array.isArray(users) ? users.filter(u => u.user_type === 'office').length : 0,
+      icon: <Class sx={{ fontSize: 40 }} />, 
+      color: '#f57c00'
+    },
+    {
+      title: 'Departments',
+      count: Array.isArray(departments) ? departments.length : 0,
+      icon: <Assignment sx={{ fontSize: 40 }} />, 
+      color: '#d32f2f'
+    },
+  ];
 
   // Filter data based on search query and current tab
   useEffect(() => {
     const getCurrentData = () => {
       switch (tabValue) {
         case 0: // Students
-          return users.filter(u => u.user_type === 'student');
+          return Array.isArray(users) ? users.filter(u => u.user_type === 'student') : [];
         case 1: // Faculty
-          return users.filter(u => u.user_type === 'faculty');
+          return Array.isArray(users) ? users.filter(u => u.user_type === 'faculty') : [];
         case 2: // Office
-          return users.filter(u => u.user_type === 'office');
+          return Array.isArray(users) ? users.filter(u => u.user_type === 'office') : [];
         case 3: // Departments
-          return departments;
+          return Array.isArray(departments) ? departments : [];
         default:
           return [];
       }
     };
 
-    let data = getCurrentData();
-    
+    let data: any[] = getCurrentData();
+
     // Filter based on inactive toggle - exclusive filtering
     if (tabValue === 3) { // Departments
       if (showInactiveDepartments) {
-        // When toggle is ON, show ONLY inactive items
-        data = data.filter(item => item.status === 'inactive');
+        data = Array.isArray(data) ? data.filter(item => item.status === 'inactive') : [];
       } else {
-        // When toggle is OFF, show all EXCEPT inactive items
-        data = data.filter(item => item.status !== 'inactive');
+        data = Array.isArray(data) ? data.filter(item => item.status !== 'inactive') : [];
       }
     } else { // Users
       if (showInactiveUsers) {
-        // When toggle is ON, show ONLY inactive items
-        data = data.filter(item => item.status === 'inactive');
+        data = Array.isArray(data) ? data.filter(item => item.status === 'inactive') : [];
       } else {
-        // When toggle is OFF, show all EXCEPT inactive items
-        data = data.filter(item => item.status !== 'inactive');
+        data = Array.isArray(data) ? data.filter(item => item.status !== 'inactive') : [];
       }
     }
 
     // Apply search filter
     if (searchQuery) {
-      const filtered = data.filter(item => {
+      const filtered = Array.isArray(data) ? data.filter(item => {
         if (tabValue === 3) { // Departments
           return item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  item.code?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -323,10 +369,10 @@ const AdminDashboard: React.FC = () => {
                  item.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  item.employee_id?.toLowerCase().includes(searchQuery.toLowerCase());
         }
-      });
+      }) : [];
       setFilteredData(filtered);
     } else {
-      setFilteredData(data);
+      setFilteredData(Array.isArray(data) ? data : []);
     }
   }, [tabValue, searchQuery, users, departments, showInactiveUsers, showInactiveDepartments]);
 
@@ -345,548 +391,477 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const stats = [
-    {
-      title: 'Total Students',
-      count: users.filter(u => u.user_type === 'student').length,
-      icon: <People sx={{ fontSize: 40 }} />,
-      color: '#1976d2'
-    },
-    {
-      title: 'Faculty Members',
-      count: users.filter(u => u.user_type === 'faculty').length,
-      icon: <School sx={{ fontSize: 40 }} />,
-      color: '#388e3c'
-    },
-    {
-      title: 'Office Staff',
-      count: users.filter(u => u.user_type === 'office').length,
-      icon: <Class sx={{ fontSize: 40 }} />,
-      color: '#f57c00'
-    },
-    {
-      title: 'Departments',
-      count: departments.length,
-      icon: <Assignment sx={{ fontSize: 40 }} />,
-      color: '#d32f2f'
-    },
-  ];
+  // Loader logic: block dashboard content until all API data is loaded
+  const isLoading = users === null || departments === null;
+
+  // Pagination controls for each tab (move above return)
+  const handleChangePage = (userType: 'student' | 'faculty' | 'office', newPage: number) => {
+    setPagination(prev => ({
+      ...prev,
+      [userType]: {
+        ...prev[userType],
+        page: newPage,
+      },
+    }));
+  };
+
+  const handleChangeRowsPerPage = (userType: 'student' | 'faculty' | 'office', newLimit: number) => {
+    setPagination(prev => ({
+      ...prev,
+      [userType]: {
+        ...prev[userType],
+        page: 1,
+        limit: newLimit,
+      },
+    }));
+  };
 
   return (
     <Box>
-      <Box mb={3}>
-        <Typography variant="h4" gutterBottom>
-          Admin Dashboard
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          Manage users, departments, and system administration
-        </Typography>
-      </Box>
-
-      {/* Stats Cards */}
-      <Box 
-        display="grid" 
-        gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }}
-        gap={3} 
-        sx={{ mb: 3 }}
-      >
-        {stats.map((stat, index) => (
-          <Card key={index}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="h6" color="textSecondary">
-                    {stat.title}
-                  </Typography>
-                  <Typography variant="h4" color={stat.color}>
-                    {stat.count}
-                  </Typography>
+      {isLoading ? (
+        <Card sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+          <svg width="48" height="48" viewBox="0 0 50 50" style={{ marginBottom: 16 }}>
+            <circle cx="25" cy="25" r="20" fill="none" stroke="#1976d2" strokeWidth="5" strokeDasharray="31.4 31.4" strokeDashoffset="0">
+              <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite" />
+            </circle>
+          </svg>
+          <Typography variant="h6" color="text.secondary">Loading dashboard...</Typography>
+        </Card>
+      ) : (
+        <>
+          <Box mb={3}>
+            <Typography variant="h4" gutterBottom>
+              Admin Dashboard
+            </Typography>
+            <Typography variant="body1" color="textSecondary">
+              Manage users, departments, and system administration
+            </Typography>
+          </Box>
+          {/* Stats Cards */}
+          <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }} gap={3} sx={{ mb: 3 }}>
+            {stats.map((stat: any, index: number) => (
+              <Card key={index}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" justifyContent="space-between">
+                    <Box>
+                      <Typography variant="h6" color="textSecondary">
+                        {stat.title}
+                      </Typography>
+                      <Typography variant="h4" color={stat.color}>
+                        {stat.count}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ color: stat.color }}>
+                      {stat.icon}
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+          {/* Tabs */}
+          <Card>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+              <Tabs value={tabValue} onChange={handleTabChange} aria-label="admin tabs">
+                <Tab label="Students" />
+                <Tab label="Faculty" />
+                <Tab label="Office Staff" />
+                <Tab label="Departments" />
+              </Tabs>
+            </Box>
+            {/* Tab panels */}
+            <TabPanel value={tabValue} index={0}>
+              {pageLoading && (
+                <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 200 }}>
+                  <CircularProgress color="primary" />
                 </Box>
-                <Box sx={{ color: stat.color }}>
-                  {stat.icon}
-                </Box>
+              )}
+              {/* Students Table */}
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search students..."
+                  variant="outlined"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
               </Box>
-            </CardContent>
-          </Card>
-        ))}
-      </Box>
-
-      {/* Tabs */}
-      <Card>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="admin tabs">
-            <Tab label="Students" />
-            <Tab label="Faculty" />
-            <Tab label="Office Staff" />
-            <Tab label="Departments" />
-          </Tabs>
-        </Box>
-
-        {/* Search Bar */}
-        <Box sx={{ p: 2 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Box display="flex" alignItems="center" gap={2}>
-              <TextField
-                placeholder={tabValue === 3 ? "Search departments..." : "Search users..."}
-                variant="outlined"
-                size="small"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ minWidth: 300 }}
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>First Name</TableCell>
+                      <TableCell>Last Name</TableCell>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Student ID</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(filteredData.length > 0 ? filteredData : users)?.map((user) => (
+                      user.user_type === 'student' && (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.first_name}</TableCell>
+                          <TableCell>{user.last_name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.student_id}</TableCell>
+                          <TableCell>
+                            <Chip label={user.status} color={getStatusColor(user.status)} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton onClick={() => handleEditUser(user)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handlePasswordReset(user)}>
+                              <PasswordResetIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDeactivateUser(user)}>
+                              {user.status === 'active' ? <BlockIcon /> : null}
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                component="div"
+                count={pagination.student.total}
+                page={pagination.student.page - 1}
+                onPageChange={(e, newPage) => handleChangePage('student', newPage + 1)}
+                rowsPerPage={pagination.student.limit}
+                onRowsPerPageChange={e => handleChangeRowsPerPage('student', parseInt(e.target.value, 10))}
+                rowsPerPageOptions={[10, 20, 50]}
               />
-              
-              {/* Show Inactive Toggle */}
-              {tabValue === 3 ? (
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={showInactiveDepartments}
-                      onChange={(e) => setShowInactiveDepartments(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label="Show Inactive"
+            </TabPanel>
+            <TabPanel value={tabValue} index={1}>
+              {pageLoading && (
+                <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 200 }}>
+                  <CircularProgress color="primary" />
+                </Box>
+              )}
+              {/* Faculty Table */}
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search faculty..."
+                  variant="outlined"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
-              ) : (
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={showInactiveUsers}
-                      onChange={(e) => setShowInactiveUsers(e.target.checked)}
-                      size="small"
-                    />
-                  }
-                  label="Show Inactive"
+              </Box>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>First Name</TableCell>
+                      <TableCell>Last Name</TableCell>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Employee ID</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(filteredData.length > 0 ? filteredData : users)?.map((user) => (
+                      user.user_type === 'faculty' && (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.first_name}</TableCell>
+                          <TableCell>{user.last_name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.employee_id}</TableCell>
+                          <TableCell>
+                            <Chip label={user.status} color={getStatusColor(user.status)} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton onClick={() => handleEditUser(user)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handlePasswordReset(user)}>
+                              <PasswordResetIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDeactivateUser(user)}>
+                              {user.status === 'active' ? <BlockIcon /> : null}
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                component="div"
+                count={pagination.faculty.total}
+                page={pagination.faculty.page - 1}
+                onPageChange={(e, newPage) => handleChangePage('faculty', newPage + 1)}
+                rowsPerPage={pagination.faculty.limit}
+                onRowsPerPageChange={e => handleChangeRowsPerPage('faculty', parseInt(e.target.value, 10))}
+                rowsPerPageOptions={[10, 20, 50]}
+              />
+            </TabPanel>
+            <TabPanel value={tabValue} index={2}>
+              {pageLoading && (
+                <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 200 }}>
+                  <CircularProgress color="primary" />
+                </Box>
+              )}
+              {/* Office Staff Table */}
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search office staff..."
+                  variant="outlined"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
+              </Box>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>First Name</TableCell>
+                      <TableCell>Last Name</TableCell>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Employee ID</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(filteredData.length > 0 ? filteredData : users)?.map((user) => (
+                      user.user_type === 'office' && (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.first_name}</TableCell>
+                          <TableCell>{user.last_name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.employee_id}</TableCell>
+                          <TableCell>
+                            <Chip label={user.status} color={getStatusColor(user.status)} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton onClick={() => handleEditUser(user)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handlePasswordReset(user)}>
+                              <PasswordResetIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDeactivateUser(user)}>
+                              {user.status === 'active' ? <BlockIcon /> : null}
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                component="div"
+                count={pagination.office.total}
+                page={pagination.office.page - 1}
+                onPageChange={(e, newPage) => handleChangePage('office', newPage + 1)}
+                rowsPerPage={pagination.office.limit}
+                onRowsPerPageChange={e => handleChangeRowsPerPage('office', parseInt(e.target.value, 10))}
+                rowsPerPageOptions={[10, 20, 50]}
+              />
+            </TabPanel>
+            <TabPanel value={tabValue} index={3}>
+              {pageLoading && (
+                <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 200 }}>
+                  <CircularProgress color="primary" />
+                </Box>
               )}
-            </Box>
-            
-            <Box>
-              {/* Create User buttons for each user type tab */}
-              {(tabValue === 0 || tabValue === 1 || tabValue === 2) && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => navigate('/admin/create-user')}
-                >
-                  Create User
-                </Button>
-              )}
-              {/* Add Department button for departments tab */}
-              {tabValue === 3 && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setCreateDepartmentOpen(true)}
-                >
-                  Add Department
-                </Button>
-              )}
-            </Box>
-          </Box>
-        </Box>
-
-        {/* Tab Panels */}
-        <TabPanel value={tabValue} index={0}>
-          {/* Students Table */}
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Student ID</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredData.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Avatar sx={{ mr: 2 }}>
-                          {student.first_name?.charAt(0)}
-                        </Avatar>
-                        {student.first_name} {student.last_name}
-                      </Box>
-                    </TableCell>
-                    <TableCell>{student.student_id || 'N/A'}</TableCell>
-                    <TableCell>{student.email}</TableCell>
-                    <TableCell>{student.department?.name || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={student.status} 
-                        color={getStatusColor(student.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="Edit User">
-                        <IconButton size="small" onClick={() => handleEditUser(student)}>
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Reset Password">
-                        <span>
-                          <LoadingButton
-                            size="small"
-                            variant="text"
-                            onClick={() => handlePasswordReset(student)}
-                            loading={passwordResetLoading[student.id] || false}
-                            sx={{ minWidth: 'auto', padding: '4px' }}
-                          >
-                            <PasswordResetIcon />
-                          </LoadingButton>
-                        </span>
-                      </Tooltip>
-                      {student.status !== 'inactive' && (
-                        <Tooltip title="Deactivate User">
-                          <span>
-                            <LoadingButton
-                              size="small"
-                              variant="text"
-                              onClick={() => handleDeactivateUser(student)}
-                              loading={userActionLoading[student.id] || false}
-                              sx={{ minWidth: 'auto', padding: '4px' }}
-                            >
-                              <BlockIcon />
-                            </LoadingButton>
-                          </span>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={1}>
-          {/* Faculty Table */}
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Employee ID</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>HOD</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredData.map((faculty) => (
-                  <TableRow key={faculty.id}>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Avatar sx={{ mr: 2 }}>
-                          {faculty.first_name?.charAt(0)}
-                        </Avatar>
-                        {faculty.first_name} {faculty.last_name}
-                      </Box>
-                    </TableCell>
-                    <TableCell>{faculty.employee_id || 'N/A'}</TableCell>
-                    <TableCell>{faculty.email}</TableCell>
-                    <TableCell>{faculty.department?.name || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={faculty.is_head_of_department ? 'Yes' : 'No'} 
-                        color={faculty.is_head_of_department ? 'primary' : 'default'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={faculty.status} 
-                        color={getStatusColor(faculty.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="Edit User">
-                        <IconButton size="small" onClick={() => handleEditUser(faculty)}>
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Reset Password">
-                        <span>
-                          <LoadingButton
-                            size="small"
-                            variant="text"
-                            onClick={() => handlePasswordReset(faculty)}
-                            loading={passwordResetLoading[faculty.id] || false}
-                            sx={{ minWidth: 'auto', padding: '4px' }}
-                          >
-                            <PasswordResetIcon />
-                          </LoadingButton>
-                        </span>
-                      </Tooltip>
-                      {faculty.status !== 'inactive' && (
-                        <Tooltip title="Deactivate User">
-                          <span>
-                            <LoadingButton
-                              size="small"
-                              variant="text"
-                              onClick={() => handleDeactivateUser(faculty)}
-                              loading={userActionLoading[faculty.id] || false}
-                              sx={{ minWidth: 'auto', padding: '4px' }}
-                            >
-                              <BlockIcon />
-                            </LoadingButton>
-                          </span>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={2}>
-          {/* Office Staff Table */}
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Employee ID</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredData.map((staff) => (
-                  <TableRow key={staff.id}>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Avatar sx={{ mr: 2 }}>
-                          {staff.first_name?.charAt(0)}
-                        </Avatar>
-                        {staff.first_name} {staff.last_name}
-                      </Box>
-                    </TableCell>
-                    <TableCell>{staff.employee_id || 'N/A'}</TableCell>
-                    <TableCell>{staff.email}</TableCell>
-                    <TableCell>{staff.department?.name || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={staff.status} 
-                        color={getStatusColor(staff.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="Edit User">
-                        <IconButton size="small" onClick={() => handleEditUser(staff)}>
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Reset Password">
-                        <span>
-                          <LoadingButton
-                            size="small"
-                            variant="text"
-                            onClick={() => handlePasswordReset(staff)}
-                            loading={passwordResetLoading[staff.id] || false}
-                            sx={{ minWidth: 'auto', padding: '4px' }}
-                          >
-                            <PasswordResetIcon />
-                          </LoadingButton>
-                        </span>
-                      </Tooltip>
-                      {staff.status !== 'inactive' && (
-                        <Tooltip title="Deactivate User">
-                          <span>
-                            <LoadingButton
-                              size="small"
-                              variant="text"
-                              onClick={() => handleDeactivateUser(staff)}
-                              loading={userActionLoading[staff.id] || false}
-                              sx={{ minWidth: 'auto', padding: '4px' }}
-                            >
-                              <BlockIcon />
-                            </LoadingButton>
-                          </span>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={3}>
-          {/* Departments Table */}
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Code</TableCell>
-                  <TableCell>Description</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredData.map((department) => (
-                  <TableRow key={department.id}>
-                    <TableCell>{department.name}</TableCell>
-                    <TableCell>{department.code}</TableCell>
-                    <TableCell>{department.description || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={department.status} 
-                        color={getStatusColor(department.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="Edit Department">
-                        <IconButton size="small" onClick={() => handleEditDepartment(department)}>
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      {department.status !== 'inactive' && (
-                        <Tooltip title="Deactivate Department">
-                          <IconButton size="small" onClick={() => handleDeactivateDepartment(department)}>
-                            <BlockIcon />
+              {/* Departments Table */}
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  fullWidth
+                  placeholder="Search departments..."
+                  variant="outlined"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Code</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(filteredData.length > 0 ? filteredData : departments)?.map((department) => (
+                      <TableRow key={department.id}>
+                        <TableCell>{department.name}</TableCell>
+                        <TableCell>{department.code}</TableCell>
+                        <TableCell>{department.description}</TableCell>
+                        <TableCell>
+                          <Chip label={department.status} color={getStatusColor(department.status)} />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => handleEditDepartment(department)}>
+                            <EditIcon />
                           </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </TabPanel>
-      </Card>
-
-      <CreateDepartmentDialog
-        open={createDepartmentOpen}
-        onClose={() => setCreateDepartmentOpen(false)}
-        onSuccess={() => {
-          setCreateDepartmentOpen(false);
-          loadDepartments();
-          enqueueSnackbar('Department created successfully!', { variant: 'success' });
-        }}
-      />
-
-      {/* Edit Department Dialog */}
-      <Dialog
-        open={editDepartmentOpen}
-        onClose={() => setEditDepartmentOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Edit Department</DialogTitle>
-        <DialogContent>
-          <Box component="form" sx={{ mt: 1 }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="name"
-              label="Department Name"
-              name="name"
-              value={editFormData.name}
-              onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-              autoFocus
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="code"
-              label="Department Code"
-              name="code"
-              value={editFormData.code}
-              onChange={(e) => setEditFormData({ ...editFormData, code: e.target.value })}
-            />
-            <TextField
-              margin="normal"
-              fullWidth
-              id="description"
-              label="Description"
-              name="description"
-              multiline
-              rows={3}
-              value={editFormData.description}
-              onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel id="status-label">Status</InputLabel>
-              <Select
-                labelId="status-label"
-                id="status"
-                value={editFormData.status}
-                label="Status"
-                onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                          <IconButton onClick={() => handleDeactivateDepartment(department)}>
+                            {department.status === 'active' ? <BlockIcon /> : null}
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePagination
+                component="div"
+                count={pagination.office.total}
+                page={pagination.office.page - 1}
+                onPageChange={(e, newPage) => handleChangePage('office', newPage + 1)}
+                rowsPerPage={pagination.office.limit}
+                onRowsPerPageChange={e => handleChangeRowsPerPage('office', parseInt(e.target.value, 10))}
+                rowsPerPageOptions={[10, 20, 50]}
+              />
+            </TabPanel>
+          </Card>
+          <CreateDepartmentDialog
+            open={createDepartmentOpen}
+            onClose={() => setCreateDepartmentOpen(false)}
+            onSuccess={() => {
+              setCreateDepartmentOpen(false);
+              loadDepartments();
+              enqueueSnackbar('Department created successfully!', { variant: 'success' });
+            }}
+          />
+          {/* Edit Department Dialog */}
+          <Dialog
+            open={editDepartmentOpen}
+            onClose={() => setEditDepartmentOpen(false)}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>Edit Department</DialogTitle>
+            <DialogContent>
+              <Box component="form" sx={{ mt: 1 }}>
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="name"
+                  label="Department Name"
+                  name="name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  autoFocus
+                />
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="code"
+                  label="Department Code"
+                  name="code"
+                  value={editFormData.code}
+                  onChange={(e) => setEditFormData({ ...editFormData, code: e.target.value })}
+                />
+                <TextField
+                  margin="normal"
+                  fullWidth
+                  id="description"
+                  label="Description"
+                  name="description"
+                  multiline
+                  rows={3}
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                />
+                <FormControl fullWidth margin="normal">
+                  <InputLabel id="status-label">Status</InputLabel>
+                  <Select
+                    labelId="status-label"
+                    id="status"
+                    value={editFormData.status}
+                    label="Status"
+                    onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                  >
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="inactive">Inactive</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEditDepartmentOpen(false)}>Cancel</Button>
+              <Button
+                variant="contained"
+                onClick={handleSaveDepartment}
+                disabled={loading}
               >
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="inactive">Inactive</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDepartmentOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveDepartment}
-            disabled={loading}
+                {loading ? 'Saving...' : 'Save'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+          {/* Confirmation Dialog */}
+          <Dialog
+            open={confirmDialog.open}
+            onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
           >
-            {loading ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Confirmation Dialog */}
-      <Dialog
-        open={confirmDialog.open}
-        onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
-      >
-        <DialogTitle>{confirmDialog.title}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {confirmDialog.content}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}
-            color="primary"
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={confirmDialog.onConfirm}
-            color={confirmDialog.action === 'activate' ? 'success' : confirmDialog.action === 'reset' ? 'primary' : 'warning'}
-            variant="contained"
-          >
-            {confirmDialog.action === 'activate' ? 'Activate' : confirmDialog.action === 'reset' ? 'Reset Password' : 'Deactivate'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <DialogTitle>{confirmDialog.title}</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                {confirmDialog.content}
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button 
+                onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}
+                color="primary"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={confirmDialog.onConfirm}
+                color={confirmDialog.action === 'activate' ? 'success' : confirmDialog.action === 'reset' ? 'primary' : 'warning'}
+                variant="contained"
+              >
+                {confirmDialog.action === 'activate' ? 'Activate' : confirmDialog.action === 'reset' ? 'Reset Password' : 'Deactivate'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </>
+      )}
     </Box>
   );
 };

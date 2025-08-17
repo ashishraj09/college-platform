@@ -5,18 +5,20 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 
 // Suppress ResizeObserver loop completed with undelivered notifications error
-// This is a known issue with Material-UI components and doesn't affect functionality
-const resizeObserverErrorFilter = (error: ErrorEvent) => {
-  if (error.message && error.message.includes('ResizeObserver loop completed with undelivered notifications')) {
-    return true; // Suppress this specific error
-  }
-  return false;
-};
-
 window.addEventListener('error', (event) => {
-  if (resizeObserverErrorFilter(event)) {
+  if (event.message && event.message.includes('ResizeObserver loop completed with undelivered notifications')) {
+    console.log('ResizeObserver warning intercepted:', {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+      error: event.error,
+      stack: event.error?.stack
+    });
     event.preventDefault();
     event.stopPropagation();
+  } else {
+    console.log('Other error captured:', event);
   }
 });
 
