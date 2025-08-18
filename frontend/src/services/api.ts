@@ -9,22 +9,12 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Request interceptor to add auth token and dev bypass header
+// Request interceptor to add dev bypass header only
 api.interceptors.request.use(
   (config) => {
-    const tokens = sessionStorage.getItem('tokens');
-    if (tokens) {
-      try {
-        const parsedTokens = JSON.parse(tokens);
-        if (parsedTokens.access) {
-          config.headers.Authorization = `Bearer ${parsedTokens.access}`;
-        }
-      } catch (error) {
-        console.error('Error parsing tokens:', error);
-      }
-    }
     // Add dev bypass header if enabled
     if (
       process.env.NODE_ENV === 'development' &&

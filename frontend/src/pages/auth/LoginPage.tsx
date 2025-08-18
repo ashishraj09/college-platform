@@ -17,7 +17,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../hooks/redux';
-import { setTokens, setUser } from '../../store/slices/authSlice';
+import { setUser } from '../../store/slices/authSlice';
 import { authAPI } from '../../services/api';
 
 // Validation schema
@@ -63,14 +63,12 @@ const LoginPage: React.FC = () => {
     try {
       const response = await authAPI.login(data);
       
-      // Store tokens and user data
-      dispatch(setTokens(response.tokens));
-      dispatch(setUser(response.user));
-      
-      // Navigate to dashboard based on user type
-      const dashboardRoute = getDashboardRoute(response.user.user_type);
-      navigate(dashboardRoute, { replace: true });
-      
+  // After login, fetch user profile and store
+  const profile = await authAPI.getProfile();
+  dispatch(setUser(profile));
+  // Navigate to dashboard based on user type
+  const dashboardRoute = getDashboardRoute(profile.user_type);
+  navigate(dashboardRoute, { replace: true });
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || 'Login failed';
       setError(errorMessage);

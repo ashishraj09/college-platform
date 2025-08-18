@@ -201,18 +201,20 @@ router.post('/login',
 
       // Generate tokens
       const accessToken = generateAccessToken(user.id);
-      const refreshToken = generateRefreshToken(user.id);
 
       // Return user without sensitive data
       const { password: _, password_reset_token, email_verification_token, ...userResponse } = user.toJSON();
 
+      // Set JWT as HTTP-only cookie, expires in 60 minutes
+      res.cookie('token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production' ? true : false,
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        maxAge: 60 * 60 * 1000 // 60 minutes
+      });
       res.json({
         message: 'Login successful',
-        user: userResponse,
-        tokens: {
-          access: accessToken,
-          refresh: refreshToken,
-        },
+        user: userResponse
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -221,36 +223,6 @@ router.post('/login',
   }
 );
 
-// Refresh token
-router.post('/refresh', async (req, res) => {
-  try {
-    const { refresh_token } = req.body;
-
-    if (!refresh_token) {
-      return res.status(401).json({ error: 'Refresh token is required' });
-    }
-
-    const decoded = verifyRefreshToken(refresh_token);
-    
-    const user = await User.findByPk(decoded.userId);
-    if (!user || user.status !== 'active') {
-      return res.status(401).json({ error: 'Invalid refresh token' });
-    }
-
-    const accessToken = generateAccessToken(user.id);
-    const newRefreshToken = generateRefreshToken(user.id);
-
-    res.json({
-      tokens: {
-        access: accessToken,
-        refresh: newRefreshToken,
-      },
-    });
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    res.status(401).json({ error: 'Invalid refresh token' });
-  }
-});
 
 // Request password reset
 router.post('/forgot-password',

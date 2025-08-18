@@ -7,8 +7,8 @@ const authenticateToken = async (req, res, next) => {
     return next();
   }
   try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    // Read JWT from HTTP-only cookie
+    const token = req.cookies && req.cookies.token;
 
     if (!token) {
       return res.status(401).json({ 
@@ -38,6 +38,13 @@ const authenticateToken = async (req, res, next) => {
     }
 
     req.user = user;
+    // Rolling session: reset cookie expiration on every authenticated request
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      maxAge: 60 * 60 * 1000 // 60 minutes
+    });
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

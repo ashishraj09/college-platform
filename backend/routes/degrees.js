@@ -9,6 +9,7 @@ const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 const router = express.Router();
 // Add a comment to degree (conversation timeline)
 router.post('/:id/comment',
+  authenticateToken,
   auditMiddleware('update', 'degree', 'Degree comment added'),
   async (req, res) => {
     try {
@@ -36,6 +37,7 @@ router.post('/:id/comment',
 );
 // Submit degree for approval (Faculty only)
 router.patch('/:id/submit',
+  authenticateToken,
   auditMiddleware('update', 'degree', 'Degree submitted for approval'),
   async (req, res) => {
     try {

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
-import { setTokens, setUser, logout, setLoading, setError } from '../store/slices/authSlice';
+import { setUser, logout, setLoading, setError } from '../store/slices/authSlice';
 import { authAPI } from '../services/api';
 
 interface AuthContextType {
@@ -20,16 +20,16 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useDispatch();
-  const { user, tokens, loading, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { user, loading, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
       dispatch(setLoading(true));
       dispatch(setError(null));
-      const response = await authAPI.login({ email, password });
-      
-      dispatch(setTokens(response.tokens));
-      dispatch(setUser(response.user));
+      await authAPI.login({ email, password });
+      // After login, fetch user profile
+      const profile = await authAPI.getProfile();
+      dispatch(setUser(profile));
     } catch (error) {
       console.error('Login error:', error);
       dispatch(setError('Login failed'));
@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Fetch latest user profile on page refresh
   useEffect(() => {
-    if (tokens && isAuthenticated) {
+    if (isAuthenticated) {
       authAPI.getProfile()
         .then(profile => {
           dispatch(setUser(profile));
@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error('Failed to refresh user profile:', err);
         });
     }
-  }, [tokens, isAuthenticated, dispatch]);
+  }, [isAuthenticated, dispatch]);
 
   const value: AuthContextType = {
     user,

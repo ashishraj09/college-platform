@@ -850,6 +850,7 @@ router.get('/:id/can-edit',
 
 // Submit course for approval (Faculty only)
 router.patch('/:id/submit',
+  authenticateToken,
   captureOriginalData(Course, 'id'),
   auditMiddleware('update', 'course', 'Course submitted for approval'),
   async (req, res) => {

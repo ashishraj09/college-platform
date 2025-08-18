@@ -91,14 +91,11 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
       }
     },
-    setTokens: (state, action: PayloadAction<AuthTokens>) => {
-      state.tokens = action.payload;
-      state.isAuthenticated = true;
-      sessionStorage.setItem('tokens', JSON.stringify(action.payload));
-    },
+  // Removed setTokens reducer for cookie-based authentication
     setUser: (state, action: PayloadAction<User>) => {
-      state.user = action.payload;
-      sessionStorage.setItem('user', JSON.stringify(action.payload));
+    state.user = action.payload;
+    state.isAuthenticated = true;
+  sessionStorage.setItem('user', JSON.stringify(action.payload));
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
@@ -108,10 +105,8 @@ const authSlice = createSlice({
     },
     logout: (state) => {
       state.user = null;
-      state.tokens = null;
       state.isAuthenticated = false;
       state.error = null;
-      sessionStorage.removeItem('tokens');
       sessionStorage.removeItem('user');
     },
   },
@@ -120,7 +115,6 @@ const authSlice = createSlice({
 export const { 
   clearError, 
   initializeAuth, 
-  setTokens, 
   setUser, 
   setLoading, 
   setError, 

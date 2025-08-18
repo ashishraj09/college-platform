@@ -1,4 +1,5 @@
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -18,9 +19,9 @@ const courseRoutes = require('./routes/courses');
 const departmentRoutes = require('./routes/departments');
 const degreeRoutes = require('./routes/degrees');
 const enrollmentRoutes = require('./routes/enrollments');
-const auditRoutes = require('./routes/audit');
 
 const app = express();
+app.use(cookieParser());
 // Disable ETag to prevent 304 Not Modified responses
 app.set('etag', false);
 
@@ -112,7 +113,6 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/degrees', degreeRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
-app.use('/api/audit', auditRoutes);
 const timelineRoutes = require('./routes/timeline');
 app.use('/api/timeline', timelineRoutes);
 

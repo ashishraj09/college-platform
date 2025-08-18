@@ -4,8 +4,8 @@ const { Department } = require('../models');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { auditMiddleware } = require('../middleware/audit');
 
-// Get all departments (public route for testing)
-router.get('/', async (req, res) => {
+// Get all departments (now requires authentication)
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const departments = await Department.findAll({
       order: [['name', 'ASC']],
@@ -37,8 +37,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Create new department (public route for testing)
-router.post('/', async (req, res) => {
+// Create new department (now requires authentication)
+router.post('/', authenticateToken, authorizeRoles('admin'), auditMiddleware('create', 'department'), async (req, res) => {
   try {
     const { name, code, description } = req.body;
 
