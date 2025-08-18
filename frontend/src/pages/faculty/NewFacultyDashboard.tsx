@@ -27,7 +27,7 @@ import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
 import CreateCourseDialog from '../../components/faculty/CreateCourseDialog';
 // import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
-import EditCourseConfirmationDialog from '../../components/faculty/EditCourseConfirmationDialog';
+import EditEntityConfirmationDialog from '../../components/faculty/EditEntityConfirmationDialog';
 import DegreeDialog from '../../components/common/DegreeDialog';
 import SubmitForApprovalDialog from '../../components/common/SubmitForApprovalDialog';
 import {
@@ -50,10 +50,9 @@ const NewFacultyDashboard: React.FC = () => {
   const navigate = useNavigate();
   const isHOD = user?.is_head_of_department === true;
 
-  const [editCourseDialogOpen, setEditCourseDialogOpen] = useState(false);
-  const [courseToEdit, setCourseToEdit] = useState<Entity | null>(null);
-  const [editDegreeDialogOpen, setEditDegreeDialogOpen] = useState(false);
-  const [degreeToEdit, setDegreeToEdit] = useState<Entity | null>(null);
+  const [editEntityDialogOpen, setEditEntityDialogOpen] = useState(false);
+  const [entityToEdit, setEntityToEdit] = useState<Entity | null>(null);
+  const [editEntityLoading, setEditEntityLoading] = useState(false);
   const [submitCourseDialogOpen, setSubmitCourseDialogOpen] = useState(false);
   const [courseToSubmit, setCourseToSubmit] = useState<Entity | null>(null);
   const [submitDegreeDialogOpen, setSubmitDegreeDialogOpen] = useState(false);
@@ -90,6 +89,11 @@ const NewFacultyDashboard: React.FC = () => {
     entity: Entity,
     type: EntityType
   ) => {
+    if (action === 'edit') {
+    setEntityToEdit({ ...entity, entityType: type });
+    setEditEntityDialogOpen(true);
+      return;
+    }
     if (action === 'submit') {
       if (type === 'course') {
         setCourseToSubmit(entity);
@@ -97,16 +101,6 @@ const NewFacultyDashboard: React.FC = () => {
       } else {
         setDegreeToSubmit(entity);
         setSubmitDegreeDialogOpen(true);
-      }
-      return;
-    }
-    if (action === 'edit') {
-      if (type === 'course') {
-        setCourseToEdit(entity);
-        setEditCourseDialogOpen(true);
-      } else {
-        setDegreeToEdit(entity);
-        setEditDegreeDialogOpen(true);
       }
       return;
     }
@@ -119,6 +113,34 @@ const NewFacultyDashboard: React.FC = () => {
       return;
     }
     // Add other actions as needed
+  };
+
+  const handleEditEntityConfirm = async () => {
+    if (!entityToEdit) return;
+    setEditEntityLoading(true);
+    try {
+      if (["active", "approved"].includes(entityToEdit.status)) {
+        // Call create-version endpoint
+        const apiPath = entityToEdit.entityType === "course"
+          ? `/api/courses/${entityToEdit.id}/create-version`
+          : `/api/degrees/${entityToEdit.id}/create-version`;
+        const res = await fetch(apiPath, { method: "POST", credentials: "include" });
+        const data = await res.json();
+        if (res.ok && data[entityToEdit.entityType]) {
+          enqueueSnackbar(`Version ${data.version} created. You can now edit the draft.`, { variant: "success" });
+          setEntityToEdit({ ...data[entityToEdit.entityType], entityType: entityToEdit.entityType });
+          // Optionally reload data here
+        } else {
+          enqueueSnackbar(data.error || "Failed to create version", { variant: "error" });
+        }
+      } else {
+        // Direct edit for draft/pending
+        // navigate(`/faculty/${entityToEdit.entityType}/${entityToEdit.id}/edit`);
+      }
+    } finally {
+      setEditEntityLoading(false);
+      setEditEntityDialogOpen(false);
+    }
   };
 
   if (loading) {
@@ -335,13 +357,13 @@ const NewFacultyDashboard: React.FC = () => {
         onSuccess={() => setCreateCourseDialogOpen(false)}
         mode="create"
       />
-      {/* Edit Course Dialog */}
-      <CreateCourseDialog
-        open={editCourseDialogOpen}
-        onClose={() => setEditCourseDialogOpen(false)}
-        onSuccess={() => setEditCourseDialogOpen(false)}
-        course={courseToEdit}
-        mode="edit"
+      {/* Generic Edit Entity Confirmation Dialog */}
+      <EditEntityConfirmationDialog
+        open={editEntityDialogOpen}
+        onClose={() => setEditEntityDialogOpen(false)}
+        onConfirm={handleEditEntityConfirm}
+        entity={entityToEdit}
+        loading={editEntityLoading}
       />
       {/* Create Degree Dialog (advanced) */}
       <DegreeDialog
@@ -356,18 +378,6 @@ const NewFacultyDashboard: React.FC = () => {
           userDepartmentName: user?.department?.name
         }}
         mode={degreeDialogMode}
-      />
-      {/* Edit Degree Dialog */}
-      <DegreeDialog
-        open={editDegreeDialogOpen}
-        onClose={() => setEditDegreeDialogOpen(false)}
-        onSuccess={() => setEditDegreeDialogOpen(false)}
-        initialData={degreeToEdit ? {
-          ...degreeToEdit,
-          userDepartmentId: user?.department?.id,
-          userDepartmentName: user?.department?.name
-        } : undefined}
-        mode="edit"
       />
       {/* Course Submit Dialog */}
       <SubmitForApprovalDialog

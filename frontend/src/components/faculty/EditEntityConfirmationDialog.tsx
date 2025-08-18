@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   Dialog,
@@ -11,33 +12,35 @@ import {
   Chip,
 } from '@mui/material';
 
-interface Course {
+interface Entity {
   id: string;
   name: string;
-  code: string; // Base course code (e.g., "76Y67Y767")
-  version_code?: string; // Virtual field for display - versioned code (e.g., "76Y67Y767_V2")
+  code: string;
+  version_code?: string;
   version: number;
   status: string;
+  entityType: 'course' | 'degree';
 }
 
-interface EditCourseConfirmationDialogProps {
+interface EditEntityConfirmationDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  course: Course | null;
+  entity: Entity | null;
   loading: boolean;
 }
 
-const EditCourseConfirmationDialog: React.FC<EditCourseConfirmationDialogProps> = ({
+const EditEntityConfirmationDialog: React.FC<EditEntityConfirmationDialogProps> = ({
   open,
   onClose,
   onConfirm,
-  course,
+  entity,
   loading,
 }) => {
-  if (!course) return null;
+  if (!entity) return null;
 
-  const isApprovedOrActive = ['approved', 'active'].includes(course.status);
+  const isApprovedOrActive = ['approved', 'active'].includes(entity.status);
+  const label = entity.entityType === 'course' ? 'Course' : 'Degree';
 
   return (
     <Dialog 
@@ -48,26 +51,25 @@ const EditCourseConfirmationDialog: React.FC<EditCourseConfirmationDialogProps> 
     >
       <DialogTitle>
         <Box display="flex" alignItems="center" gap={2}>
-          📝 Edit Course Version
+          📝 Edit {label} Version
           <Chip 
-            label={`v${course.version}`} 
+            label={`v${entity.version}`} 
             size="small" 
             color="primary" 
             variant="outlined" 
           />
         </Box>
       </DialogTitle>
-      
       <DialogContent>
         <Box mb={2}>
           <Typography variant="h6" gutterBottom>
-            {course.name}
+            {entity.name}
           </Typography>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Course Code: {course.code}{course.version > 1 ? ` (v${course.version})` : ''}
+            {label} Code: {entity.code}{entity.version > 1 ? ` (v${entity.version})` : ''}
           </Typography>
           <Typography variant="body2" color="text.secondary" component="div">
-            Current Status: <Chip label={course.status} size="small" color="info" />
+            Current Status: <Chip label={entity.status} size="small" color="info" />
           </Typography>
         </Box>
 
@@ -77,14 +79,14 @@ const EditCourseConfirmationDialog: React.FC<EditCourseConfirmationDialogProps> 
               🔄 <strong>Creating New Version</strong>
             </Typography>
             <Typography variant="body2" mb={2}>
-              Since this course is {course.status}, editing it will create a new version that follows the complete approval workflow:
+              Since this {label.toLowerCase()} is {entity.status}, editing it will create a new version that follows the complete approval workflow:
             </Typography>
             <Box component="ol" sx={{ pl: 2, m: 0 }}>
               <Typography component="li" variant="body2">
-                <strong>Current version</strong> remains {course.status} and continues to be available
+                <strong>Current version</strong> remains {entity.status} and continues to be available
               </Typography>
               <Typography component="li" variant="body2">
-                <strong>New version {course.version + 1}</strong> will be created in draft status
+                <strong>New version {entity.version + 1}</strong> will be created in draft status
               </Typography>
               <Typography component="li" variant="body2">
                 You can edit the new version and submit it for approval
@@ -102,7 +104,7 @@ const EditCourseConfirmationDialog: React.FC<EditCourseConfirmationDialogProps> 
               ✏️ <strong>Direct Edit</strong>
             </Typography>
             <Typography variant="body2">
-              Since this course is in {course.status} status, you can edit it directly without creating a new version.
+              Since this {label.toLowerCase()} is in {entity.status} status, you can edit it directly without creating a new version.
             </Typography>
           </Alert>
         )}
@@ -111,7 +113,6 @@ const EditCourseConfirmationDialog: React.FC<EditCourseConfirmationDialogProps> 
           Do you want to continue?
         </Typography>
       </DialogContent>
-      
       <DialogActions>
         <Button 
           onClick={onClose} 
@@ -124,11 +125,11 @@ const EditCourseConfirmationDialog: React.FC<EditCourseConfirmationDialogProps> 
           variant="contained"
           disabled={loading}
         >
-          {loading ? 'Processing...' : isApprovedOrActive ? `Create Version ${course.version + 1}` : 'Edit Course'}
+          {loading ? 'Processing...' : isApprovedOrActive ? `Create Version ${entity.version + 1}` : `Edit ${label}`}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default EditCourseConfirmationDialog;
+export default EditEntityConfirmationDialog;

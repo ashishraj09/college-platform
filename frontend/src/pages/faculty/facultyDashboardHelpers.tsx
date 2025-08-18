@@ -6,7 +6,7 @@ export type EntityType = 'course' | 'degree';
 export interface Entity {
   id: string;
   name: string;
-  code?: string;
+  code: string;
   version_code?: string;
   overview?: string;
   credits?: number;
@@ -14,11 +14,12 @@ export interface Entity {
   status: string;
   is_elective?: boolean;
   rejection_reason?: string;
-  version?: number;
+  version: number;
   createdAt?: string;
   updatedAt?: string;
   department?: { name: string; code: string };
   degree?: { name: string; code: string };
+  entityType: EntityType;
   [key: string]: any;
 }
 
