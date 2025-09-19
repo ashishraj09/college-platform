@@ -1,7 +1,7 @@
 // src/services/api.ts
 
 import axios from 'axios';
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 // Create axios instance
 const api = axios.create({
@@ -34,23 +34,18 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
     // Prevent infinite loops
-    if (originalRequest._retry) {
+    if (originalRequest && originalRequest._retry) {
       return Promise.reject(error);
     }
-
     // Handle 401 errors (unauthorized)
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    if (error.response && error.response.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
-      
-      // Clear local auth state and redirect to login if token expired
       if (window.location.pathname !== '/login') {
         console.log('Authentication failed, redirecting to login');
         window.location.href = '/login';
       }
     }
-    
     return Promise.reject(error);
   }
 );
@@ -102,7 +97,7 @@ export const coursesAPI = {
     return (await api.put(`/courses/${id}`, { ...payload, userId, deptId })).data;
   },
   deleteCourse: async (id: string, payload?: any) => (await api.delete(`/courses/${id}`, { data: payload })).data,
-  approveCourse: async (id: string) => (await api.patch(`/courses/${id}/approve`)).data,
+  approveCourse: async (id: string, payload?: any) => (await api.patch(`/courses/${id}/approve`, payload)).data,
   rejectCourse: async (id: string, reason: string) => (await api.patch(`/courses/${id}/reject`, { reason })).data,
     getFacultyCourses: async (deptId?: string, userId?: string) => {
     if (!deptId) {
@@ -158,8 +153,8 @@ export const degreesAPI = {
     return (await api.get('/degrees/my-degrees', { params: { departmentId: deptId, userId } })).data;
   },
   submitDegree: async (id: string, payload?: any) => (await api.patch(`/degrees/${id}/submit`, payload)).data,
-  approveDegree: async (id: string) => (await api.patch(`/degrees/${id}/approve`)).data,
-  rejectDegree: async (id: string, reason: string) => (await api.patch(`/degrees/${id}/reject`, { reason })).data,
+  approveDegree: async (id: string, payload?: any) => (await api.patch(`/degrees/${id}/approve`, payload)).data,
+  rejectDegree: async (id: string, payload: { reason: string; userId?: string }) => (await api.patch(`/degrees/${id}/reject`, payload)).data,
   postComment: async (degreeId: string, text: string, userId: string, userName: string, userType: string) => (await api.post(`/degrees/${degreeId}/comment`, { text, userId, userName, userType })).data,
   getComments: async (degreeId: string) => {
     const { data } = await api.get(`/degrees/${degreeId}`);

@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+
+import api from './api';
 
 export interface Enrollment {
   id: string;
@@ -149,33 +150,19 @@ export interface EnrollmentRequest {
 class EnrollmentAPI {
   // Get student's enrollments
   async getMyEnrollments(filters?: { academic_year?: string; status?: string }): Promise<Enrollment[]> {
-    const params = new URLSearchParams();
-    if (filters?.academic_year) params.append('academic_year', filters.academic_year);
-    if (filters?.status) params.append('status', filters.status);
-    
-    const queryString = params.toString();
-    const url = `${API_BASE_URL}/enrollments/my-enrollments${queryString ? `?${queryString}` : ''}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch enrollments: ${response.statusText}`);
-    }
-    return response.json();
+    const params: any = {};
+    if (filters?.academic_year) params.academic_year = filters.academic_year;
+    if (filters?.status) params.status = filters.status;
+    const response = await api.get('/enrollments/my-enrollments', { params });
+    return response.data;
   }
 
   // Get student's degree courses by semester
   async getMyDegreeCourses(semester?: number): Promise<DegreeCourses> {
-    const params = new URLSearchParams();
-    if (semester) params.append('semester', semester.toString());
-    
-    const queryString = params.toString();
-    const url = `${API_BASE_URL}/enrollments/my-degree-courses${queryString ? `?${queryString}` : ''}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch degree courses: ${response.statusText}`);
-    }
-    return response.json();
+    const params: any = {};
+    if (semester) params.semester = semester;
+    const response = await api.get('/enrollments/my-degree-courses', { params });
+    return response.data;
   }
 
   // Create enrollment request
@@ -183,34 +170,17 @@ class EnrollmentAPI {
     message: string;
     enrollments: Enrollment[];
   }> {
-    const response = await fetch(`${API_BASE_URL}/enrollments/enroll`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(enrollmentData),
-    });
+    const response = await api.post('/enrollments/enroll', enrollmentData);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || `Failed to create enrollment: ${response.statusText}`);
-    }
-    return response.json();
+    return response.data;
   }
 
   // Get all university courses organized by department
   async getUniversityCourses(departmentId?: string): Promise<UniversityDepartment[]> {
-    const params = new URLSearchParams();
-    if (departmentId) params.append('department_id', departmentId);
-    
-    const queryString = params.toString();
-    const url = `${API_BASE_URL}/enrollments/university-courses${queryString ? `?${queryString}` : ''}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch university courses: ${response.statusText}`);
-    }
-    return response.json();
+    const params: any = {};
+    if (departmentId) params.department_id = departmentId;
+    const response = await api.get('/enrollments/university-courses', { params });
+    return response.data;
   }
 
   // Helper method to get current academic year
@@ -238,46 +208,18 @@ class EnrollmentAPI {
 
   // Draft management
   async getEnrollmentDraft(): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/enrollments/draft`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch enrollment draft');
-    }
-    return response.json();
+    const response = await api.get('/enrollments/draft');
+    return response.data;
   }
 
   async saveEnrollmentDraft(courseIds: string[]): Promise<{ message: string; draft: any }> {
-    const response = await fetch(`${API_BASE_URL}/enrollments/draft`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        course_ids: courseIds,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to save enrollment draft');
-    }
-
-    return response.json();
+  const response = await api.put('/enrollments/draft', { course_ids: courseIds });
+  return response.data;
   }
 
   async submitEnrollmentDraft(): Promise<{ message: string }> {
-    const response = await fetch(`${API_BASE_URL}/enrollments/draft/submit`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to submit enrollment draft');
-    }
-
-    return response.json();
+  const response = await api.post('/enrollments/draft/submit');
+  return response.data;
   }
 
   // HOD approval methods
@@ -286,13 +228,8 @@ class EnrollmentAPI {
     semester?: string;
     search?: string;
   }): Promise<{ pendingApprovals: any[] }> {
-    const queryString = params ? new URLSearchParams(params).toString() : '';
-    const response = await fetch(`${API_BASE_URL}/enrollments/pending-approvals${queryString ? `?${queryString}` : ''}`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch pending approvals');
-    }
-    return response.json();
+    const response = await api.get('/enrollments/pending-approvals', { params });
+    return response.data;
   }
 
   async hodDecision(data: {
@@ -300,20 +237,9 @@ class EnrollmentAPI {
     action: 'approve' | 'reject';
     rejection_reason?: string;
   }): Promise<{ message: string }> {
-    const response = await fetch(`${API_BASE_URL}/enrollments/hod-decision`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
+    const response = await api.post('/enrollments/hod-decision', data);
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to process HOD decision');
-    }
-
-    return response.json();
+    return response.data;
   }
 
   async checkActiveEnrollmentStatus(): Promise<{
@@ -328,14 +254,9 @@ class EnrollmentAPI {
     }>;
     count: number;
   }> {
-    const response = await fetch(`${API_BASE_URL}/enrollments/active-status`);
+    const response = await api.get('/enrollments/active-status');
     
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to check active enrollment status');
-    }
-
-    return response.json();
+    return response.data;
   }
 }
 

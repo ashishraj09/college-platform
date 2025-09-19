@@ -20,8 +20,9 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { coursesAPI, degreesAPI, usersAPI } from '../../services/api';
+import api, { coursesAPI, degreesAPI, usersAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 interface CreateCourseDialogProps {
   open: boolean;
@@ -72,6 +73,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const [faculty, setFaculty] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [owner, setOwner] = useState<any>(null);
+  const [courseId, setCourseId] = useState<string | null>(null);
 
   const [form, setForm] = useState<CourseForm>({
     name: '',
@@ -107,6 +109,11 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     semester?: string;
     max_students?: string;
     degree_id?: string;
+    learning_objectives?: string;
+    course_outcomes?: string;
+    assessment_methods?: string;
+    textbooks?: string;
+    references?: string;
   }>({});
 
   const validateField = (fieldName: string, value: any): string | undefined => {
@@ -153,51 +160,57 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
 
   useEffect(() => {
     if (open) {
-      // Initialize form based on mode
-      if (course && mode === 'edit') {
-        // For edit mode, fetch fresh course data with raw UUIDs
-        const fetchCourseForEdit = async () => {
-          try {
-            const response = await coursesAPI.getCourseForEdit(course.id);
-            const courseData = response.course;
-            
-            // Set owner information
-            setOwner(courseData.creator);
-            
-            setForm({
-              name: courseData.name || '',
-              code: courseData.code || '',
-              overview: courseData.overview || '',
-              credits: courseData.credits || 3,
-              semester: courseData.semester || 1,
-              department_id: courseData.department_id || '',
-              degree_id: courseData.degree_id || '',
-              is_elective: courseData.is_elective || false,
-              max_students: courseData.max_students || 50,
-              prerequisites: courseData.prerequisites || [],
-              study_details: {
-                learning_objectives: courseData.study_details?.learning_objectives || [''],
-                course_outcomes: courseData.study_details?.course_outcomes || [''],
-                assessment_methods: courseData.study_details?.assessment_methods || [''],
-                textbooks: courseData.study_details?.textbooks || [''],
-                references: courseData.study_details?.references || [''],
-              },
-              faculty_details: {
-                primary_instructor: courseData.faculty_details?.primary_instructor || courseData.faculty_details?.instructor || '',
-                co_instructors: courseData.faculty_details?.co_instructors || [],
-                guest_lecturers: courseData.faculty_details?.guest_lecturers || [],
-                lab_instructors: courseData.faculty_details?.lab_instructors || [],
-              },
-            });
-          } catch (error) {
-            console.error('Error fetching course for edit:', error);
-            setError('Failed to load course data for editing');
-          }
-        };
-        
-        fetchCourseForEdit();
+      // If editing, fetch course data if only ID is provided
+      if (mode === 'edit') {
+        let editId: string | null = null;
+        if (course && typeof course === 'object' && course.id) {
+          editId = course.id;
+        } else if (course && typeof course === 'string') {
+          editId = course;
+        }
+        if (editId && typeof editId === 'string') {
+          setCourseId(editId);
+          const fetchCourseForEdit = async () => {
+            try {
+              setLoading(true);
+              const response = await coursesAPI.getCourseForEdit(editId as string);
+              const courseData = response.course;
+              setOwner(courseData.creator);
+              setForm({
+                name: courseData.name || '',
+                code: courseData.code || '',
+                overview: courseData.overview || '',
+                credits: courseData.credits || 3,
+                semester: courseData.semester || 1,
+                department_id: courseData.department_id || '',
+                degree_id: courseData.degree_id || '',
+                is_elective: courseData.is_elective || false,
+                max_students: courseData.max_students || 50,
+                prerequisites: courseData.prerequisites || [],
+                study_details: {
+                  learning_objectives: courseData.study_details?.learning_objectives || [''],
+                  course_outcomes: courseData.study_details?.course_outcomes || [''],
+                  assessment_methods: courseData.study_details?.assessment_methods || [''],
+                  textbooks: courseData.study_details?.textbooks || [''],
+                  references: courseData.study_details?.references || [''],
+                },
+                faculty_details: {
+                  primary_instructor: courseData.faculty_details?.primary_instructor || courseData.faculty_details?.instructor || '',
+                  co_instructors: courseData.faculty_details?.co_instructors || [],
+                  guest_lecturers: courseData.faculty_details?.guest_lecturers || [],
+                  lab_instructors: courseData.faculty_details?.lab_instructors || [],
+                },
+              });
+            } catch (error) {
+              console.error('Error fetching course for edit:', error);
+              setError('Failed to load course data for editing');
+            } finally {
+              setLoading(false);
+            }
+          };
+          fetchCourseForEdit();
+        }
       } else if (mode === 'create') {
-        // Reset form for new course
         setForm({
           name: '',
           code: '',
@@ -224,9 +237,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
           },
         });
       }
-
       // Load data
-      loadDegreesByDepartment(); 
+      loadDegreesByDepartment();
       if (form.department_id || user?.department?.id) {
         loadFacultyByDepartment(form.department_id || user?.department?.id);
       }
@@ -432,9 +444,59 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   };
 
   const handleSubmit = async () => {
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
+    // Validate all required fields and set fieldErrors for study details
+    let hasError = false;
+    const newFieldErrors: typeof fieldErrors = {};
+    if (!form.name.trim()) {
+      newFieldErrors.name = 'Course name is required';
+      hasError = true;
+    }
+    if (!form.code.trim()) {
+      newFieldErrors.code = 'Course code is required';
+      hasError = true;
+    }
+    if (!form.overview.trim()) {
+      newFieldErrors.overview = 'Course overview is required';
+      hasError = true;
+    }
+    if (!form.degree_id) {
+      newFieldErrors.degree_id = 'Degree selection is required';
+      hasError = true;
+    }
+    if (form.credits < 1 || form.credits > 10) {
+      newFieldErrors.credits = 'Credits must be between 1 and 10';
+      hasError = true;
+    }
+    if (form.semester < 1 || form.semester > 10) {
+      newFieldErrors.semester = 'Semester must be between 1 and 10';
+      hasError = true;
+    }
+    if (form.max_students < 1 || form.max_students > 500) {
+      newFieldErrors.max_students = 'Maximum students must be between 1 and 500';
+      hasError = true;
+    }
+    if (form.study_details.learning_objectives.filter(obj => obj.trim()).length === 0) {
+      newFieldErrors.learning_objectives = 'At least one learning objective is required';
+      hasError = true;
+    }
+    if (form.study_details.course_outcomes.filter(outcome => outcome.trim()).length === 0) {
+      newFieldErrors.course_outcomes = 'At least one course outcome is required';
+      hasError = true;
+    }
+    if (form.study_details.assessment_methods.filter(method => method.trim()).length === 0) {
+      newFieldErrors.assessment_methods = 'At least one assessment method is required';
+      hasError = true;
+    }
+    if (form.study_details.textbooks.filter(book => book.trim()).length === 0) {
+      newFieldErrors.textbooks = 'At least one textbook is required';
+      hasError = true;
+    }
+    if (form.study_details.references.filter(ref => ref.trim()).length === 0) {
+      newFieldErrors.references = 'At least one reference is required';
+      hasError = true;
+    }
+    setFieldErrors(newFieldErrors);
+    if (hasError) {
       return;
     }
 
@@ -466,20 +528,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
         if (course.status === 'approved' || course.status === 'active') {
           try {
             // Create a new version instead of updating directly
-            const response = await fetch(`/api/courses/${course.id}/create-version`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error || 'Failed to create new version');
-            }
-            
-            const data = await response.json();
+            const response = await api.post(`${API_BASE_URL}/courses/${course.id}/create-version`);
+            const data = response.data;
             enqueueSnackbar(`New version created. You will be redirected to edit the draft.`, { variant: 'success' });
             
             // Return the new course ID for potential redirection
@@ -501,9 +551,27 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       
       handleClose();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || `Failed to ${mode === 'edit' ? 'update' : 'create'} course`;
-      setError(errorMessage);
-      enqueueSnackbar(errorMessage, { variant: 'error' });
+      let errorMsg = `Failed to ${mode === 'edit' ? 'update' : 'create'} course`;
+      if (error && typeof error === 'object') {
+        if ('response' in error && error.response?.data?.error) {
+          const backendError = error.response.data.error;
+          errorMsg = typeof backendError === 'string' ? backendError : 'An unknown error occurred';
+        } else if ('message' in error && typeof error.message === 'string') {
+          errorMsg = error.message;
+        } else if (error instanceof Error && error.message) {
+          errorMsg = error.message;
+        } else {
+          console.error('CreateCourseDialog error:', error);
+          errorMsg = 'An unknown error occurred';
+        }
+      } else if (typeof error === 'string') {
+        errorMsg = error;
+      } else {
+        console.error('CreateCourseDialog error:', error);
+        errorMsg = 'An unknown error occurred';
+      }
+      setError(errorMsg);
+      enqueueSnackbar(errorMsg, { variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -546,24 +614,31 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       <Typography variant="subtitle2" gutterBottom>
         {title}
       </Typography>
-      {form.study_details[section].map((item, index) => (
-        <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1 }}>
-          <TextField
-            fullWidth
-            size="small"
-            value={item}
-            onChange={(e) => handleStudyDetailChange(section, index, e.target.value)}
-            placeholder={`Enter ${title.toLowerCase()}`}
-          />
-          <IconButton
-            size="small"
-            onClick={() => removeStudyDetailItem(section, index)}
-            disabled={form.study_details[section].length === 1}
-          >
-            <DeleteIcon />
-          </IconButton>
-        </Box>
-      ))}
+      {form.study_details[section].map((item, index) => {
+        // Only show error for the first empty item in required fields
+        const showError = !!fieldErrors[section] && (!item.trim() && index === 0);
+        return (
+          <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              value={item}
+              onChange={(e) => handleStudyDetailChange(section, index, e.target.value)}
+              placeholder={`Enter ${title.toLowerCase()}`}
+              error={showError}
+              helperText={showError ? fieldErrors[section] : ''}
+              sx={showError ? { backgroundColor: '#fff3e0' } : {}}
+            />
+            <IconButton
+              size="small"
+              onClick={() => removeStudyDetailItem(section, index)}
+              disabled={form.study_details[section].length === 1}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Box>
+        );
+      })}
       <Button
         size="small"
         startIcon={<AddIcon />}
@@ -581,12 +656,6 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
         {!user?.department && (
           <Alert severity="error" sx={{ mb: 2 }}>
             You must be assigned to a department to create courses. Please contact your administrator.
-          </Alert>
-        )}
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
           </Alert>
         )}
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
 import {
   Container,
   Typography,
@@ -113,6 +114,26 @@ const FacultyDashboard: React.FC = () => {
       return;
     }
     if (action === 'edit') {
+      // If course is draft, open edit modal directly
+      if (type === 'course' && entity.status === 'draft') {
+        setCreateCourseDialogOpen(true);
+        setEntityToEdit({ ...entity, entityType: type });
+        return;
+      }
+      // If degree is draft, open edit modal directly
+      if (type === 'degree' && entity.status === 'draft') {
+        setDegreeDialogMode('edit');
+        setDegreeDialogData(entity);
+        setCreateDegreeDialogOpen(true);
+        setEntityToEdit({ ...entity, entityType: type });
+        return;
+      }
+      // Prevent editing active course or degree if hasDraftVersion is true
+      if ((type === 'course' || type === 'degree') && entity.status === 'active' && entity.hasDraftVersion === true) {
+        enqueueSnackbar(`Cannot edit active ${type} while a draft exists.`, { variant: 'warning' });
+        return;
+      }
+      // Otherwise, show confirmation dialog
       setEntityToEdit({ ...entity, entityType: type });
       setEditEntityDialogOpen(true);
       return;
@@ -128,54 +149,60 @@ const FacultyDashboard: React.FC = () => {
     // Add other actions as needed
   };
 
-  const handleEditEntityConfirm = async () => {
+  const handleEditEntityConfirm = async (updatedEntity?: any) => {
     if (!entityToEdit) return;
     setEditEntityLoading(true);
     try {
-      // Check if the entity is approved or active - in that case, create a new version
-      if (['approved', 'active'].includes(entityToEdit.status)) {
-        const apiPath = entityToEdit.entityType === 'course'
-          ? `/api/courses/${entityToEdit.id}/create-version`
-          : `/api/degrees/${entityToEdit.id}/create-version`;
-        
-        const response = await fetch(apiPath, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create new version');
-        }
-        
-        const data = await response.json();
-        enqueueSnackbar(`New version created successfully. You can now edit the draft.`, { variant: 'success' });
+      // If approved or active, create a new version
+      if (["approved", "active"].includes(entityToEdit.status)) {
+        const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+        const apiPath = entityToEdit.entityType === "course"
+          ? `${API_BASE_URL}/courses/${entityToEdit.id}/create-version`
+          : `${API_BASE_URL}/degrees/${entityToEdit.id}/create-version`;
+
+        const response = await api.post(apiPath);
+        const data = response.data;
+        enqueueSnackbar(
+          `New version created successfully. You can now edit the draft.`,
+          { variant: "success" }
+        );
+        setEditEntityDialogOpen(false);
+        await loadData();
       } else {
-        // For drafts or pending approval, update directly
-        if (entityToEdit.entityType === 'course') {
-          await coursesAPI.updateCourse(entityToEdit.id, entityToEdit);
-        } else {
-          await degreesAPI.updateDegree(entityToEdit.id, entityToEdit);
+        // For drafts or pending approval, open the edit dialog/modal and only update after user confirms
+        if (updatedEntity) {
+          if (entityToEdit.entityType === "course") {
+            await coursesAPI.updateCourse(entityToEdit.id, updatedEntity);
+          } else {
+            await degreesAPI.updateDegree(entityToEdit.id, updatedEntity);
+          }
+          enqueueSnackbar("Entity updated successfully!", { variant: "success" });
+          setEditEntityDialogOpen(false);
+          await loadData();
         }
-        enqueueSnackbar('Entity updated successfully!', { variant: 'success' });
+        // Otherwise, just open the edit dialog/modal (handled elsewhere)
       }
-      
-      setEditEntityDialogOpen(false);
-      await loadData();
     } catch (err) {
-      let errorMsg = 'Failed to update entity';
-      if (typeof err === 'object' && err !== null) {
-        if ('message' in err && typeof (err as any).message === 'string') {
+      let errorMsg = "Failed to update entity";
+      if (err && typeof err === "object") {
+        if ("response" in err && (err as any).response?.data?.error) {
+          const backendError = (err as any).response.data.error;
+          errorMsg = typeof backendError === "string" ? backendError : "An unknown error occurred";
+        } else if ("message" in err && typeof (err as any).message === "string") {
           errorMsg = (err as any).message;
+        } else if (err instanceof Error && err.message) {
+          errorMsg = err.message;
+        } else {
+          console.error('FacultyDashboard error:', err);
+          errorMsg = "An unknown error occurred";
         }
-        if ('response' in err && (err as any).response?.data?.error) {
-          errorMsg = (err as any).response.data.error;
-        }
+      } else if (typeof err === "string") {
+        errorMsg = err;
+      } else {
+        console.error('FacultyDashboard error:', err);
+        errorMsg = "An unknown error occurred";
       }
-      enqueueSnackbar(errorMsg, { variant: 'error' });
+      enqueueSnackbar(errorMsg, { variant: "error" });
     }
     setEditEntityLoading(false);
   };
@@ -459,10 +486,11 @@ const FacultyDashboard: React.FC = () => {
       )}
       {/* Create Course Dialog */}
       <CreateCourseDialog
-        open={createCourseDialogOpen}
-        onClose={() => setCreateCourseDialogOpen(false)}
-        onSuccess={() => setCreateCourseDialogOpen(false)}
-        mode="create"
+  open={createCourseDialogOpen}
+  onClose={() => setCreateCourseDialogOpen(false)}
+  onSuccess={() => setCreateCourseDialogOpen(false)}
+  mode={entityToEdit && entityToEdit.entityType === 'course' && entityToEdit.status === 'draft' ? 'edit' : 'create'}
+  course={entityToEdit && entityToEdit.entityType === 'course' && entityToEdit.status === 'draft' ? entityToEdit : undefined}
       />
       {/* Generic Edit Entity Confirmation Dialog */}
       <EditEntityConfirmationDialog
@@ -480,11 +508,14 @@ const FacultyDashboard: React.FC = () => {
           setCreateDegreeDialogOpen(false);
           // Optionally reload data
         }}
-        initialData={{
-          userDepartmentId: user?.department?.id,
-          userDepartmentName: user?.department?.name
-        }}
-        mode={degreeDialogMode}
+        initialData={entityToEdit && entityToEdit.entityType === 'degree' && entityToEdit.status === 'draft'
+          ? entityToEdit
+          : {
+              userDepartmentId: user?.department?.id,
+              userDepartmentName: user?.department?.name
+            }
+        }
+        mode={entityToEdit && entityToEdit.entityType === 'degree' && entityToEdit.status === 'draft' ? 'edit' : degreeDialogMode}
       />
       {/* Course Submit Dialog */}
       <SubmitForApprovalDialog

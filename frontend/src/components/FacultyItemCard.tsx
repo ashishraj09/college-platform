@@ -69,7 +69,8 @@ const FacultyItemCard: React.FC<FacultyItemCardProps> = ({ item, actions, onActi
           key={index}
           size="small"
           startIcon={action.icon}
-          onClick={() => onAction(action.action, item)}
+          onClick={action.disabled ? undefined : () => onAction(action.action, item)}
+          disabled={!!action.disabled}
         >
           {action.label}
         </Button>

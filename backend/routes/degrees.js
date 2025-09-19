@@ -28,6 +28,14 @@ router.post('/:id/comment',
       const comments = Array.isArray(degree.comments) ? degree.comments : [];
       comments.push(comment);
       await degree.update({ comments });
+      // Also add comment to messages table for timeline
+      const Message = require('../models/Message');
+      await Message.create({
+        type: 'degree',
+        reference_id: degree.id,
+        sender_id: user.id,
+        message: `Comment: ${text.trim()}`,
+      });
       res.json({ message: 'Comment added', comment });
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -71,17 +79,49 @@ router.patch('/:id/submit',
 
 // Approve degree (HOD only)
 router.patch('/:id/approve',
+  authenticateToken,
   auditMiddleware('update', 'degree', 'Degree approved'),
   async (req, res) => {
+    const { Sequelize } = require('sequelize');
+    const Message = require('../models/Message');
+    const sequelize = require('../config/database').sequelize;
+    const transaction = await sequelize.transaction();
     try {
-      const degree = await Degree.findByPk(req.params.id);
-      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+      const degree = await Degree.findByPk(req.params.id, { transaction });
+      if (!degree) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Degree not found' });
+      }
       const user = req.user || { department_id: degree.department_id, is_head_of_department: true };
-      if (user.department_id !== degree.department_id || !user.is_head_of_department) return res.status(403).json({ error: 'Only Head of Department can approve degrees' });
-      if (degree.status !== 'pending_approval') return res.status(400).json({ error: 'Only pending approval degrees can be approved', currentStatus: degree.status });
-      await degree.update({ status: 'approved', approved_by: user.id || req.body.userId, updated_by: user.id || req.body.userId });
+      if (user.department_id !== degree.department_id || !user.is_head_of_department) {
+        await transaction.rollback();
+        return res.status(403).json({ error: 'Only Head of Department can approve degrees' });
+      }
+      if (degree.status !== 'pending_approval') {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Only pending approval degrees can be approved', currentStatus: degree.status });
+      }
+      const senderId = user.id || req.body.userId;
+      if (!senderId) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Missing sender_id for approval message' });
+      }
+      // Add approval message to messages table first
+      const message = await Message.create({
+        type: 'degree',
+        reference_id: degree.id,
+        sender_id: senderId,
+        message: `Degree approved by HOD${req.body.reason ? ': ' + req.body.reason : ''}`,
+      }, { transaction });
+      if (!message || !message.id) {
+        await transaction.rollback();
+        return res.status(500).json({ error: 'Failed to create approval message' });
+      }
+      await degree.update({ status: 'approved', approved_by: senderId, updated_by: senderId }, { transaction });
+      await transaction.commit();
       res.json({ message: 'Degree approved', degree });
     } catch (error) {
+      if (transaction) await transaction.rollback();
       console.error('Error approving degree:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -105,10 +145,14 @@ router.patch('/:id/reject',
 
       // Add rejection message to messages table
       const Message = require('../models/Message');
+      const senderId = user.id || req.body.userId;
+      if (!senderId) {
+        return res.status(400).json({ error: 'Missing sender ID for rejection message' });
+      }
       await Message.create({
         type: 'degree',
         reference_id: degree.id,
-        sender_id: user.id || req.body.userId,
+        sender_id: senderId,
         message: `Degree rejected: ${reason}`,
       });
 
@@ -182,17 +226,20 @@ router.post('/:id/create-version',
       }
       
       // Find the highest version number for this degree family
+      // Build [Op.or] array with only defined IDs
+      const opOrArray = [];
+      if (req.params.id) opOrArray.push({ id: req.params.id });
+      if (req.params.id) opOrArray.push({ parent_degree_id: req.params.id });
+      if (degree.parent_degree_id) opOrArray.push({ id: degree.parent_degree_id });
+      if (degree.parent_degree_id) opOrArray.push({ parent_degree_id: degree.parent_degree_id });
       const maxVersionDegree = await Degree.findOne({
         where: {
-          [Op.or]: [
-            { id: req.params.id },
-            { parent_degree_id: req.params.id },
-            { id: degree.parent_degree_id },
-            { parent_degree_id: degree.parent_degree_id },
-          ],
+          [Op.or]: opOrArray,
         },
         order: [['version', 'DESC']],
       });
+      // Calculate nextVersion just like course
+      const nextVersion = (maxVersionDegree?.version || 1) + 1;
 
       // Create a new version with proper parent reference
       const newDegreeData = {
@@ -202,6 +249,7 @@ router.post('/:id/create-version',
         department_id: degree.department_id,
         courses: degree.courses,
         requirements: degree.requirements,
+        duration_years: degree.duration_years,
         created_by: req.user.id,
         version: nextVersion,
         parent_degree_id: degree.parent_degree_id || degree.id,
@@ -218,16 +266,16 @@ router.post('/:id/create-version',
       });
 
       // Mark all previous versions as not latest
+      const whereOr = [];
+      if (req.params.id) whereOr.push({ id: req.params.id });
+      if (req.params.id) whereOr.push({ parent_degree_id: req.params.id });
+      if (degree.parent_degree_id) whereOr.push({ id: degree.parent_degree_id });
+      if (degree.parent_degree_id) whereOr.push({ parent_degree_id: degree.parent_degree_id });
       await Degree.update(
         { is_latest_version: false },
         {
           where: {
-            [Op.or]: [
-              { id: req.params.id },
-              { parent_degree_id: req.params.id },
-              { id: degree.parent_degree_id },
-              { parent_degree_id: degree.parent_degree_id },
-            ],
+            [Op.or]: whereOr,
           },
         }
       );
@@ -280,8 +328,8 @@ router.get('/',
     if (department_id) whereClause.department_id = department_id;
     if (status) whereClause.status = status;
     
-    // Filter degrees by owner (created_by) for non-admin users
-    if (req.user && req.user.user_type !== 'admin') {
+    // For HODs, show all degrees in their department
+    if (req.user && req.user.user_type !== 'admin' && !req.user.is_head_of_department) {
       whereClause.created_by = req.user.id;
     }
 
@@ -301,7 +349,22 @@ router.get('/',
       order: [['created_at', 'DESC']]
     });
 
-    res.json(degrees);
+    // For each degree, check if a draft version exists for this degree or its parent
+    const degreesWithDraftFlag = await Promise.all(degrees.map(async degree => {
+      const draft = await Degree.findOne({
+        where: {
+          [Op.or]: [
+            { parent_degree_id: degree.id },
+            { parent_degree_id: degree.parent_degree_id || degree.id }
+          ],
+          status: 'draft'
+        }
+      });
+      degree.dataValues.hasDraftVersion = !!draft;
+      return degree;
+    }));
+
+    res.json(degreesWithDraftFlag);
   } catch (error) {
     console.error('Error fetching degrees:', error);
     res.status(500).json({ error: 'Failed to fetch degrees' });
@@ -347,25 +410,40 @@ router.get('/my-degrees',
       order: [['created_at', 'DESC']]
     });
 
+    // For each degree, check if a draft version exists for this degree or its parent
+    const degreesWithDraftFlag = await Promise.all(degrees.map(async degree => {
+      const draft = await Degree.findOne({
+        where: {
+          [Op.or]: [
+            { parent_degree_id: degree.id },
+            { parent_degree_id: degree.parent_degree_id || degree.id }
+          ],
+          status: 'draft'
+        }
+      });
+      degree.dataValues.hasDraftVersion = !!draft;
+      return degree;
+    }));
+
     // Group by status for better dashboard display
     const degreesByStatus = {
-      draft: degrees.filter(degree => degree.status === 'draft'),
-      submitted: degrees.filter(degree => degree.status === 'submitted'),
-      approved: degrees.filter(degree => degree.status === 'approved'),
-      active: degrees.filter(degree => degree.status === 'active'),
-      others: degrees.filter(degree => !['draft', 'submitted', 'approved', 'active'].includes(degree.status))
+      draft: degreesWithDraftFlag.filter(degree => degree.status === 'draft'),
+      submitted: degreesWithDraftFlag.filter(degree => degree.status === 'submitted'),
+      approved: degreesWithDraftFlag.filter(degree => degree.status === 'approved'),
+      active: degreesWithDraftFlag.filter(degree => degree.status === 'active'),
+      others: degreesWithDraftFlag.filter(degree => !['draft', 'submitted', 'approved', 'active'].includes(degree.status))
     };
 
     res.json({
-      all: degrees,
+      all: degreesWithDraftFlag,
       byStatus: degreesByStatus,
-      departmentInfo: degrees.length > 0 ? {
-        id: degrees[0].department.id,
-        name: degrees[0].department.name,
-        code: degrees[0].department.code
+      departmentInfo: degreesWithDraftFlag.length > 0 ? {
+        id: degreesWithDraftFlag[0].department.id,
+        name: degreesWithDraftFlag[0].department.name,
+        code: degreesWithDraftFlag[0].department.code
       } : null,
       summary: {
-        total: degrees.length,
+        total: degreesWithDraftFlag.length,
         draft: degreesByStatus.draft.length,
         submitted: degreesByStatus.submitted.length,
         approved: degreesByStatus.approved.length,

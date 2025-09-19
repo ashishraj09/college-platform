@@ -24,7 +24,6 @@ const Degree = sequelize.define('Degree', {
   code: {
     type: DataTypes.STRING(10),
     allowNull: false,
-    unique: true,
     validate: {
       notEmpty: true,
       len: [2, 10],
@@ -41,6 +40,14 @@ const Degree = sequelize.define('Degree', {
     validate: {
       min: 1,
       max: 10,
+    },
+  },
+  parent_degree_id: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'degrees',
+      key: 'id',
     },
   },
   courses_per_semester: {
@@ -114,6 +121,31 @@ const Degree = sequelize.define('Degree', {
       defaultValue: [],
       comment: 'Array of approval workflow actions.'
     },
+    approved_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    submitted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    is_latest_version: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+    is_elective: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    version_code: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        if (!this.code) {
+          return null;
+        }
+        return this.code.replace(/_V\d+$/, '');
+      },
+    },
     created_by: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -143,7 +175,7 @@ const Degree = sequelize.define('Degree', {
   timestamps: true,
   indexes: [
     {
-      unique: true,
+  // unique: true, // removed to allow duplicate codes for versioning
       fields: ['code'],
     },
     {

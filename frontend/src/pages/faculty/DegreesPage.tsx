@@ -66,6 +66,7 @@ interface Degree {
     name: string;
     code: string;
   };
+  hasDraftVersion?: boolean;
 }
 
 const DegreesPage: React.FC = () => {
@@ -98,7 +99,13 @@ const DegreesPage: React.FC = () => {
       } else if (degreesData?.data) {
         degrees = Array.isArray(degreesData.data) ? degreesData.data : degreesData.data.all || [];
       }
-      setDegrees(degrees);
+      // Ensure hasDraftVersion is present for each degree
+      const mappedDegrees = degrees.map((deg: any) => ({
+        ...deg,
+        hasDraftVersion: deg.hasDraftVersion ?? false
+      }));
+      console.log('Degrees loaded:', mappedDegrees);
+      setDegrees(mappedDegrees);
     } catch (error) {
       console.error('Error loading degrees:', error);
       enqueueSnackbar('Error loading degrees. Please try again.', { variant: 'error' });
@@ -349,14 +356,25 @@ const DegreesPage: React.FC = () => {
                   >
                     View Details
                   </Button>
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    onClick={() => handleEditDegree(degree)}
-                    size="small"
-                  >
-                    Edit
-                  </Button>
+                  {degree.hasDraftVersion ? (
+                    <Button
+                      variant="outlined"
+                      color="secondary"
+                      size="small"
+                      disabled
+                    >
+                      Edit
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      color="secondary"
+                      onClick={() => handleEditDegree(degree)}
+                      size="small"
+                    >
+                      Edit
+                    </Button>
+                  )}
                 </CardActions>
 
                 {/* Collapse removed, use conditional rendering or another approach if needed */}

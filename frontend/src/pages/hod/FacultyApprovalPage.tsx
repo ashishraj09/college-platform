@@ -7,6 +7,7 @@ import {
   IconButton,
   Card,
   CardContent,
+  CardActions,
   Button,
   Chip,
   Dialog,
@@ -24,7 +25,12 @@ import {
   CheckCircle as ApproveIcon,
   Cancel as RejectIcon,
   Close as CloseIcon,
+  MoreHoriz as MoreHorizIcon,
+  Timeline as TimelineIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
+import TimelineDialog, { TimelineEvent } from '../../components/common/TimelineDialog';
+import { timelineAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { coursesAPI, degreesAPI } from '../../services/api';
@@ -49,6 +55,23 @@ interface ApprovalItem {
 }
 
 const FacultyApprovalPage: React.FC = () => {
+  // Timeline dialog state
+  const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
+  const [timelineEvents, setTimelineEvents] = useState<any[]>([]);
+  const [timelineEntityName, setTimelineEntityName] = useState('');
+
+  // Timeline button handler
+  const handleShowTimeline = async (item: any, type: 'course' | 'degree') => {
+    setTimelineDialogOpen(true);
+    setTimelineEntityName(item.name || '');
+    try {
+      const res = await fetch(`/api/timeline/${type}/${item.id}`);
+      const events = await res.json();
+      setTimelineEvents(events);
+    } catch (e) {
+      setTimelineEvents([]);
+    }
+  };
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState(0);
@@ -56,8 +79,10 @@ const FacultyApprovalPage: React.FC = () => {
   const [pendingDegrees, setPendingDegrees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<ApprovalItem | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  // Get userId from localStorage or profile
+  const [userId, setUserId] = useState<string | null>(null);
 
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return 'Not specified';
@@ -116,6 +141,23 @@ const FacultyApprovalPage: React.FC = () => {
     loadPendingItems();
   }, [loadPendingItems]);
 
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+    } else {
+      import('../../services/api').then(({ authAPI }) => {
+        authAPI.getProfile().then(profile => {
+          const uid = profile?.id || profile?.user?.id;
+          if (uid) {
+            localStorage.setItem('userId', uid);
+            setUserId(uid);
+          }
+        });
+      });
+    }
+  }, []);
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
@@ -129,24 +171,23 @@ const FacultyApprovalPage: React.FC = () => {
 
   const handleCloseDialog = () => {
     setSelectedItem(null);
-    setRejectReason('');
+    setActionMessage('');
   };
 
   const handleApprove = async () => {
     if (!selectedItem) return;
 
+    const trimmedMessage = actionMessage.trim();
     setActionLoading(true);
     try {
       if (selectedItem.type === 'course') {
-        await coursesAPI.approveCourse(selectedItem.id);
+        await coursesAPI.approveCourse(selectedItem.id, { reason: trimmedMessage });
       } else {
-        await degreesAPI.approveDegree(selectedItem.id);
+        await degreesAPI.approveDegree(selectedItem.id, { reason: trimmedMessage });
       }
-      
       enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} approved successfully!`, { 
         variant: 'success' 
       });
-      
       handleCloseDialog();
       loadPendingItems();
     } catch (error: any) {
@@ -159,37 +200,30 @@ const FacultyApprovalPage: React.FC = () => {
 
   const handleReject = async () => {
     if (!selectedItem) return;
-    
-    const trimmedReason = rejectReason.trim();
-    
+    const trimmedReason = actionMessage.trim();
     // Validation
     if (!trimmedReason) {
       enqueueSnackbar('Please provide a rejection reason to help faculty understand what needs improvement', { variant: 'error' });
       return;
     }
-    
     if (trimmedReason.length < 10) {
       enqueueSnackbar('Rejection reason must be at least 10 characters to provide meaningful feedback', { variant: 'error' });
       return;
     }
-    
     if (trimmedReason.length > 500) {
       enqueueSnackbar('Rejection reason cannot exceed 500 characters', { variant: 'error' });
       return;
     }
-
     setActionLoading(true);
     try {
       if (selectedItem.type === 'course') {
         await coursesAPI.rejectCourse(selectedItem.id, trimmedReason);
       } else {
-        await degreesAPI.rejectDegree(selectedItem.id, trimmedReason);
+        await degreesAPI.rejectDegree(selectedItem.id, { reason: trimmedReason, userId: userId || undefined });
       }
-      
       enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected with feedback sent to faculty`, { 
         variant: 'success' 
       });
-      
       handleCloseDialog();
       loadPendingItems();
     } catch (error: any) {
@@ -201,45 +235,97 @@ const FacultyApprovalPage: React.FC = () => {
   };
 
   const renderApprovalCard = (item: any, type: 'course' | 'degree') => (
-    <Card 
-      key={item.id} 
-      variant="outlined" 
-      sx={{ 
-        mb: 2, 
-        cursor: 'pointer',
-        '&:hover': {
-          boxShadow: 2,
-          backgroundColor: 'action.hover'
-        }
+    <Card
+      key={item.id}
+      variant="outlined"
+      sx={{
+        mb: 2,
+        borderRadius: 2,
+        boxShadow: 1,
+        minWidth: 320,
+        maxWidth: 400,
+        display: 'flex',
+        flexDirection: 'column',
+        p: 0,
       }}
-      onClick={() => handleItemClick(item, type)}
     >
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
-          <Box>
-            <Typography variant="h6" gutterBottom>
-              {item.name}
-            </Typography>
-            <Typography variant="body2" color="textSecondary" gutterBottom>
-              {item.code} • Submitted by {item.faculty?.first_name || 'Unknown'} {item.faculty?.last_name || ''}
-            </Typography>
-          </Box>
-          <Chip label="Pending Review" color="warning" size="small" />
-        </Box>
-        
-        <Typography variant="body2" sx={{ mb: 2 }}>
-          {item.description}
-        </Typography>
-        
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Typography variant="caption" color="textSecondary">
-            Department: {item.department?.name || 'N/A'}
+      <CardContent sx={{ pb: 2, pt: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="h6" sx={{ fontSize: 20, fontWeight: 700, mb: 0.5, color: 'text.primary' }}>
+            {item.name}
           </Typography>
-          <Typography variant="caption" color="textSecondary">
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 14, mb: 0.25 }}>
+            Dept: {item.department?.name || 'N/A'}
+          </Typography>
+          {type === 'course' && item.degree_name && (
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 14, mb: 0.25 }}>
+              Degree: {item.degree_name}
+            </Typography>
+          )}
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 14, mb: 0.25 }}>
+            {item.code}{item.credits ? ` • ${item.credits} Credits` : ''}{item.semester ? ` • Semester ${item.semester}` : ''}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.primary', fontSize: 15, mb: 1 }}>
+            {item.description}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 13, mt: 1 }}>
             Submitted: {formatDate(item.submitted_at || item.submittedAt || item.createdAt || item.created_at)}
           </Typography>
         </Box>
       </CardContent>
+      <CardActions sx={{ pt: 0 }}>
+        <Button
+          size="small"
+          startIcon={<VisibilityIcon />}
+          onClick={() => {/* TODO: implement view course handler */}}
+        >
+          View Course
+        </Button>
+        <Button
+          size="small"
+          startIcon={<MoreHorizIcon />}
+          onClick={() => handleItemClick(item, type)}
+        >
+          Action
+        </Button>
+        <Button
+          size="small"
+          startIcon={<TimelineIcon />}
+          onClick={async () => {
+            setTimelineEntityName(item.name || item.code || item.id);
+            try {
+              const data = await timelineAPI.getTimeline(type, item.id);
+              // Merge audit and messages into a single timeline array
+              const auditEvents = Array.isArray(data.audit) ? data.audit.map((a: any) => ({
+                type: 'audit',
+                id: a.id,
+                action: a.action,
+                user: a.user,
+                description: a.description,
+                timestamp: a.timestamp || a.createdAt || null
+              })) : [];
+              const messageEvents = Array.isArray(data.messages) ? data.messages.map((m: any) => ({
+                type: 'message',
+                id: m.id,
+                message: m.message,
+                user: m.user,
+                timestamp: m.timestamp || m.createdAt || null
+              })) : [];
+              // Sort by timestamp descending (most recent first)
+              const timeline = [...auditEvents, ...messageEvents].sort((a, b) => {
+                if (!a.timestamp || !b.timestamp) return 0;
+                return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+              });
+              setTimelineEvents(timeline);
+            } catch (err) {
+              setTimelineEvents([]);
+            }
+            setTimelineDialogOpen(true);
+          }}
+        >
+          Timeline
+        </Button>
+      </CardActions>
     </Card>
   );
 
@@ -338,7 +424,13 @@ const FacultyApprovalPage: React.FC = () => {
           </CardContent>
         </Paper>
 
-        {/* Approval Dialog */}
+        {/* Timeline Dialog (shared component for uniformity) */}
+        <TimelineDialog
+          open={timelineDialogOpen}
+          onClose={() => setTimelineDialogOpen(false)}
+          events={timelineEvents}
+          entityName={timelineEntityName}
+        />
         <Dialog 
           open={Boolean(selectedItem)} 
           onClose={handleCloseDialog} 
@@ -407,16 +499,16 @@ const FacultyApprovalPage: React.FC = () => {
                   fullWidth
                   multiline
                   rows={4}
-                  label="Rejection Reason (Required for rejection)"
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Please provide specific feedback on what needs to be improved..."
+                  label="Message / Feedback (required for rejection, optional for approval)"
+                  value={actionMessage}
+                  onChange={(e) => setActionMessage(e.target.value)}
+                  placeholder="Provide feedback for approval or rejection..."
                   helperText={
-                    rejectReason.trim().length < 10 && rejectReason.trim().length > 0
-                      ? `Minimum 10 characters required (${rejectReason.length}/10)`
-                      : `${rejectReason.length}/500 characters - This feedback will help the faculty improve their submission`
+                    actionMessage.trim().length < 10 && actionMessage.trim().length > 0
+                      ? `Minimum 10 characters required for rejection (${actionMessage.length}/10)`
+                      : `${actionMessage.length}/500 characters - This feedback will be sent to the faculty`
                   }
-                  error={rejectReason.length > 500}
+                  error={actionMessage.length > 500}
                   inputProps={{ maxLength: 500 }}
                   sx={{
                     '& .MuiInputBase-root': {
@@ -437,7 +529,7 @@ const FacultyApprovalPage: React.FC = () => {
                   onClick={handleReject}
                   variant="outlined"
                   color="error"
-                  disabled={actionLoading || rejectReason.trim().length < 10}
+                  disabled={actionLoading || actionMessage.trim().length < 10}
                   startIcon={<RejectIcon />}
                 >
                   Reject

@@ -26,7 +26,7 @@ async function hashPassword(password) {
 }
 
 async function seedTestData() {
-  await sequelize.sync();
+  await sequelize.sync({ force: true });
   await cleanDatabase();
 
   // Create admin account
@@ -135,6 +135,8 @@ async function seedTestData() {
     
     for (let j = 0; j < degreeTypes.length; j++) {
       const degreeType = degreeTypes[j];
+      // Pick a non-HOD faculty (index 1 or 2)
+      const nonHodFaculty = facultyByDept[dept.id][1] || facultyByDept[dept.id][2];
       const degree = await Degree.create({
         id: uuidv4(),
         name: `MSc in ${degreeType.name}`,
@@ -144,6 +146,7 @@ async function seedTestData() {
         department_id: dept.id,
         status: 'active',
         courses_per_semester: { '1': 4, '2': 4 },
+        created_by: nonHodFaculty.id,
       });
       degrees.push(degree);
     }

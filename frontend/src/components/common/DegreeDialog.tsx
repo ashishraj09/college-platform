@@ -14,8 +14,9 @@ import {
 } from '@mui/material';
 import { DEGREE_STATUS_OPTIONS } from '../../constants/degreeStatus';
 import { School as SchoolIcon } from '@mui/icons-material';
-import { degreesAPI } from '../../services/api';
+import api, { degreesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 interface DegreeDialogProps {
   open: boolean;
@@ -62,6 +63,7 @@ const DegreeDialog: React.FC<DegreeDialogProps> = ({
   const [activeTab, setActiveTab] = useState(0);
   const [form, setForm] = useState<any>(defaultForm);
   const { enqueueSnackbar } = useSnackbar();
+  const [degreeId, setDegreeId] = useState<string | null>(null);
   // Helper to add a new semester
   const handleAddSemester = () => {
     const semesters = Object.keys(form.courses_per_semester).map(Number);
@@ -89,14 +91,41 @@ const DegreeDialog: React.FC<DegreeDialogProps> = ({
 
   useEffect(() => {
     if (open) {
-      // Always set department_id to user's department
-      const userDeptId = initialData?.userDepartmentId || initialData?.department_id;
-      let formData = mode === 'edit' ? { ...defaultForm, ...initialData, department_id: userDeptId } : { ...defaultForm, department_id: userDeptId };
-      // If editing and initialData has courses_per_semester, use it
-      if (mode === 'edit' && initialData?.courses_per_semester) {
-        formData.courses_per_semester = initialData.courses_per_semester;
+      if (mode === 'edit') {
+        let editId: string | null = null;
+        if (initialData && typeof initialData === 'object' && initialData.id) {
+          editId = initialData.id;
+        } else if (initialData && typeof initialData === 'string') {
+          editId = initialData;
+        }
+        if (editId && typeof editId === 'string') {
+          setDegreeId(editId);
+          const fetchDegreeForEdit = async () => {
+            try {
+              setLoading(true);
+              const response = await degreesAPI.getDegreeById(editId as string);
+              const degreeData = response.degree || response;
+              const userDeptId = degreeData?.userDepartmentId || degreeData?.department_id;
+              let formData = { ...defaultForm, ...degreeData, department_id: userDeptId };
+              if (degreeData?.courses_per_semester) {
+                formData.courses_per_semester = degreeData.courses_per_semester;
+              }
+              setForm(formData);
+            } catch (error) {
+              console.error('Error fetching degree for edit:', error);
+              setError('Failed to load degree data for editing');
+            } finally {
+              setLoading(false);
+            }
+          };
+          fetchDegreeForEdit();
+        }
+      } else {
+        // Always set department_id to user's department
+        const userDeptId = initialData?.userDepartmentId || initialData?.department_id;
+        let formData = { ...defaultForm, department_id: userDeptId };
+        setForm(formData);
       }
-      setForm(formData);
     }
   }, [open, initialData, mode]);
 
@@ -132,20 +161,8 @@ const DegreeDialog: React.FC<DegreeDialogProps> = ({
         if (initialData.status === 'approved' || initialData.status === 'active') {
           try {
             // Create a new version instead of updating directly
-            const response = await fetch(`/api/degrees/${initialData.id}/create-version`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error || 'Failed to create new version');
-            }
-            
-            const data = await response.json();
+            const response = await api.post(`${API_BASE_URL}/degrees/${initialData.id}/create-version`);
+            const data = response.data;
             enqueueSnackbar(`New version created. You will be redirected to edit the draft.`, { variant: 'success' });
             
             // Return the new degree ID for potential redirection
@@ -164,7 +181,27 @@ const DegreeDialog: React.FC<DegreeDialogProps> = ({
       }
       handleClose();
     } catch (error: any) {
-      setError(error.response?.data?.error || 'Failed to save degree');
+      let errorMsg = 'Failed to save degree';
+      if (error && typeof error === 'object') {
+        if ('response' in error && error.response?.data?.error) {
+          const backendError = error.response.data.error;
+          errorMsg = typeof backendError === 'string' ? backendError : 'An unknown error occurred';
+        } else if ('message' in error && typeof error.message === 'string') {
+          errorMsg = error.message;
+        } else if (error instanceof Error && error.message) {
+          errorMsg = error.message;
+        } else {
+          console.error('DegreeDialog error:', error);
+          errorMsg = 'An unknown error occurred';
+        }
+      } else if (typeof error === 'string') {
+        errorMsg = error;
+      } else {
+        console.error('DegreeDialog error:', error);
+        errorMsg = 'An unknown error occurred';
+      }
+      setError(errorMsg);
+      enqueueSnackbar(errorMsg, { variant: 'error' });
     } finally {
       setLoading(false);
     }

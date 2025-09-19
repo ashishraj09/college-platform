@@ -41,8 +41,8 @@ router.get('/',
     if (status) whereClause.status = status;
     if (faculty_id) whereClause.faculty_id = faculty_id;
     
-    // Filter courses by owner (created_by) for non-admin users
-    if (req.user && req.user.user_type !== 'admin') {
+    // For HODs, show all courses in their department
+    if (req.user && req.user.user_type !== 'admin' && !req.user.is_head_of_department) {
       whereClause.created_by = req.user.id;
     }
 
@@ -84,7 +84,21 @@ router.get('/',
       order: [['created_at', 'DESC']]
     });
 
-    res.json(courses);
+    // For each course, check if a draft version exists for this course or its parent
+    const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
+      const draft = await Course.findOne({
+        where: {
+          [Op.or]: [
+            { parent_course_id: course.id },
+            { parent_course_id: course.parent_course_id || course.id }
+          ],
+          status: 'draft'
+        }
+      });
+      course.dataValues.hasDraftVersion = !!draft;
+      return course;
+    }));
+    res.json(coursesWithDraftFlag);
   } catch (error) {
     console.error('Error fetching courses:', error);
     res.status(500).json({ error: 'Failed to fetch courses' });
@@ -248,26 +262,42 @@ router.get('/my-courses',
       course.faculty_details = await resolveInstructorNames(course.faculty_details);
     }
 
+    // For each active course, check if a draft version exists for the same parent_course_id
+    const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
+      let hasDraftVersion = false;
+      if (course.status === 'active') {
+        const draft = await Course.findOne({
+          where: {
+            parent_course_id: course.id,
+            status: 'draft'
+          }
+        });
+        hasDraftVersion = !!draft;
+      }
+      course.dataValues.hasDraftVersion = hasDraftVersion;
+      return course;
+    }));
+
     // Categorize courses by status
     const categorized = {
-      draft: courses.filter(course => course.status === 'draft'),
-      pending_approval: courses.filter(course => ['submitted', 'pending_approval'].includes(course.status)),
-      approved: courses.filter(course => course.status === 'approved'),
-      active: courses.filter(course => course.status === 'active'),
-      others: courses.filter(course => !['draft', 'submitted', 'pending_approval', 'approved', 'active'].includes(course.status))
+      draft: coursesWithDraftFlag.filter(course => course.status === 'draft'),
+      pending_approval: coursesWithDraftFlag.filter(course => ['submitted', 'pending_approval'].includes(course.status)),
+      approved: coursesWithDraftFlag.filter(course => course.status === 'approved'),
+      active: coursesWithDraftFlag.filter(course => course.status === 'active'),
+      others: coursesWithDraftFlag.filter(course => !['draft', 'submitted', 'pending_approval', 'approved', 'active'].includes(course.status))
     };
 
     const summary = {
-      total: courses.length,
+      total: coursesWithDraftFlag.length,
       draft: categorized.draft.length,
       approved: categorized.approved.length,
       active: categorized.active.length
     };
 
-    console.log(`Returning ${courses.length} courses with filter:`, whereClause);
+    console.log(`Returning ${coursesWithDraftFlag.length} courses with filter:`, whereClause);
     
     res.json({
-      all: courses,
+      all: coursesWithDraftFlag,
       categorized,
       summary
     });
@@ -662,35 +692,47 @@ router.post('/',
       }
 
       // Create course
-      const course = await Course.create({
-        name: name.trim(),
-        code: code.trim().toUpperCase(),
-        overview: overview.trim(),
-        study_details,
-        faculty_details,
-        credits,
-        semester,
-        prerequisites: prerequisites || [],
-        max_students,
-        department_id,
-        degree_id,
-        is_elective,
-        created_by: req.user?.id || req.body.userId,
-        status: 'draft',
+      const courses = await Course.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: Department,
+            as: 'department',
+            attributes: ['id', 'name', 'code']
+          },
+          {
+            model: Degree,
+            as: 'degree',
+            attributes: ['id', 'name', 'code']
+          },
+          {
+            model: User,
+            as: 'creator',
+            attributes: ['id', 'first_name', 'last_name', 'email']
+          }
+        ],
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        order: [['created_at', 'DESC']]
       });
-      
-      // Handle lecturers if provided
-      if (req.body.lecturers && Array.isArray(req.body.lecturers)) {
-        const lecturerPromises = req.body.lecturers.map(lecturer => {
-          return CourseLecturer.create({
-            course_id: course.id,
-            user_id: lecturer.user_id,
-            role: lecturer.role || 'co_instructor',
-            responsibilities: lecturer.responsibilities || ''
+
+      // For each active course, check if a draft version exists
+      const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
+        if (course.status === 'active') {
+          const draft = await Course.findOne({
+            where: {
+              parent_course_id: course.id,
+              status: 'draft'
+            }
           });
-        });
-        await Promise.all(lecturerPromises);
-      }
+          course.dataValues.hasDraftVersion = !!draft;
+        } else {
+          course.dataValues.hasDraftVersion = false;
+        }
+        return course;
+      }));
+
+      res.json(coursesWithDraftFlag);
 
       // Fetch course with associations
       const createdCourse = await Course.findByPk(course.id, {
@@ -1055,19 +1097,21 @@ router.patch('/:id/approve',
   authorizeRoles('faculty', 'admin'),
   auditMiddleware('update', 'course', 'Course approved'),
   async (req, res) => {
+    const { Sequelize } = require('sequelize');
+    const Message = require('../models/Message');
+    const sequelize = require('../config/database').sequelize;
+    const transaction = await sequelize.transaction();
     try {
-      const course = await Course.findByPk(req.params.id);
-
+      const course = await Course.findByPk(req.params.id, { transaction });
       if (!course) {
+        await transaction.rollback();
         return res.status(404).json({ error: 'Course not found' });
       }
-
-      // Verify user is HOD of the course's department
-      const user = req.user || { department_id: course.department_id, is_head_of_department: true }; // Temp for testing
+      const user = req.user || { department_id: course.department_id, is_head_of_department: true };
       if (user.department_id !== course.department_id || !user.is_head_of_department) {
+        await transaction.rollback();
         return res.status(403).json({ error: 'Only Head of Department can approve courses' });
       }
-
       if (course.status !== 'pending_approval') {
         let message = 'Only pending approval courses can be approved';
         if (course.status === 'approved') {
@@ -1077,6 +1121,7 @@ router.patch('/:id/approve',
         } else if (course.status === 'active') {
           message = 'This course is already active';
         }
+        await transaction.rollback();
         return res.status(400).json({ 
           error: message,
           currentStatus: course.status,
@@ -1084,19 +1129,36 @@ router.patch('/:id/approve',
           approvedBy: course.approved_by
         });
       }
-
+      const senderId = user.id || req.body.userId;
+      if (!senderId) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Missing sender_id for approval message' });
+      }
+      // Add approval message to messages table first
+      const approvalMessage = await Message.create({
+        type: 'course',
+        reference_id: course.id,
+        sender_id: senderId,
+  // Course approved by HOD
+  message: `Course approved by HOD${req.body.reason ? ': ' + req.body.reason : ''}`,
+      }, { transaction });
+      if (!approvalMessage || !approvalMessage.id) {
+        await transaction.rollback();
+        return res.status(500).json({ error: 'Failed to create approval message' });
+      }
       await course.update({
         status: 'approved',
-        approved_by: user.id || req.body.userId,
+        approved_by: senderId,
         approved_at: new Date(),
-        updated_by: user.id || req.body.userId,
-      });
-
+        updated_by: senderId,
+      }, { transaction });
+      await transaction.commit();
       res.json({
         message: 'Course approved successfully',
         course,
       });
     } catch (error) {
+      if (transaction) await transaction.rollback();
       console.error('Error approving course:', error);
       res.status(500).json({ error: 'Internal server error' });
     }

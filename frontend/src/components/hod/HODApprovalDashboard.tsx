@@ -88,6 +88,7 @@ const HODApprovalDashboard: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<ApprovalItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return 'Not specified';
@@ -108,6 +109,24 @@ const HODApprovalDashboard: React.FC = () => {
 
   useEffect(() => {
     loadPendingItems();
+  }, []);
+
+  useEffect(() => {
+    // Get userId from localStorage or profile
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+    } else {
+      import('../../services/api').then(({ authAPI }) => {
+        authAPI.getProfile().then(profile => {
+          const uid = profile?.id || profile?.user?.id;
+          if (uid) {
+            localStorage.setItem('userId', uid);
+            setUserId(uid);
+          }
+        });
+      });
+    }
   }, []);
 
   const loadPendingItems = async () => {
@@ -220,7 +239,7 @@ const HODApprovalDashboard: React.FC = () => {
       if (selectedItem.type === 'course') {
         await coursesAPI.rejectCourse(selectedItem.id, trimmedReason);
       } else {
-        await degreesAPI.rejectDegree(selectedItem.id, trimmedReason);
+        await degreesAPI.rejectDegree(selectedItem.id, { reason: trimmedReason, userId: userId || undefined });
       }
       
       enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected with feedback sent to faculty`, { 

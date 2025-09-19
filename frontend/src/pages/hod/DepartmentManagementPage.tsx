@@ -78,6 +78,9 @@ const DepartmentManagementPage: React.FC = () => {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [versionDialogOpen, setVersionDialogOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<any>(null);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectDegreeId, setRejectDegreeId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Get departmentId from localStorage or fetch from HOD profile
@@ -156,6 +159,25 @@ const DepartmentManagementPage: React.FC = () => {
       .finally(() => setLoadingCourses(false));
   }, [departmentId]);
 
+  // Get userId from localStorage or profile
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+    } else {
+      import('../../services/api').then(({ authAPI }) => {
+        authAPI.getProfile().then(profile => {
+          const uid = profile?.id || profile?.user?.id;
+          if (uid) {
+            localStorage.setItem('userId', uid);
+            setUserId(uid);
+          }
+        });
+      });
+    }
+  }, []);
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setCurrentTab(newValue);
   };
@@ -177,7 +199,46 @@ const DepartmentManagementPage: React.FC = () => {
     }
   };
 
+  const handleReject = (degreeId: string) => {
+    setRejectDegreeId(degreeId);
+    setRejectDialogOpen(true);
+  };
 
+  const confirmReject = async () => {
+    if (!rejectDegreeId || !userId) return;
+    try {
+  await degreesAPI.rejectDegree(rejectDegreeId, { reason: rejectReason, userId });
+      setRejectDialogOpen(false);
+      setRejectReason('');
+      setRejectDegreeId(null);
+      // Reload degrees
+      setLoadingDegrees(true);
+      degreesAPI.getDegrees({ departmentId })
+        .then(data => {
+          let degreesArr: any[] = [];
+          if (Array.isArray(data)) {
+            degreesArr = data;
+          } else if (data && Array.isArray(data.degrees)) {
+            degreesArr = data.degrees;
+          } else if (data && Array.isArray(data.all)) {
+            degreesArr = data.all;
+          }
+          setDegrees(degreesArr);
+        })
+        .finally(() => setLoadingDegrees(false));
+    } catch (err) {
+      let errorMsg = 'Unknown error';
+      if (err && typeof err === 'object') {
+        // Use optional chaining to avoid type errors
+        if ((err as any).response?.data?.error) {
+          errorMsg = (err as any).response.data.error;
+        } else if ((err as any).message && typeof (err as any).message === 'string') {
+          errorMsg = (err as any).message;
+        }
+      }
+      alert('Failed to reject degree: ' + errorMsg);
+    }
+  };
 
   const handleEditConfirm = () => {
     setConfirmDialogOpen(true);
@@ -248,11 +309,20 @@ const DepartmentManagementPage: React.FC = () => {
                         <Paper key={degree.id} sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 1, boxShadow: 3 }}>
                           <Box display="flex" alignItems="center" justifyContent="space-between">
                             <Typography variant="h6">{degree.name}</Typography>
-                            <Tooltip title="Edit">
-                              <IconButton onClick={() => handleEdit(degree, 'degree')}>
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
+                            <Box>
+                              <Tooltip title="Edit">
+                                <IconButton onClick={() => handleEdit(degree, 'degree')}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                              {degree.status === 'pending' && (
+                                <Tooltip title="Reject">
+                                  <IconButton color="error" onClick={() => handleReject(degree.id)}>
+                                    <span style={{ fontWeight: 'bold', fontSize: 18 }}>✗</span>
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Box>
                           </Box>
                           <Typography variant="body2" color="text.secondary">Code: {degree.code}</Typography>
                           <Box display="flex" alignItems="center" gap={1} mt={1}>
@@ -373,6 +443,27 @@ const DepartmentManagementPage: React.FC = () => {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setVersionDialogOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Reject Degree Dialog */}
+        <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)} maxWidth="xs">
+          <DialogTitle>Reject Degree</DialogTitle>
+          <DialogContent>
+            <Typography>Enter reason for rejection:</Typography>
+            <TextField
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              fullWidth
+              multiline
+              rows={3}
+              autoFocus
+              sx={{ mt: 2 }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
+            <Button onClick={confirmReject} variant="contained" color="error" disabled={!rejectReason}>Reject</Button>
           </DialogActions>
         </Dialog>
       </Box>

@@ -43,38 +43,43 @@ export const getAvailableEntityActions = (entity: Entity, type: EntityType, isHO
   switch (entity.status) {
     case 'draft':
       actions.push(
-        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon /> },
-        { action: 'submit', label: 'Submit for Approval', icon: <SendIcon /> },
-        { action: 'delete', label: `Delete ${type}`, icon: <DeleteIcon /> }
+        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon />, disabled: false },
+        { action: 'submit', label: 'Submit for Approval', icon: <SendIcon />, disabled: false },
+        { action: 'delete', label: `Delete ${type}`, icon: <DeleteIcon />, disabled: false }
       );
       break;
     case 'pending_approval':
     case 'submitted':
       actions.push(
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon /> }
+        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
       );
       if (isHOD && entity.status === 'pending_approval') {
         actions.push(
-          { action: 'approve', label: `Approve ${type}`, icon: <ApproveIcon /> }
+          { action: 'approve', label: `Approve ${type}`, icon: <ApproveIcon />, disabled: false }
         );
       }
       break;
     case 'approved':
       actions.push(
-        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon /> },
-        { action: 'publish', label: 'Publish', icon: <PublishIcon /> },
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon /> }
+        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon />, disabled: false },
+        { action: 'publish', label: 'Publish', icon: <PublishIcon />, disabled: false },
+        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
       );
       break;
     case 'active':
       actions.push(
-        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon /> },
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon /> }
+        {
+          action: 'edit',
+          label: `Edit ${type}`,
+          icon: <EditIcon />,
+          disabled: (type === 'course' && entity.hasDraftVersion === true) || (type === 'degree' && entity.hasDraftVersion === true)
+        },
+        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
       );
       break;
     default:
       actions.push(
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon /> }
+        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
       );
   }
   return actions;

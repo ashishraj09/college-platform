@@ -60,6 +60,9 @@ Degree.hasMany(Course, {
   as: 'courses' 
 });
 
+// Match Course: add creator association for Degree
+Degree.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
+
 // Course associations
 Course.belongsTo(Department, { 
   foreignKey: 'department_id', 

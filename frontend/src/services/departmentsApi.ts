@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+import api from './api';
 
 export interface Department {
   id: string;
@@ -9,6 +9,7 @@ export interface Department {
   createdAt: string;
   updatedAt: string;
 }
+
 
 export interface Degree {
   id: string;
@@ -24,27 +25,18 @@ export interface Degree {
 
 class DepartmentsAPI {
   async getAllDepartments(): Promise<{ departments: Department[] }> {
-    const response = await fetch(`${API_BASE_URL}/departments`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch departments');
-    }
-    return response.json();
+    const response = await api.get('/departments');
+    return response.data;
   }
 
   async getDepartment(id: string): Promise<{ department: Department }> {
-    const response = await fetch(`${API_BASE_URL}/departments/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch department');
-    }
-    return response.json();
+    const response = await api.get(`/departments/${id}`);
+    return response.data;
   }
 
   async getDepartmentDegrees(departmentId: string): Promise<{ degrees: Degree[] }> {
-    const response = await fetch(`${API_BASE_URL}/departments/${departmentId}/degrees`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch department degrees');
-    }
-    return response.json();
+    const response = await api.get(`/departments/${departmentId}/degrees`);
+    return response.data;
   }
 }
 
