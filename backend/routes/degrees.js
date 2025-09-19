@@ -164,22 +164,6 @@ router.patch('/:id/reject',
   }
 );
 
-// Publish/Activate degree (Faculty only - for approved degrees)
-router.patch('/:id/publish',
-  auditMiddleware('update', 'degree', 'Degree published/activated'),
-  async (req, res) => {
-    try {
-      const degree = await Degree.findByPk(req.params.id);
-      if (!degree) return res.status(404).json({ error: 'Degree not found' });
-      if (degree.status !== 'approved') return res.status(400).json({ error: 'Only approved degrees can be published' });
-      await degree.update({ status: 'active' });
-      res.json({ message: 'Degree published/activated', degree });
-    } catch (error) {
-      console.error('Error publishing degree:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-);
 
 // Create new version of degree
 router.post('/:id/create-version',
@@ -800,5 +784,93 @@ router.delete('/:id',
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+
+router.patch('/:id/publish',
+  authenticateToken,
+  authorizeRoles('faculty', 'admin'),
+  auditMiddleware('update', 'degree', 'Degree published/activated'),
+  async (req, res) => {
+    try {
+      const degree = await Degree.findByPk(req.params.id, {
+        include: [
+          { model: Department, as: 'department' },
+          { model: User, as: 'creator' },
+        ],
+      });
+
+      if (!degree) {
+        return res.status(404).json({ error: 'Degree not found' });
+      }
+
+      // For development/testing when authentication is disabled
+      const user = req.user || {
+        id: req.body.userId,
+        department_id: req.body.departmentId,
+        user_type: 'faculty',
+      };
+
+      // Validate that we have user context
+      if (!user.id || !user.department_id) {
+        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      }
+
+      // Only degree creator or faculty in the same department can publish
+      if (degree.created_by !== user.id && user.department_id !== degree.department_id) {
+        return res.status(403).json({ error: 'Only degree creator or department faculty can publish degrees' });
+      }
+
+      if (degree.status !== 'approved') {
+        let message = 'Only approved degrees can be published';
+        if (degree.status === 'draft') {
+          message = 'Degree must be submitted and approved before publishing';
+        } else if (degree.status === 'pending_approval') {
+          message = 'Degree is still pending approval and cannot be published yet';
+        } else if (degree.status === 'active') {
+          message = 'Degree is already active/published';
+        }
+        return res.status(400).json({
+          error: message,
+          currentStatus: degree.status,
+        });
+      }
+
+      // Handle version management if this is a versioned degree
+      if (degree.parent_degree_id || degree.version > 1) {
+        // This is a new version being published - archive previous active versions
+        const parentId = degree.parent_degree_id || degree.id;
+        await Degree.update(
+          { status: 'archived' },
+          {
+            where: {
+              [Op.and]: [
+                {
+                  [Op.or]: [
+                    { id: parentId },
+                    { parent_degree_id: parentId },
+                  ],
+                },
+                { status: 'active' },
+                { id: { [Op.ne]: degree.id } },
+              ],
+            },
+          }
+        );
+      }
+
+      await degree.update({
+        status: 'active',
+        updated_by: user.id || req.body.userId,
+      });
+
+      res.json({
+        message: 'Degree published and is now active',
+        degree,
+      });
+    } catch (error) {
+      console.error('Error publishing degree:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
 
 module.exports = router;

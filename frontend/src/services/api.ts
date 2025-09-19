@@ -155,6 +155,7 @@ export const degreesAPI = {
   submitDegree: async (id: string, payload?: any) => (await api.patch(`/degrees/${id}/submit`, payload)).data,
   approveDegree: async (id: string, payload?: any) => (await api.patch(`/degrees/${id}/approve`, payload)).data,
   rejectDegree: async (id: string, payload: { reason: string; userId?: string }) => (await api.patch(`/degrees/${id}/reject`, payload)).data,
+  publishDegree: async (id: string, payload?: any) => (await api.patch(`/degrees/${id}/publish`, payload)).data,
   postComment: async (degreeId: string, text: string, userId: string, userName: string, userType: string) => (await api.post(`/degrees/${degreeId}/comment`, { text, userId, userName, userType })).data,
   getComments: async (degreeId: string) => {
     const { data } = await api.get(`/degrees/${degreeId}`);

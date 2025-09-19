@@ -114,13 +114,12 @@ const FacultyDashboard: React.FC = () => {
       return;
     }
     if (action === 'edit') {
-      // If course is draft, open edit modal directly
+      // ...existing code...
       if (type === 'course' && entity.status === 'draft') {
         setCreateCourseDialogOpen(true);
         setEntityToEdit({ ...entity, entityType: type });
         return;
       }
-      // If degree is draft, open edit modal directly
       if (type === 'degree' && entity.status === 'draft') {
         setDegreeDialogMode('edit');
         setDegreeDialogData(entity);
@@ -128,17 +127,38 @@ const FacultyDashboard: React.FC = () => {
         setEntityToEdit({ ...entity, entityType: type });
         return;
       }
-      // Prevent editing active course or degree if hasDraftVersion is true
       if ((type === 'course' || type === 'degree') && entity.status === 'active' && entity.hasDraftVersion === true) {
         enqueueSnackbar(`Cannot edit active ${type} while a draft exists.`, { variant: 'warning' });
         return;
       }
-      // Otherwise, show confirmation dialog
       setEntityToEdit({ ...entity, entityType: type });
       setEditEntityDialogOpen(true);
       return;
     }
-    // Add navigation for view
+    if (action === 'publish') {
+      try {
+        if (type === 'course') {
+          await coursesAPI.publishCourse(entity.id);
+          enqueueSnackbar('Course published and is now active!', { variant: 'success' });
+        } else {
+          await degreesAPI.publishDegree(entity.id);
+          enqueueSnackbar('Degree published and is now active!', { variant: 'success' });
+        }
+        await loadData();
+      } catch (err) {
+        let errorMsg = 'Failed to publish';
+        if (typeof err === 'object' && err !== null) {
+          if ('message' in err && typeof (err as any).message === 'string') {
+            errorMsg = (err as any).message;
+          }
+          if ('response' in err && (err as any).response?.data?.error) {
+            errorMsg = (err as any).response.data.error;
+          }
+        }
+        enqueueSnackbar(errorMsg, { variant: 'error' });
+      }
+      return;
+    }
     if (action === 'view') {
       if (type === 'course') {
         navigate(`/faculty/course/${entity.id}`);
