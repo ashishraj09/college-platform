@@ -64,7 +64,7 @@ const NewFacultyDashboard: React.FC = () => {
   const [degreeDialogData, setDegreeDialogData] = useState<any>(null);
 
   useEffect(() => {
-    const loadData = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
         const [coursesData, degreesData] = await Promise.all([
@@ -81,8 +81,25 @@ const NewFacultyDashboard: React.FC = () => {
         setLoading(false);
       }
     };
-    loadData();
+    fetchData();
   }, [user]);
+  
+  // Function to reload data
+  const reloadData = async () => {
+    setLoading(true);
+    try {
+      const [coursesData, degreesData] = await Promise.all([
+        coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
+        degreesAPI.getFacultyDegrees(user?.department?.id),
+      ]);
+      setCourses(coursesData?.all || []);
+      setDegrees(degreesData?.all || []);
+    } catch (err) {
+      enqueueSnackbar('Error loading data', { variant: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAction = async (
     action: string,
@@ -124,13 +141,27 @@ const NewFacultyDashboard: React.FC = () => {
         const apiPath = entityToEdit.entityType === "course"
           ? `/api/courses/${entityToEdit.id}/create-version`
           : `/api/degrees/${entityToEdit.id}/create-version`;
-        const res = await fetch(apiPath, { method: "POST", credentials: "include" });
+        
+        console.log(`Creating new version for ${entityToEdit.entityType} ID: ${entityToEdit.id}`);
+        
+        const res = await fetch(apiPath, { 
+          method: "POST", 
+          credentials: "include",
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
         const data = await res.json();
-        if (res.ok && data[entityToEdit.entityType]) {
+        console.log('Create version response:', data);
+        
+        if (res.ok && data.course) {
           enqueueSnackbar(`Version ${data.version} created. You can now edit the draft.`, { variant: "success" });
-          setEntityToEdit({ ...data[entityToEdit.entityType], entityType: entityToEdit.entityType });
-          // Optionally reload data here
+          // Reload data to see new version
+          reloadData();
+          setEntityToEdit(null);
         } else {
+          console.error('Failed to create version:', data);
           enqueueSnackbar(data.error || "Failed to create version", { variant: "error" });
         }
       } else {

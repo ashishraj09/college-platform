@@ -1,6 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Dialog,
+import React, { useState, useEffect } from 'react';const DegreeDialog: React.FC<DegreeDialogProps> = ({
+  open,
+  onClose,
+  onSuccess,
+  initialData,
+  mode = 'create'
+}) => {
+  const [loading, setLoading] = useState(false);
+  // Removed unused departments state
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
+  const [form, setForm] = useState<any>(defaultForm);
+  const { enqueueSnackbar } = useSnackbar();Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -15,11 +25,12 @@ import {
 import { DEGREE_STATUS_OPTIONS } from '../../constants/degreeStatus';
 import { School as SchoolIcon } from '@mui/icons-material';
 import { degreesAPI } from '../../services/api';
+import { useSnackbar } from 'notistack';
 
 interface DegreeDialogProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newDegreeId?: string) => void;
   initialData?: any;
   mode?: 'create' | 'edit';
 }
@@ -60,6 +71,7 @@ const DegreeDialog: React.FC<DegreeDialogProps> = ({
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
   const [form, setForm] = useState<any>(defaultForm);
+  const { enqueueSnackbar } = useSnackbar();
   // Helper to add a new semester
   const handleAddSemester = () => {
     const semesters = Object.keys(form.courses_per_semester).map(Number);
@@ -126,11 +138,40 @@ const DegreeDialog: React.FC<DegreeDialogProps> = ({
         payload.courses_per_semester = form.courses_per_semester;
       }
       if (mode === 'edit' && initialData?.id) {
-        await degreesAPI.updateDegree(initialData.id, payload);
+        // Check if degree is approved or active
+        if (initialData.status === 'approved' || initialData.status === 'active') {
+          try {
+            // Create a new version instead of updating directly
+            const response = await fetch(`/api/degrees/${initialData.id}/create-version`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to create new version');
+            }
+            
+            const data = await response.json();
+            enqueueSnackbar(`New version created. You will be redirected to edit the draft.`, { variant: 'success' });
+            
+            // Return the new degree ID for potential redirection
+            onSuccess(data.degree?.id);
+          } catch (error: any) {
+            throw error;
+          }
+        } else {
+          // Update draft or pending degrees directly
+          await degreesAPI.updateDegree(initialData.id, payload);
+          onSuccess();
+        }
       } else {
         await degreesAPI.createDegree(payload);
+        onSuccess();
       }
-      onSuccess();
       handleClose();
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to save degree');

@@ -139,25 +139,121 @@ router.patch('/:id/publish',
 
 // Create new version of degree
 router.post('/:id/create-version',
+  authenticateToken,
+  authorizeRoles('faculty', 'admin'),
   auditMiddleware('create', 'degree', 'Degree version created'),
   async (req, res) => {
     try {
-      const degree = await Degree.findByPk(req.params.id);
-      if (!degree) return res.status(404).json({ error: 'Degree not found' });
-      // Create a new version (copy with incremented version)
-      const newVersion = await Degree.create({
-        ...degree.toJSON(),
-        id: undefined,
-        version: (degree.version || 1) + 1,
-        status: 'draft',
-        version_history: [...(degree.version_history || []), { version: degree.version, created_at: new Date() }],
+      console.log(`[DEBUG] Create version request for degree ID: ${req.params.id} by user:`, req.user);
+      
+      const degree = await Degree.findByPk(req.params.id, {
+        include: [
+          { model: Department, as: 'department' },
+        ]
       });
-      res.status(201).json({ message: 'Degree version created', degree: newVersion });
+      
+      if (!degree) {
+        console.log(`[ERROR] Degree not found: ${req.params.id}`);
+        return res.status(404).json({ error: 'Degree not found' });
+      }
+      
+      console.log(`[DEBUG] Original degree:`, {
+        id: degree.id,
+        status: degree.status,
+        version: degree.version,
+        created_by: degree.created_by
+      });
+      
+      // Check if user is admin or the creator of the degree
+      const isAdmin = req.user.user_type === 'admin';
+      const isCreator = degree.created_by === req.user.id;
+      
+      if (!isAdmin && !isCreator) {
+        console.log(`[ERROR] Permission denied. User ${req.user.id} is not admin or creator of degree ${degree.id}`);
+        return res.status(403).json({ error: 'You do not have permission to create a version of this degree' });
+      }
+      
+      // Only allow versioning for approved or active degrees
+      if (!['approved', 'active'].includes(degree.status)) {
+        console.log(`[ERROR] Cannot create version. Degree status is ${degree.status}`);
+        return res.status(400).json({ 
+          error: 'Can only create versions from approved or active degrees' 
+        });
+      }
+      
+      // Find the highest version number for this degree family
+      const maxVersionDegree = await Degree.findOne({
+        where: {
+          [Op.or]: [
+            { id: req.params.id },
+            { parent_degree_id: req.params.id },
+            { id: degree.parent_degree_id },
+            { parent_degree_id: degree.parent_degree_id },
+          ],
+        },
+        order: [['version', 'DESC']],
+      });
+
+      // Create a new version with proper parent reference
+      const newDegreeData = {
+        name: degree.name,
+        code: degree.code,
+        description: degree.description,
+        department_id: degree.department_id,
+        courses: degree.courses,
+        requirements: degree.requirements,
+        created_by: req.user.id,
+        version: nextVersion,
+        parent_degree_id: degree.parent_degree_id || degree.id,
+        is_latest_version: true,
+        status: 'draft',
+      };
+      
+      console.log(`[DEBUG] Creating new degree version with data:`, {
+        name: newDegreeData.name,
+        code: newDegreeData.code,
+        version: newDegreeData.version,
+        parent_degree_id: newDegreeData.parent_degree_id,
+        created_by: newDegreeData.created_by
+      });
+
+      // Mark all previous versions as not latest
+      await Degree.update(
+        { is_latest_version: false },
+        {
+          where: {
+            [Op.or]: [
+              { id: req.params.id },
+              { parent_degree_id: req.params.id },
+              { id: degree.parent_degree_id },
+              { parent_degree_id: degree.parent_degree_id },
+            ],
+          },
+        }
+      );
+
+      const newDegree = await Degree.create(newDegreeData);
+      
+      console.log(`[SUCCESS] Created new degree version with ID: ${newDegree.id}`);
+
+      // Fetch the created degree with associations
+      const createdDegree = await Degree.findByPk(newDegree.id, {
+        include: [
+          { model: Department, as: 'department' },
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+        ],
+      });
+
+      res.status(201).json({
+        message: `Degree version ${nextVersion} created successfully`,
+        degree: createdDegree,
+        version: nextVersion
+      });
     } catch (error) {
       console.error('Error creating degree version:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Failed to create degree version', details: error.message });
     }
-  }
+  });
 );
 
 // Degree validation rules
@@ -184,6 +280,11 @@ router.get('/',
     const whereClause = {};
     if (department_id) whereClause.department_id = department_id;
     if (status) whereClause.status = status;
+    
+    // Filter degrees by owner (created_by) for non-admin users
+    if (req.user && req.user.user_type !== 'admin') {
+      whereClause.created_by = req.user.id;
+    }
 
     const offset = (page - 1) * limit;
 
@@ -225,6 +326,11 @@ router.get('/my-degrees',
     let whereClause = {};
     if (user && user.department_id) {
       whereClause.department_id = user.department_id;
+      
+      // Regular faculty see only their own degrees
+      if (user.user_type !== 'admin' && !user.is_head_of_department && user.user_type !== 'office') {
+        whereClause.created_by = user.id;
+      }
     } else {
       // If no user context and no departmentId query param, return empty array
       whereClause.department_id = 'none-found';
@@ -360,6 +466,7 @@ router.post('/',
 
 // Get degree by ID
 router.get('/:id',
+  authenticateToken,
   async (req, res) => {
     try {
       const degree = await Degree.findByPk(req.params.id, {
@@ -377,6 +484,11 @@ router.get('/:id',
 
       if (!degree) {
         return res.status(404).json({ error: 'Degree not found' });
+      }
+      
+      // Only allow access if user is admin or degree creator
+      if (req.user && req.user.user_type !== 'admin' && degree.created_by !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied: You do not own this degree' });
       }
 
       res.json({ degree });
@@ -404,6 +516,12 @@ router.put('/:id',
 
       // Faculty can only update degrees in their department (temporarily bypassed for testing)
       const user = req.user || { department_id: degree.department_id, user_type: 'faculty' }; // Temp for testing
+      
+      // Only degree creator or admin can update
+      if (degree.created_by !== user.id && user.user_type !== 'admin') {
+        return res.status(403).json({ error: 'Only degree creator or admin can update this degree' });
+      }
+      
       if (user.department_id !== degree.department_id && user.user_type !== 'admin') {
         return res.status(403).json({ error: 'Can only update degrees in your own department' });
       }
@@ -573,6 +691,12 @@ router.delete('/:id',
 
       // Faculty can only delete degrees from their department
       const user = req.user || { department_id: degree.department_id, user_type: 'faculty' }; // Temp for testing
+      
+      // Only degree creator or admin can delete
+      if (degree.created_by !== user.id && user.user_type !== 'admin') {
+        return res.status(403).json({ error: 'Only degree creator or admin can delete this degree' });
+      }
+      
       if (user.department_id !== degree.department_id && user.user_type !== 'admin') {
         return res.status(403).json({ error: 'Can only delete degrees from your own department' });
       }

@@ -26,7 +26,7 @@ import { useAuth } from '../../contexts/AuthContext';
 interface CreateCourseDialogProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newCourseId?: string) => void;
   course?: any; // Course data for editing
   mode?: 'create' | 'edit';
 }
@@ -462,14 +462,43 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       };
 
       if (mode === 'edit' && course) {
-        await coursesAPI.updateCourse(course.id, cleanedForm, user?.id, user?.department?.id);
-        enqueueSnackbar('Course updated successfully!', { variant: 'success' });
+        // Check if course is approved or active
+        if (course.status === 'approved' || course.status === 'active') {
+          try {
+            // Create a new version instead of updating directly
+            const response = await fetch(`/api/courses/${course.id}/create-version`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to create new version');
+            }
+            
+            const data = await response.json();
+            enqueueSnackbar(`New version created. You will be redirected to edit the draft.`, { variant: 'success' });
+            
+            // Return the new course ID for potential redirection
+            onSuccess(data.course?.id);
+          } catch (error: any) {
+            throw error;
+          }
+        } else {
+          // Update draft or pending courses directly
+          await coursesAPI.updateCourse(course.id, cleanedForm, user?.id, user?.department?.id);
+          enqueueSnackbar('Course updated successfully!', { variant: 'success' });
+          onSuccess();
+        }
       } else {
         await coursesAPI.createCourse(cleanedForm, user?.id, user?.department?.id);
         enqueueSnackbar('Course created successfully!', { variant: 'success' });
+        onSuccess();
       }
       
-      onSuccess();
       handleClose();
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || `Failed to ${mode === 'edit' ? 'update' : 'create'} course`;

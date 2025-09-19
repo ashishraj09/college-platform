@@ -81,7 +81,7 @@ const FacultyDashboard: React.FC = () => {
     try {
       const [coursesData, degreesData] = await Promise.all([
         coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
-        degreesAPI.getFacultyDegrees(user?.department?.id),
+        degreesAPI.getFacultyDegrees(user?.department?.id, user?.id),
       ]);
       setCourses(coursesData?.all || []);
       setDegrees(degreesData?.all || []);
@@ -132,13 +132,37 @@ const FacultyDashboard: React.FC = () => {
     if (!entityToEdit) return;
     setEditEntityLoading(true);
     try {
-      // Call the appropriate API based on entity type
-      if (entityToEdit.entityType === 'course') {
-        await coursesAPI.updateCourse(entityToEdit.id, entityToEdit);
+      // Check if the entity is approved or active - in that case, create a new version
+      if (['approved', 'active'].includes(entityToEdit.status)) {
+        const apiPath = entityToEdit.entityType === 'course'
+          ? `/api/courses/${entityToEdit.id}/create-version`
+          : `/api/degrees/${entityToEdit.id}/create-version`;
+        
+        const response = await fetch(apiPath, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create new version');
+        }
+        
+        const data = await response.json();
+        enqueueSnackbar(`New version created successfully. You can now edit the draft.`, { variant: 'success' });
       } else {
-        await degreesAPI.updateDegree(entityToEdit.id, entityToEdit);
+        // For drafts or pending approval, update directly
+        if (entityToEdit.entityType === 'course') {
+          await coursesAPI.updateCourse(entityToEdit.id, entityToEdit);
+        } else {
+          await degreesAPI.updateDegree(entityToEdit.id, entityToEdit);
+        }
+        enqueueSnackbar('Entity updated successfully!', { variant: 'success' });
       }
-      enqueueSnackbar('Entity updated successfully!', { variant: 'success' });
+      
       setEditEntityDialogOpen(false);
       await loadData();
     } catch (err) {
@@ -277,8 +301,6 @@ const FacultyDashboard: React.FC = () => {
             onClick={async () => {
               setTimelineEntityName(item.name || item.code || item.id);
               try {
-                console.log('Fetching timeline for:', item);
-                console.log('Fetching timeline for:', item.degree);
                 // Use explicit entityType prop
                 const data = await timelineAPI.getTimeline(item.entityType, item.id);
                 // Merge audit and messages into a single timeline array
@@ -326,6 +348,18 @@ const FacultyDashboard: React.FC = () => {
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" gutterBottom>Faculty Dashboard</Typography>
         <Typography variant="body1" color="text.secondary">Manage your courses and degrees</Typography>
+        
+        {/* Add HOD dashboard link if user is a Head of Department */}
+        {isHOD && (
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={() => navigate('/hod')}
+            sx={{ mt: 2 }}
+          >
+            Go to HOD Dashboard
+          </Button>
+        )}
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 3 }}>
         <Button

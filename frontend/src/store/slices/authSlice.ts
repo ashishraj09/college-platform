@@ -24,6 +24,19 @@ export interface User {
   updated_at: string;
 }
 
+// Helper function to determine user's effective role
+export const getUserEffectiveRole = (user: User | null): string => {
+  if (!user) return '';
+  
+  // If the user is faculty and is HOD, their effective role is 'hod'
+  if (user.user_type === 'faculty' && user.is_head_of_department === true) {
+    return 'hod';
+  }
+  
+  // Otherwise, return their regular user_type
+  return user.user_type;
+};
+
 export interface AuthTokens {
   access: string;
   refresh: string;
@@ -38,25 +51,11 @@ interface AuthState {
 }
 
 const getInitialAuthState = (): AuthState => {
-  let user = null;
-  let tokens = null;
-  let isAuthenticated = false;
-  try {
-    const savedUser = localStorage.getItem('user');
-    const savedTokens = localStorage.getItem('tokens');
-    if (savedUser && savedTokens) {
-      user = JSON.parse(savedUser);
-      tokens = JSON.parse(savedTokens);
-      isAuthenticated = true;
-    }
-  } catch (e) {
-    // ignore
-  }
   return {
-    user,
-    tokens,
-    isAuthenticated,
-    loading: false,
+    user: null,
+    tokens: null,
+    isAuthenticated: false,
+    loading: true, // Start with loading true to prevent immediate redirects
     error: null,
   };
 };
@@ -71,31 +70,15 @@ const authSlice = createSlice({
       state.error = null;
     },
     initializeAuth: (state) => {
-      const savedTokens = sessionStorage.getItem('tokens');
-      const savedUser = sessionStorage.getItem('user');
-      if (savedTokens && savedUser) {
-        try {
-          state.tokens = JSON.parse(savedTokens);
-          state.user = JSON.parse(savedUser);
-          state.isAuthenticated = true;
-        } catch (error) {
-          localStorage.removeItem('tokens');
-          localStorage.removeItem('user');
-          state.tokens = null;
-          state.user = null;
-          state.isAuthenticated = false;
-        }
-      } else {
-        state.tokens = null;
-        state.user = null;
-        state.isAuthenticated = false;
-      }
+      // With cookie-based auth, we don't need to manually restore tokens
+      // We'll make an API call to check if the user is authenticated
+      state.loading = true;
     },
   // Removed setTokens reducer for cookie-based authentication
     setUser: (state, action: PayloadAction<User>) => {
-    state.user = action.payload;
-    state.isAuthenticated = true;
-  sessionStorage.setItem('user', JSON.stringify(action.payload));
+      state.user = action.payload;
+      state.isAuthenticated = true;
+      state.loading = false;
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
@@ -107,7 +90,6 @@ const authSlice = createSlice({
       state.user = null;
       state.isAuthenticated = false;
       state.error = null;
-      sessionStorage.removeItem('user');
     },
   },
 });

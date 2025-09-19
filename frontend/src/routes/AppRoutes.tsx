@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAppSelector } from '../hooks/redux';
+import { CircularProgress, Box } from '@mui/material';
 
 // Import components (will be created)
 import LoginPage from '../pages/auth/LoginPage';
@@ -20,19 +21,25 @@ import StudentDashboard from '../pages/student/StudentDashboard';
 import StudentDegreesPage from '../pages/student/DegreesPage';
 import OfficeDashboard from '../pages/office/OfficeDashboard';
 import ProtectedRoute from '../components/common/ProtectedRoute';
-import DataDebugger from '../components/debug/DataDebugger';
+
 import HODDashboard from '../pages/hod/HODDashboard';
 import FacultyApprovalPage from '../pages/hod/FacultyApprovalPage';
 import EnrollmentApprovalPage from '../pages/hod/EnrollmentApprovalPage';
 import DepartmentManagementPage from '../pages/hod/DepartmentManagementPage';
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, user, loading } = useAppSelector((state) => state.auth);
 
   // Determine dashboard route based on user type
   const getDashboardRoute = () => {
     if (!user) return '/login';
     
+    // Check for HOD role first (faculty with HOD status)
+    if (user.user_type === 'faculty' && user.is_head_of_department) {
+      return '/hod';
+    }
+    
+    // Otherwise route based on user_type
     switch (user.user_type) {
       case 'admin':
         return '/admin';
@@ -47,6 +54,23 @@ const AppRoutes: React.FC = () => {
     }
   };
 
+  // Show loading spinner while checking authentication status
+  if (loading) {
+    return (
+      <Box 
+        display="flex" 
+        flexDirection="column"
+        justifyContent="center" 
+        alignItems="center" 
+        minHeight="100vh"
+        bgcolor={(theme) => theme.palette.background.default}
+      >
+        <CircularProgress size={50} />
+        <Box mt={2}>Loading application...</Box>
+      </Box>
+    );
+  }
+
   return (
     <Routes>
       {/* Create Degree Page (all users) */}
@@ -55,12 +79,6 @@ const AppRoutes: React.FC = () => {
       <Route 
         path="/test" 
         element={<TestPage />} 
-      />
-      
-      {/* Debug Route */}
-      <Route 
-        path="/debug" 
-        element={<DataDebugger />} 
       />
       
       {/* Public Routes */}
@@ -125,7 +143,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/hod/*"
         element={
-          <ProtectedRoute requiredRole="faculty">
+          <ProtectedRoute requiredRole="hod">
             <DashboardLayout>
               <Routes>
                 <Route index element={<HODDashboard />} />

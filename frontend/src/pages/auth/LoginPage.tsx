@@ -63,12 +63,12 @@ const LoginPage: React.FC = () => {
     try {
       const response = await authAPI.login(data);
       
-  // After login, fetch user profile and store
-  const profile = await authAPI.getProfile();
-  dispatch(setUser(profile));
-  // Navigate to dashboard based on user type
-  const dashboardRoute = getDashboardRoute(profile.user_type);
-  navigate(dashboardRoute, { replace: true });
+      // After login, fetch user profile and store
+      const profile = await authAPI.getProfile();
+      dispatch(setUser(profile));
+      // Navigate to dashboard based on user type and HOD status
+      const dashboardRoute = getDashboardRoute(profile.user_type, profile.is_head_of_department);
+      navigate(dashboardRoute, { replace: true });
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || 'Login failed';
       setError(errorMessage);
@@ -77,7 +77,13 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const getDashboardRoute = (userType: string): string => {
+  const getDashboardRoute = (userType: string, isHOD: boolean = false): string => {
+    // If user is a faculty member and a head of department, send to HOD dashboard
+    if (userType === 'faculty' && isHOD) {
+      return '/hod';
+    }
+    
+    // Otherwise use regular user type routing
     switch (userType) {
       case 'admin':
         return '/admin';
@@ -187,7 +193,31 @@ const LoginPage: React.FC = () => {
                 disabled={loading}
                 sx={{ mb: 2 }}
               >
-                {loading ? 'Signing in...' : 'Sign In'}
+                {loading ? (
+                  <>
+                    <Box component="span" display="flex" alignItems="center">
+                      <Box component="span" mr={1} display="inline-flex">
+                        <Box 
+                          component="span" 
+                          sx={{ 
+                            width: 20, 
+                            height: 20, 
+                            borderRadius: '50%', 
+                            border: '2px solid currentColor',
+                            borderTopColor: 'transparent',
+                            animation: 'spin 1s linear infinite',
+                            display: 'inline-block',
+                            '@keyframes spin': {
+                              '0%': { transform: 'rotate(0deg)' },
+                              '100%': { transform: 'rotate(360deg)' }
+                            }
+                          }}
+                        />
+                      </Box>
+                      Signing in...
+                    </Box>
+                  </>
+                ) : 'Sign In'}
               </Button>
 
               <Box textAlign="center">

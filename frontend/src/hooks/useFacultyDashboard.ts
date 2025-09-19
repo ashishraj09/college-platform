@@ -19,9 +19,11 @@ export interface Course {
   is_latest_version: boolean;
   createdAt: string;
   updatedAt: string;
-  department?: { name: string; code: string };
+  department?: { name: string; code: string; id: string };
   degree?: { name: string; code: string };
   creator?: { id: string; first_name: string; last_name: string };
+  created_by?: string;
+  department_id?: string;
 }
 
 export interface Degree {
@@ -45,10 +47,20 @@ export function useFacultyDashboard() {
   const loadData = async () => {
     try {
       setLoading(true);
+      console.log('useFacultyDashboard: Loading data for user:', {
+        id: user?.id,
+        department_id: user?.department?.id,
+        is_head_of_department: user?.is_head_of_department
+      });
+      
       const [coursesData, degreesData] = await Promise.all([
         coursesAPI.getFacultyCourses(user?.department?.id, user?.id),
         degreesAPI.getFacultyDegrees(user?.department?.id),
       ]);
+      
+      console.log('useFacultyDashboard: Received courses data:', 
+        coursesData?.all ? `${coursesData.all.length} courses` : 'No courses found');
+      
       setCourses(coursesData?.all || coursesData || []);
       let degrees = [];
       if (degreesData?.all) degrees = degreesData.all;
@@ -65,6 +77,24 @@ export function useFacultyDashboard() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  // Add debug logging for loaded courses
+  useEffect(() => {
+    if (courses.length > 0) {
+      console.log(`useFacultyDashboard: Loaded ${courses.length} courses`);
+      // Check if all courses have the same creator
+      const creatorIds = new Set(courses.map(c => c.creator?.id || c.created_by));
+      console.log('Creator IDs found in courses:', Array.from(creatorIds));
+      
+      // Log first course as sample
+      console.log('Sample course:', {
+        name: courses[0]?.name,
+        created_by: courses[0]?.created_by,
+        creator: courses[0]?.creator?.id,
+        user_id: user?.id
+      });
+    }
+  }, [courses, user]);
 
   return { courses, degrees, loading, loadData, user };
 }

@@ -44,22 +44,30 @@ async function seedTestData() {
 
   // Create Departments
   const departments = [];
-  for (let i = 0; i < 5; i++) {
+  const departmentData = [
+    { name: 'Chemistry', code: 'CHEM', description: 'Department of Chemistry' },
+    { name: 'Physics', code: 'PHYS', description: 'Department of Physics' },
+    { name: 'Biology', code: 'BIOL', description: 'Department of Biology' },
+    { name: 'Mathematics', code: 'MATH', description: 'Department of Mathematics' },
+    { name: 'Computer Science', code: 'COMP', description: 'Department of Computer Science' }
+  ];
+  
+  for (const deptInfo of departmentData) {
     const dept = await Department.create({
       id: uuidv4(),
-      name: `Computer Science ${i + 1}`,
-      code: `CS${i + 1}`,
-      description: `Department of Computer Science ${i + 1}`,
+      name: deptInfo.name,
+      code: deptInfo.code,
+      description: deptInfo.description,
       status: 'active',
     });
     departments.push(dept);
   }
 
-  // Create Faculty Users (2 per department, one HOD)
+  // Create Faculty Users (3 per department, one HOD)
   const facultyByDept = {};
   for (const dept of departments) {
     facultyByDept[dept.id] = [];
-    for (let f = 0; f < 2; f++) {
+    for (let f = 0; f < 3; f++) {
       const faculty = await User.create({
         id: uuidv4(),
         first_name: faker.person.firstName(),
@@ -80,12 +88,58 @@ async function seedTestData() {
   // Create Degrees (5 per department)
   const degrees = [];
   for (const dept of departments) {
-    for (let j = 0; j < 5; j++) {
+    // Different degree types based on department
+    const degreeTypes = [];
+    
+    if (dept.code === 'CHEM') {
+      degreeTypes.push(
+        { name: 'Analytical Chemistry', code: 'ANCH' },
+        { name: 'Organic Chemistry', code: 'ORCH' },
+        { name: 'Inorganic Chemistry', code: 'INCH' },
+        { name: 'Physical Chemistry', code: 'PHCH' },
+        { name: 'Biochemistry', code: 'BICH' }
+      );
+    } else if (dept.code === 'PHYS') {
+      degreeTypes.push(
+        { name: 'Theoretical Physics', code: 'THPH' },
+        { name: 'Applied Physics', code: 'APPH' },
+        { name: 'Astrophysics', code: 'ASPH' },
+        { name: 'Nuclear Physics', code: 'NUPH' },
+        { name: 'Quantum Physics', code: 'QUPH' }
+      );
+    } else if (dept.code === 'BIOL') {
+      degreeTypes.push(
+        { name: 'Molecular Biology', code: 'MOBI' },
+        { name: 'Ecology', code: 'ECOL' },
+        { name: 'Genetics', code: 'GENE' },
+        { name: 'Microbiology', code: 'MICR' },
+        { name: 'Marine Biology', code: 'MARB' }
+      );
+    } else if (dept.code === 'MATH') {
+      degreeTypes.push(
+        { name: 'Pure Mathematics', code: 'PUMA' },
+        { name: 'Applied Mathematics', code: 'APMA' },
+        { name: 'Statistics', code: 'STAT' },
+        { name: 'Mathematical Finance', code: 'MAFI' },
+        { name: 'Computational Mathematics', code: 'COMA' }
+      );
+    } else if (dept.code === 'COMP') {
+      degreeTypes.push(
+        { name: 'Software Engineering', code: 'SOEN' },
+        { name: 'Artificial Intelligence', code: 'ARTI' },
+        { name: 'Cybersecurity', code: 'CYSE' },
+        { name: 'Data Science', code: 'DATA' },
+        { name: 'Computer Networks', code: 'NETE' }
+      );
+    }
+    
+    for (let j = 0; j < degreeTypes.length; j++) {
+      const degreeType = degreeTypes[j];
       const degree = await Degree.create({
         id: uuidv4(),
-        name: `MComp ${dept.code} ${j + 1}`,
-        code: `MC${dept.code}${j + 1}`,
-        description: `Master of Computer Science ${dept.code} ${j + 1}`,
+        name: `MSc in ${degreeType.name}`,
+        code: `${degreeType.code}`,
+        description: `Master of Science in ${degreeType.name}`,
         duration_years: 2,
         department_id: dept.id,
         status: 'active',
@@ -98,15 +152,59 @@ async function seedTestData() {
   // Create Courses (4 per semester per degree)
   for (const degree of degrees) {
     for (let semester = 1; semester <= 2; semester++) {
-      for (let k = 0; k < 4; k++) {
-        // Pick a random faculty from the department as creator
+      // Create department and degree specific courses
+      const coursesByDepartment = {
+        'CHEM': [
+          { name: 'Advanced Analytical Techniques', code: 'AAT' },
+          { name: 'Molecular Spectroscopy', code: 'MSP' },
+          { name: 'Chemical Thermodynamics', code: 'CTD' },
+          { name: 'Organic Synthesis', code: 'OSY' }
+        ],
+        'PHYS': [
+          { name: 'Quantum Mechanics', code: 'QME' },
+          { name: 'Electromagnetic Theory', code: 'EMT' },
+          { name: 'Statistical Mechanics', code: 'SME' },
+          { name: 'Particle Physics', code: 'PPH' }
+        ],
+        'BIOL': [
+          { name: 'Cell Biology', code: 'CBI' },
+          { name: 'Evolutionary Biology', code: 'EBI' },
+          { name: 'Molecular Genetics', code: 'MGE' },
+          { name: 'Ecology and Conservation', code: 'ECO' }
+        ],
+        'MATH': [
+          { name: 'Advanced Calculus', code: 'ACA' },
+          { name: 'Abstract Algebra', code: 'AAL' },
+          { name: 'Complex Analysis', code: 'CAN' },
+          { name: 'Numerical Methods', code: 'NME' }
+        ],
+        'COMP': [
+          { name: 'Advanced Algorithms', code: 'AAL' },
+          { name: 'Machine Learning', code: 'MLE' },
+          { name: 'Distributed Systems', code: 'DSY' },
+          { name: 'Software Architecture', code: 'SAR' }
+        ]
+      };
+      
+      // Get the department code from the degree's department
+      const deptCode = departments.find(d => d.id === degree.department_id).code;
+      const courses = coursesByDepartment[deptCode];
+      
+      for (let k = 0; k < courses.length; k++) {
+        const course = courses[k];
+        // Distribute courses among faculty members more evenly
         const facultyList = facultyByDept[degree.department_id];
-        const creator = facultyList[Math.floor(Math.random() * facultyList.length)];
+        
+        // Use faculty index based on a combination of course index and semester
+        // This ensures different faculty members get assigned different courses
+        const facultyIndex = (k + semester) % facultyList.length;
+        const assignedFaculty = facultyList[facultyIndex];
+        
         await Course.create({
           id: uuidv4(),
-          name: `Course ${degree.code} S${semester} #${k + 1}`,
-          code: `${degree.code}S${semester}C${k + 1}`,
-          overview: faker.lorem.sentence(),
+          name: `${course.name} ${semester === 2 ? 'II' : 'I'}`,
+          code: `${degree.code}${course.code}${semester}`,
+          overview: `${course.name} for ${semester === 1 ? 'beginning' : 'advanced'} graduate students.`,
           credits: 4,
           semester,
           department_id: degree.department_id,
@@ -114,7 +212,7 @@ async function seedTestData() {
           status: 'active',
           study_details: {},
           faculty_details: {},
-          created_by: creator.id,
+          created_by: assignedFaculty.id,
         });
       }
     }

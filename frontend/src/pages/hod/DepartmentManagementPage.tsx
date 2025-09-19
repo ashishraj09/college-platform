@@ -114,7 +114,7 @@ const DepartmentManagementPage: React.FC = () => {
     }
     setLoadingDegrees(true);
     console.log('[DepartmentManagement] Fetching all degrees for departmentId:', departmentId);
-    degreesAPI.getDegrees({ departmentId })
+    degreesAPI.getFacultyDegrees(departmentId, undefined, true) // Use HOD view to get all department degrees
       .then(data => {
         let degreesArr: any[] = [];
         if (Array.isArray(data)) {
@@ -142,9 +142,9 @@ const DepartmentManagementPage: React.FC = () => {
     }
     setLoadingCourses(true);
     console.log('[DepartmentManagement] Fetching all courses for departmentId:', departmentId);
-    coursesAPI.getCourses({ departmentId })
+    coursesAPI.getDepartmentCourses({ departmentId }) // Use HOD view mode with department-courses endpoint
       .then(data => {
-  const coursesArr = Array.isArray(data) ? data : data.courses || [];
+  const coursesArr = Array.isArray(data) ? data : data.all || data.courses || [];
   setCourses(coursesArr);
   // Collect unique statuses from courses
   const statuses = Array.from(new Set(coursesArr.map((c: any) => c.status).filter((s: any): s is string => typeof s === 'string')));

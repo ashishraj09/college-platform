@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
-import { setUser, logout, setLoading, setError } from '../store/slices/authSlice';
+import { setUser, logout, setLoading, setError, getUserEffectiveRole } from '../store/slices/authSlice';
 import { authAPI } from '../services/api';
 
 interface AuthContextType {
@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
+  effectiveRole: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -21,6 +22,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useDispatch();
   const { user, loading, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const effectiveRole = getUserEffectiveRole(user);
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
@@ -54,23 +56,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Fetch latest user profile on page refresh
   useEffect(() => {
-    if (isAuthenticated) {
-      authAPI.getProfile()
-        .then(profile => {
+    // Try to get user profile on initial load
+    authAPI.getProfile()
+      .then(profile => {
+        if (profile && profile.id) {
           dispatch(setUser(profile));
-        })
-        .catch(err => {
-          console.error('Failed to refresh user profile:', err);
-        });
-    }
-  }, [isAuthenticated, dispatch]);
+        } else {
+          // If profile has no ID, treat as not authenticated
+          dispatch(logout());
+        }
+      })
+      .catch(err => {
+        // Not authenticated or error fetching profile
+        console.error('Failed to refresh user profile:', err);
+        dispatch(logout());
+      })
+      .finally(() => {
+        dispatch(setLoading(false));
+      });
+  }, [dispatch]);
 
   const value: AuthContextType = {
     user,
     isAuthenticated,
     login,
     logout: logoutUser,
-    loading
+    loading,
+    effectiveRole
   };
 
   return (

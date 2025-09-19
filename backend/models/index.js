@@ -6,6 +6,7 @@ const Enrollment = require('./Enrollment');
 const EnrollmentDraft = require('./EnrollmentDraft');
 const AuditLog = require('./AuditLog');
 const Message = require('./Message');
+
 // Message associations
 Message.belongsTo(User, { foreignKey: 'sender_id', as: 'sender', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
 User.hasMany(Message, { foreignKey: 'sender_id', as: 'messages' });
@@ -100,6 +101,8 @@ Course.hasMany(Enrollment, {
   as: 'enrollments' 
 });
 
+// NOTE: Course-Lecturer associations (many-to-many) have been removed
+
 // Enrollment associations
 Enrollment.belongsTo(User, { 
   foreignKey: 'student_id', 
@@ -184,5 +187,5 @@ module.exports = {
   Enrollment,
   EnrollmentDraft,
   AuditLog,
-  Message,
+  Message
 };

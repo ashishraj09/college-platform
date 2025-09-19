@@ -29,6 +29,32 @@ api.interceptors.request.use(
   }
 );
 
+// Response interceptor for handling auth errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Prevent infinite loops
+    if (originalRequest._retry) {
+      return Promise.reject(error);
+    }
+
+    // Handle 401 errors (unauthorized)
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      // Clear local auth state and redirect to login if token expired
+      if (window.location.pathname !== '/login') {
+        console.log('Authentication failed, redirecting to login');
+        window.location.href = '/login';
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 
 // --- Auth API ---
 export const authAPI = {
@@ -78,9 +104,26 @@ export const coursesAPI = {
   deleteCourse: async (id: string, payload?: any) => (await api.delete(`/courses/${id}`, { data: payload })).data,
   approveCourse: async (id: string) => (await api.patch(`/courses/${id}/approve`)).data,
   rejectCourse: async (id: string, reason: string) => (await api.patch(`/courses/${id}/reject`, { reason })).data,
-  getFacultyCourses: async (deptId?: string, userId?: string) => {
-    // Use /my-courses route as per backend
-    return (await api.get('/courses/my-courses', { params: { departmentId: deptId, userId } })).data;
+    getFacultyCourses: async (deptId?: string, userId?: string) => {
+    if (!deptId) {
+      throw new Error('Department ID is required');
+    }
+    
+    // For HOD view - shows all department courses
+    if (process.env.REACT_APP_HOD_VIEW === 'true') {
+      return (await api.get('/courses/department-courses', { params: { departmentId: deptId } })).data;
+    }
+    
+    // Regular faculty view - shows only their own courses
+    // Ensure userId is passed explicitly if available
+    const params: any = { departmentId: deptId };
+    if (userId) {
+      params.userId = userId;
+    } else {
+      console.warn('No userId available for my-courses request');
+    }
+    
+    return (await api.get('/courses/my-courses', { params })).data;
   },
   getDepartmentCourses: async (params?: { departmentId?: string }) => (await api.get('/courses/department-courses', { params })).data,
   submitCourse: async (id: string, payload?: any) => (await api.patch(`/courses/${id}/submit`, payload)).data,
@@ -97,11 +140,22 @@ export const degreesAPI = {
   createDegree: async (payload: any) => (await api.post('/degrees', payload)).data,
   updateDegree: async (id: string, payload: any) => (await api.put(`/degrees/${id}`, payload)).data,
   deleteDegree: async (id: string) => (await api.delete(`/degrees/${id}`)).data,
-  getDegreesByDepartment: async (departmentId: string) => (await api.get(`/degrees/department/${departmentId}`)).data,
+  getDegreesByDepartment: async (departmentId: string, isHodView: boolean = false) => {
+    // For HODs, show all department degrees
+    if (isHodView) {
+      return (await api.get(`/degrees`, { params: { department_id: departmentId } })).data;
+    }
+    // For regular faculty, this will use the filter in the backend to show only their degrees
+    return (await api.get(`/degrees/department/${departmentId}`)).data;
+  },
   submitDegreeForApproval: async (id: string, message: string, userId?: string, departmentId?: string) => (await api.patch(`/degrees/${id}/submit`, { message, userId, departmentId })).data,
-  getFacultyDegrees: async (deptId?: string) => {
-    // Use /degrees/my-degrees route as per backend
-    return (await api.get('/degrees/my-degrees', { params: { departmentId: deptId } })).data;
+  getFacultyDegrees: async (deptId?: string, userId?: string, isHodView: boolean = false) => {
+    // For HODs viewing all department degrees, use a different approach
+    if (isHodView) {
+      return (await api.get('/degrees', { params: { department_id: deptId } })).data;
+    }
+    // Regular faculty view - shows only their own degrees
+    return (await api.get('/degrees/my-degrees', { params: { departmentId: deptId, userId } })).data;
   },
   submitDegree: async (id: string, payload?: any) => (await api.patch(`/degrees/${id}/submit`, payload)).data,
   approveDegree: async (id: string) => (await api.patch(`/degrees/${id}/approve`)).data,

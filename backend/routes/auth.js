@@ -345,6 +345,12 @@ router.post('/logout',
   // authenticateToken, // Temporarily disabled for testing
   // auditMiddleware('logout', 'system', 'User logout'), // Temporarily disabled
   (req, res) => {
+  // Clear the auth cookie
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production' ? true : false,
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  });
   res.json({ message: 'Logged out successfully' });
 });
 

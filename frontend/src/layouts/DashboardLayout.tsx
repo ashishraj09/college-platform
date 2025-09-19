@@ -19,6 +19,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { getUserEffectiveRole } from '../store/slices/authSlice';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const effectiveRole = getUserEffectiveRole(user);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -56,7 +58,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            College Platform - {user?.user_type === 'admin' ? 'Admin' : user?.user_type === 'faculty' ? 'Faculty' : 'Student'} Dashboard
+            College Platform - {effectiveRole === 'admin' ? 'Admin' : 
+                               effectiveRole === 'faculty' ? 'Faculty' : 
+                               effectiveRole === 'hod' ? 'HOD' : 
+                               effectiveRole === 'office' ? 'Office' : 'Student'} Dashboard
           </Typography>
           
           {/* Navigation Links */}

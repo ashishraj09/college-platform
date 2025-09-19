@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
-const { Course, Department, Degree, User } = require('../models');
+const { Course, Department, Degree, User, CourseLecturer } = require('../models');
 const { Op } = require('sequelize');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -40,6 +40,11 @@ router.get('/',
     if (degree_id) whereClause.degree_id = degree_id;
     if (status) whereClause.status = status;
     if (faculty_id) whereClause.faculty_id = faculty_id;
+    
+    // Filter courses by owner (created_by) for non-admin users
+    if (req.user && req.user.user_type !== 'admin') {
+      whereClause.created_by = req.user.id;
+    }
 
     const offset = (page - 1) * limit;
 
@@ -91,12 +96,21 @@ router.get('/my-courses',
   authenticateToken,
   async (req, res) => {
   try {
-    const { userId, departmentId } = req.query;
+    // Extract query parameters
+    console.log('Request query parameters raw:', req.query);
+    const userId = req.query.userId || null;
+    const departmentId = req.query.departmentId || null;
+    
+    console.log('Extracted parameters:', { 
+      userId, 
+      departmentId,
+      authUser: req.user ? { id: req.user.id, type: req.user.user_type } : 'No auth user'
+    });
     
     // For development/testing when authentication is disabled
     const user = req.user || { 
-      id: userId,
-      department_id: departmentId,
+      id: userId || null,
+      department_id: departmentId || null,
       user_type: 'faculty',
       is_head_of_department: false
     };
@@ -106,17 +120,48 @@ router.get('/my-courses',
       return res.status(400).json({ error: 'User context required - missing userId or departmentId parameters' });
     }
     
-    // HODs and admins see all courses in their department, regular faculty see only their own courses
-    const whereClause = {};
-    if (user.user_type === 'admin') {
-      // Admin sees all courses (no filter)
-    } else if (user.is_head_of_department || user.user_type === 'office') {
-      // HODs and office staff see all courses in their department
+    console.log('User info for my-courses:', {
+      id: user.id,
+      department_id: user.department_id,
+      user_type: user.user_type,
+      is_head_of_department: user.is_head_of_department || false
+    });
+    
+    // Create where clause based on user type and permissions
+    let whereClause = {};
+    
+    // Always filter by department_id if available
+    if (user.department_id) {
       whereClause.department_id = user.department_id;
-    } else {
-      // Regular faculty see only their own courses
-      whereClause.created_by = user.id;
     }
+    
+    // Debug the userId parameter 
+    console.log('userId parameter type:', typeof req.query.userId);
+    console.log('userId parameter value:', req.query.userId);
+    console.log('Original request query parameters:', req.query);
+    
+    // If a specific userId is provided in the query parameter, use that FIRST
+    if (req.query.userId && String(req.query.userId).length > 0) {
+      console.log(`Filtering by userId from query parameter: ${req.query.userId}`);
+      whereClause.created_by = String(req.query.userId);
+    } 
+    // Use authenticated user restrictions if no explicit userId was provided
+    else if (!(user.user_type === 'admin' || user.is_head_of_department === true || user.user_type === 'office')) {
+      // Force regular faculty to see only their own courses
+      whereClause.created_by = user.id;
+      console.log('Regular faculty, restricting to own courses:', whereClause);
+    } else {
+      console.log('Admin/HOD/Office user, showing all department courses:', whereClause);
+    }
+    
+    // Final safety check - if this is a faculty user, always include created_by filter
+    if (user.user_type === 'faculty' && !user.is_head_of_department && !whereClause.created_by && user.id) {
+      whereClause.created_by = user.id;
+      console.log('Added created_by filter as safety check for faculty user');
+    }
+    
+        // Print the final SQL filter that will be applied
+    console.log('Final SQL filter to be applied:', JSON.stringify(whereClause, null, 2));
     
     const courses = await Course.findAll({
       where: whereClause,
@@ -134,7 +179,7 @@ router.get('/my-courses',
         {
           model: User,
           as: 'creator',
-          attributes: ['id', 'first_name', 'last_name']
+          attributes: ['id', 'first_name', 'last_name'],
         },
         {
           model: User,
@@ -151,6 +196,16 @@ router.get('/my-courses',
       ],
       order: [['created_at', 'DESC']]
     });
+    
+    // Add debugging to check creator info
+    console.log(`Found ${courses.length} courses with the following creators:`);
+    const creators = courses.slice(0, 5).map(course => ({
+      course_name: course.name,
+      course_id: course.id,
+      created_by: course.created_by,
+      creator: course.creator ? { id: course.creator.id, name: `${course.creator.first_name} ${course.creator.last_name}` } : null
+    }));
+    console.log('Sample courses creator info:', creators);
 
     // Helper function to resolve instructor names
     const resolveInstructorNames = async (facultyDetails) => {
@@ -209,6 +264,8 @@ router.get('/my-courses',
       active: categorized.active.length
     };
 
+    console.log(`Returning ${courses.length} courses with filter:`, whereClause);
+    
     res.json({
       all: courses,
       categorized,
@@ -239,7 +296,9 @@ router.get('/department-courses',
     }
   const courses = await Course.findAll({
       where: {
-        department_id: user.department_id
+        department_id: user.department_id,
+        // Only show courses created by the user unless they're an admin, HOD, or office staff
+        ...(user.user_type !== 'admin' && !user.is_head_of_department && user.user_type !== 'office' ? { created_by: user.id } : {})
       },
       include: [
         {
@@ -315,11 +374,23 @@ router.get('/:id',
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'lecturers', attributes: ['id', 'first_name', 'last_name', 'email', 'user_type'], through: { attributes: ['role', 'responsibilities'] } },
         ],
       });
 
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
+      }
+      
+      // Check if user is admin or the creator of the course
+      const user = req.user;
+      if (user.user_type !== 'admin' && course.created_by !== user.id) {
+        return res.status(403).json({ error: 'You do not have permission to view this course' });
+      }
+      
+      // Only allow access if user is admin or course creator
+      if (req.user && req.user.user_type !== 'admin' && course.created_by !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied: You do not own this course' });
       }
 
       // Check if we should resolve faculty UUIDs to names (default: true, false for editing)
@@ -607,6 +678,19 @@ router.post('/',
         created_by: req.user?.id || req.body.userId,
         status: 'draft',
       });
+      
+      // Handle lecturers if provided
+      if (req.body.lecturers && Array.isArray(req.body.lecturers)) {
+        const lecturerPromises = req.body.lecturers.map(lecturer => {
+          return CourseLecturer.create({
+            course_id: course.id,
+            user_id: lecturer.user_id,
+            role: lecturer.role || 'co_instructor',
+            responsibilities: lecturer.responsibilities || ''
+          });
+        });
+        await Promise.all(lecturerPromises);
+      }
 
       // Fetch course with associations
       const createdCourse = await Course.findByPk(course.id, {
@@ -614,6 +698,7 @@ router.post('/',
           { model: Department, as: 'department' },
           { model: Degree, as: 'degree' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'lecturers', attributes: ['id', 'first_name', 'last_name', 'email', 'user_type'], through: { attributes: ['role', 'responsibilities'] } },
         ],
       });
 
@@ -643,10 +728,12 @@ router.post('/',
 // Create new version of existing course (Faculty only)
 router.post('/:id/create-version',
   authenticateToken,
-  authorizeRoles('faculty'),
+  authorizeRoles('faculty', 'admin'),
   auditMiddleware('create', 'course', 'Course version created'),
   async (req, res) => {
     try {
+      console.log(`[DEBUG] Create version request for course ID: ${req.params.id} by user:`, req.user);
+      
       // Get original course without resolving instructor names to preserve UUIDs
       const originalCourse = await Course.findByPk(req.params.id, {
         include: [
@@ -656,38 +743,52 @@ router.post('/:id/create-version',
       });
 
       if (!originalCourse) {
+        console.log(`[ERROR] Course not found: ${req.params.id}`);
         return res.status(404).json({ error: 'Course not found' });
+      }
+      
+      console.log(`[DEBUG] Original course:`, {
+        id: originalCourse.id,
+        status: originalCourse.status,
+        version: originalCourse.version,
+        created_by: originalCourse.created_by
+      });
+      
+      // Check if user is admin or the creator of the course
+      const isAdmin = req.user.user_type === 'admin';
+      const isCreator = originalCourse.created_by === req.user.id;
+      
+      if (!isAdmin && !isCreator) {
+        console.log(`[ERROR] Permission denied. User ${req.user.id} is not admin or creator of course ${originalCourse.id}`);
+        return res.status(403).json({ error: 'You do not have permission to create a version of this course' });
       }
 
       // Only allow versioning for approved or active courses
       if (!['approved', 'active'].includes(originalCourse.status)) {
+        console.log(`[ERROR] Cannot create version. Course status is ${originalCourse.status}`);
         return res.status(400).json({ 
           error: 'Can only create versions from approved or active courses' 
         });
       }
 
-      // Verify user is the creator or has permission
-      const user = req.user || { 
-        id: req.body.userId || originalCourse.created_by, 
-        user_type: 'faculty' 
-      };
+      // Use the authenticated user
+      const userId = req.user.id;
       
-      if (originalCourse.created_by !== user.id && user.user_type !== 'admin') {
-        return res.status(403).json({ error: 'Not authorized to create versions of this course' });
-      }
-
       // Find the highest version number for this course family
       const maxVersionCourse = await Course.findOne({
         where: {
           [Op.or]: [
             { id: req.params.id },
             { parent_course_id: req.params.id },
+            { id: originalCourse.parent_course_id },
+            { parent_course_id: originalCourse.parent_course_id },
           ],
         },
         order: [['version', 'DESC']],
       });
 
       const nextVersion = (maxVersionCourse?.version || 1) + 1;
+      console.log(`[DEBUG] Next version will be: ${nextVersion}`);
 
       // Get the base course code (without version suffix)
       // If this is already a versioned course, get the original parent's code
@@ -715,12 +816,20 @@ router.post('/:id/create-version',
         department_id: originalCourse.department_id,
         degree_id: originalCourse.degree_id,
         is_elective: originalCourse.is_elective,
-        created_by: user.id,
+        created_by: userId,
         version: nextVersion,
         parent_course_id: originalCourse.parent_course_id || originalCourse.id,
         is_latest_version: true,
         status: 'draft',
       };
+      
+      console.log(`[DEBUG] Creating new course version with data:`, {
+        name: newCourseData.name,
+        code: newCourseData.code,
+        version: newCourseData.version,
+        parent_course_id: newCourseData.parent_course_id,
+        created_by: newCourseData.created_by
+      });
 
       // Mark all previous versions as not latest
       await Course.update(
@@ -737,6 +846,8 @@ router.post('/:id/create-version',
       );
 
       const newCourse = await Course.create(newCourseData);
+      
+      console.log(`[SUCCESS] Created new course version with ID: ${newCourse.id}`);
 
       // Fetch the created course with associations
       const createdCourse = await Course.findByPk(newCourse.id, {
@@ -750,7 +861,7 @@ router.post('/:id/create-version',
       res.status(201).json({
         message: `Course version ${nextVersion} created successfully`,
         course: createdCourse,
-        version: nextVersion,
+        version: nextVersion
       });
     } catch (error) {
       console.error('Error creating course version:', error);
@@ -759,7 +870,7 @@ router.post('/:id/create-version',
         return res.status(409).json({ error: 'Course version with this code already exists' });
       }
 
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error', details: error.message });
     }
   }
 );
