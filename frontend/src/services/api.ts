@@ -134,7 +134,7 @@ export const degreesAPI = {
   getDegreeById: async (id: string) => (await api.get(`/degrees/${id}`)).data,
   createDegree: async (payload: any) => (await api.post('/degrees', payload)).data,
   updateDegree: async (id: string, payload: any) => (await api.put(`/degrees/${id}`, payload)).data,
-  deleteDegree: async (id: string) => (await api.delete(`/degrees/${id}`)).data,
+  deleteDegree: async (id: string, payload?: any) => (await api.delete(`/degrees/${id}`, { data: payload })).data,
   getDegreesByDepartment: async (departmentId: string, isHodView: boolean = false) => {
     // For HODs, show all department degrees
     if (isHodView) {

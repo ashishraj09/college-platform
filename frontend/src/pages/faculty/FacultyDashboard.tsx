@@ -12,6 +12,10 @@ import {
   Tabs,
   Tab,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -42,6 +46,12 @@ import TimelineDialog, { TimelineEvent } from '../../components/common/TimelineD
 import { timelineAPI } from '../../services/api';
 
 const FacultyDashboard: React.FC = () => {
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [entityToDelete, setEntityToDelete] = useState<Entity | null>(null);
+  const [deleteType, setDeleteType] = useState<EntityType | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string>('');
   // Approval message state for dialogs
   const [courseApprovalMessage, setCourseApprovalMessage] = useState('');
   const [degreeApprovalMessage, setDegreeApprovalMessage] = useState('');
@@ -114,7 +124,97 @@ const FacultyDashboard: React.FC = () => {
       return;
     }
     if (action === 'edit') {
-      // ...existing code...
+      // Inline StatusOverview component
+      const StatusOverview: React.FC<{ items: any[]; statusConfig: any[]; title: React.ReactNode }> = ({ items, statusConfig, title }) => {
+        const getStatusCounts = () => {
+          const counts: Record<string, number> = {};
+          statusConfig.forEach(cfg => { counts[cfg.key] = 0; });
+          items.forEach(item => {
+            if (counts.hasOwnProperty(item.status)) {
+              counts[item.status]++;
+            }
+          });
+          return counts;
+        };
+        const statusCounts = getStatusCounts();
+        return (
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+            {statusConfig.map(({ key, label, color, icon }) => (
+              <Card key={key} sx={{ textAlign: 'center', minWidth: 180, p: 2 }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
+                    {icon}
+                  </Box>
+                  <Typography variant="h4">{statusCounts[key]}</Typography>
+                  <Typography variant="body2" color="text.secondary">{label}</Typography>
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+        );
+      };
+
+      // Inline FacultyItemCard component
+      const FacultyItemCard: React.FC<{ item: any; actions: any[]; onAction: (action: string, item: any) => void }> = ({ item, actions, onAction }) => (
+        <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
+          <CardContent sx={{ flexGrow: 1 }}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="h6" component="h2">{item.name}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <Chip label={item.status} color="primary" size="small" />
+            </Box>
+            {item.department && (
+              <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                Dept: {item.department.name}
+              </Typography>
+            )}
+            {item.degree && (
+              <Typography variant="caption" display="block" sx={{ mb: 2 }}>
+                Degree: {item.degree.name}
+              </Typography>
+            )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              {item.is_elective && <Chip label="Elective" variant="outlined" size="small" />}
+            </Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              {(item.version_code || item.code) + (item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : '')}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }} noWrap>{item.overview || item.description}</Typography>
+            {item.rejection_reason && item.status === 'draft' && (
+              <Alert severity="error" variant="outlined" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
+                  📋 Requires Revision
+                </Typography>
+                <Typography variant="body2" sx={{ lineHeight: 1.5, color: 'error.dark' }}>
+                  {item.rejection_reason}
+                </Typography>
+                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'error.light' }}>
+                  <Typography variant="caption" sx={{ color: 'error.main', fontStyle: 'italic' }}>
+                    💡 Please address the feedback above and resubmit for approval.
+                  </Typography>
+                </Box>
+              </Alert>
+            )}
+          </CardContent>
+          <CardActions sx={{ pt: 0 }}>
+            {actions.map((action, index) => (
+              <Button key={index} size="small" startIcon={action.icon} onClick={() => onAction(action.action, item)}>
+                {action.label}
+              </Button>
+            ))}
+            <Button
+              size="small"
+              startIcon={<TimelineIcon />}
+              onClick={async () => {
+                // Timeline logic here
+              }}
+            >
+              Timeline
+            </Button>
+          </CardActions>
+        </Card>
+      );
       if (type === 'course' && entity.status === 'draft') {
         setCreateCourseDialogOpen(true);
         setEntityToEdit({ ...entity, entityType: type });
@@ -164,6 +264,12 @@ const FacultyDashboard: React.FC = () => {
         navigate(`/faculty/course/${entity.id}`);
       }
       // Add degree view navigation if available
+      return;
+    }
+    if (action === 'delete') {
+      setEntityToDelete(entity);
+      setDeleteType(type);
+      setDeleteDialogOpen(true);
       return;
     }
     // Add other actions as needed
@@ -338,7 +444,14 @@ const FacultyDashboard: React.FC = () => {
       </CardContent>
       <CardActions sx={{ pt: 0 }}>
         {actions.map((action, index) => (
-          <Button key={index} size="small" startIcon={action.icon} onClick={() => onAction(action.action, item)}>
+          <Button
+            key={index}
+            size="small"
+            startIcon={action.icon}
+            onClick={() => {
+              onAction(action.action, item);
+            }}
+          >
             {action.label}
           </Button>
         ))}
@@ -386,6 +499,56 @@ const FacultyDashboard: React.FC = () => {
 
   return (
     <Container maxWidth="xl">
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this {deleteType}? This action cannot be undone.
+          </Typography>
+          {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleteLoading}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={deleteLoading}
+            onClick={async () => {
+              if (!entityToDelete || !deleteType) return;
+              setDeleteLoading(true);
+              setDeleteError('');
+              try {
+                if (deleteType === 'course') {
+                  await coursesAPI.deleteCourse(entityToDelete.id, { userId: user?.id, departmentId: user?.department?.id });
+                  enqueueSnackbar('Course deleted successfully!', { variant: 'success' });
+                } else {
+                  await degreesAPI.deleteDegree(entityToDelete.id, { userId: user?.id, departmentId: user?.department?.id });
+                  enqueueSnackbar('Degree deleted successfully!', { variant: 'success' });
+                }
+                setDeleteDialogOpen(false);
+                setEntityToDelete(null);
+                setDeleteType(null);
+                await loadData();
+              } catch (err) {
+                let errorMsg = `Failed to delete ${deleteType}`;
+                if (typeof err === 'object' && err !== null) {
+                  if ('message' in err && typeof (err as any).message === 'string') {
+                    errorMsg = (err as any).message;
+                  }
+                  if ('response' in err && (err as any).response?.data?.error) {
+                    errorMsg = (err as any).response.data.error;
+                  }
+                }
+                setDeleteError(errorMsg);
+              }
+              setDeleteLoading(false);
+            }}
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <TimelineDialog
         open={timelineDialogOpen}
         onClose={() => setTimelineDialogOpen(false)}

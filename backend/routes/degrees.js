@@ -750,15 +750,25 @@ router.delete('/:id',
         return res.status(404).json({ error: 'Degree not found' });
       }
 
-      // Faculty can only delete degrees from their department
-      const user = req.user || { department_id: degree.department_id, user_type: 'faculty' }; // Temp for testing
-      
+      // Accept userId and departmentId from request body for dev/test, fallback to req.user
+      const user = req.user || {
+        id: req.body.userId,
+        department_id: req.body.departmentId,
+        user_type: req.body.userType || 'faculty'
+      };
+
+      // Validate user context
+      if (!user.id || !user.department_id) {
+        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      }
+
       // Only degree creator or admin can delete
       if (degree.created_by !== user.id && user.user_type !== 'admin') {
         return res.status(403).json({ error: 'Only degree creator or admin can delete this degree' });
       }
-      
-      if (user.department_id !== degree.department_id && user.user_type !== 'admin') {
+
+      // Faculty can only delete degrees from their own department (unless admin)
+      if (user.user_type !== 'admin' && user.department_id !== degree.department_id) {
         return res.status(403).json({ error: 'Can only delete degrees from your own department' });
       }
 

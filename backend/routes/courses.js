@@ -1424,6 +1424,8 @@ router.delete('/:id',
       }
 
       // For development/testing when authentication is disabled
+
+      // Accept departmentId from request body for consistency
       const user = req.user || { 
         id: req.body.userId,
         department_id: req.body.departmentId, 
