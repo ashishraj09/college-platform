@@ -1,16 +1,6 @@
-import React, { useState, useEffect } from 'react';const DegreeDialog: React.FC<DegreeDialogProps> = ({
-  open,
-  onClose,
-  onSuccess,
-  initialData,
-  mode = 'create'
-}) => {
-  const [loading, setLoading] = useState(false);
-  // Removed unused departments state
-  const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState(0);
-  const [form, setForm] = useState<any>(defaultForm);
-  const { enqueueSnackbar } = useSnackbar();Dialog,
+import React, { useState, useEffect } from 'react';
+import {
+  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,

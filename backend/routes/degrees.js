@@ -253,8 +253,7 @@ router.post('/:id/create-version',
       console.error('Error creating degree version:', error);
       res.status(500).json({ error: 'Failed to create degree version', details: error.message });
     }
-  });
-);
+});
 
 // Degree validation rules
 const degreeValidation = [
