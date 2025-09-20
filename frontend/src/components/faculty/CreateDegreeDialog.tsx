@@ -25,6 +25,8 @@ interface CreateDegreeDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  mode: 'create' | 'edit';
+  degree?: Partial<DegreeForm> & { id?: string };
 }
 
 interface DegreeForm {
@@ -35,7 +37,7 @@ interface DegreeForm {
   department_id: string;
   degree_type: string;
   total_credits: number;
-  courses_per_semester: { [key: string]: number };
+  courses_per_semester: { [semester: string]: { count: number | string; enrollment_start: string; enrollment_end: string } };
   specializations: string;
   career_prospects: string;
   admission_requirements: string;
@@ -46,12 +48,17 @@ interface DegreeForm {
   entry_requirements: string;
   learning_outcomes: string;
   assessment_methods: string;
+  contact_information: string;
+  application_deadlines: string;
+  application_process: string;
 }
 
 const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   open,
   onClose,
   onSuccess,
+  mode,
+  degree,
 }) => {
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
@@ -59,7 +66,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
 
-  const [form, setForm] = useState<DegreeForm>({
+  const defaultForm = {
     name: '',
     code: '',
     description: '',
@@ -78,7 +85,46 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     entry_requirements: '',
     learning_outcomes: '',
     assessment_methods: '',
-  });
+    contact_information: '',
+    application_deadlines: '',
+    application_process: '',
+  };
+  const [form, setForm] = useState<any>(defaultForm);
+
+  // Initialize form when dialog opens or mode/degree changes
+  useEffect(() => {
+    if (open) {
+      setForm(mode === 'edit' && degree ? { ...defaultForm, ...degree } : defaultForm);
+      setActiveTab(0);
+      setError('');
+    }
+  }, [open, mode, degree]);
+  // Helper to add a new semester
+  // Add semester
+  const handleAddSemester = () => {
+    const semesters = Object.keys(form.courses_per_semester).map(Number);
+    const nextSemester = semesters.length > 0 ? Math.max(...semesters) + 1 : 1;
+  setForm((prev: DegreeForm) => ({
+      ...prev,
+      courses_per_semester: {
+        ...prev.courses_per_semester,
+        [nextSemester]: { count: '', enrollment_start: '', enrollment_end: '' }
+      }
+    }));
+  };
+
+  // Helper to remove a semester
+  // Remove semester
+  const handleRemoveSemester = (semester: string) => {
+  setForm((prev: DegreeForm) => {
+      const updated = { ...prev.courses_per_semester };
+      delete updated[semester];
+      return {
+        ...prev,
+        courses_per_semester: updated
+      };
+    });
+  };
 
   useEffect(() => {
     if (open) {
@@ -96,23 +142,19 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     }
   };
 
+  // Form field change handler
   const handleInputChange = (field: keyof DegreeForm) => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setForm({
-      ...form,
-      [field]: event.target.value,
-    });
+  setForm((prev: DegreeForm) => ({ ...prev, [field]: event.target.value }));
     setError('');
   };
 
+  // Select field change handler
   const handleSelectChange = (field: keyof DegreeForm) => (
     event: any
   ) => {
-    setForm({
-      ...form,
-      [field]: event.target.value,
-    });
+  setForm((prev: DegreeForm) => ({ ...prev, [field]: event.target.value }));
     setError('');
   };
 
@@ -126,40 +168,48 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     setError('');
 
     try {
-      await degreesAPI.createDegree(form);
-      enqueueSnackbar('Degree created successfully!', { variant: 'success' });
+      const payload = { ...form };
+      if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
+        payload.courses_per_semester = form.courses_per_semester;
+      }
+      if (mode === 'edit' && degree && degree.id) {
+        await degreesAPI.updateDegree(degree.id, payload);
+        enqueueSnackbar('Degree updated successfully!', { variant: 'success' });
+      } else {
+        await degreesAPI.createDegree(payload);
+        enqueueSnackbar('Degree created successfully!', { variant: 'success' });
+      }
       onSuccess();
       handleClose();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to create degree';
-      setError(errorMessage);
-      enqueueSnackbar(errorMessage, { variant: 'error' });
+      let errorMsg = 'Failed to save degree';
+      if (error && typeof error === 'object') {
+        if ('response' in error && error.response?.data?.error) {
+          const backendError = error.response.data.error;
+          errorMsg = typeof backendError === 'string' ? backendError : 'An unknown error occurred';
+        } else if ('message' in error && typeof error.message === 'string') {
+          errorMsg = error.message;
+        } else if (error instanceof Error && error.message) {
+          errorMsg = error.message;
+        } else {
+          console.error('DegreeDialog error:', error);
+          errorMsg = 'An unknown error occurred';
+        }
+      } else if (typeof error === 'string') {
+        errorMsg = error;
+      } else {
+        console.error('DegreeDialog error:', error);
+        errorMsg = 'An unknown error occurred';
+      }
+      setError(errorMsg);
+  enqueueSnackbar(errorMsg, { variant: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setForm({
-      name: '',
-      code: '',
-      description: '',
-      duration_years: 4,
-      department_id: '',
-      degree_type: 'Bachelor',
-      total_credits: 120,
-      courses_per_semester: {},
-      specializations: '',
-      career_prospects: '',
-      admission_requirements: '',
-      accreditation: '',
-      study_mode: 'Full-time',
-      fees: '',
-      location: 'On-campus',
-      entry_requirements: '',
-      learning_outcomes: '',
-      assessment_methods: '',
-    });
+    setForm(defaultForm);
     setError('');
     setActiveTab(0);
     onClose();
@@ -170,275 +220,261 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
-        <SchoolIcon color="primary" />
-        Create New Degree Program
-      </DialogTitle>
-      <DialogContent dividers sx={{ height: '70vh', overflow: 'hidden', p: 0 }}>
-        {error && (
-          <Alert severity="error" sx={{ m: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange}
-          sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
-        >
-          <Tab label="Basic Info" />
-          <Tab label="Program Details" />
-          <Tab label="Admission & Fees" />
-        </Tabs>
-
-        <Box sx={{ p: 3, height: 'calc(100% - 48px)', overflowY: 'auto' }}>
-          {/* Tab 0: Basic Information */}
-          {activeTab === 0 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                required
-                fullWidth
-                label="Degree Name"
-                value={form.name}
-                onChange={handleInputChange('name')}
-                placeholder="e.g., Master of Commerce"
-              />
-              
-              <TextField
-                required
-                fullWidth
-                label="Degree Code"
-                value={form.code}
-                onChange={handleInputChange('code')}
-                inputProps={{ style: { textTransform: 'uppercase' } }}
-                placeholder="e.g., MCOM"
-              />
-
-              <FormControl fullWidth required>
-                <InputLabel>Degree Type</InputLabel>
-                <Select
-                  value={form.degree_type}
-                  label="Degree Type"
-                  onChange={handleSelectChange('degree_type')}
-                >
-                  <MenuItem value="Certificate">Certificate</MenuItem>
-                  <MenuItem value="Diploma">Diploma</MenuItem>
-                  <MenuItem value="Associate">Associate Degree</MenuItem>
-                  <MenuItem value="Bachelor">Bachelor's Degree</MenuItem>
-                  <MenuItem value="Master">Master's Degree</MenuItem>
-                  <MenuItem value="Doctoral">Doctoral Degree</MenuItem>
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth required>
-                <InputLabel>Department</InputLabel>
-                <Select
-                  value={form.department_id}
-                  label="Department"
-                  onChange={handleSelectChange('department_id')}
-                >
-                  {departments.map((dept) => (
-                    <MenuItem key={dept.id} value={dept.id}>
-                      {dept.name} ({dept.code})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <Box sx={{ display: 'flex', gap: 2 }}>
+    <React.Fragment>
+  {/* Dialog Open Debug removed */}
+      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
+          <SchoolIcon color="primary" />
+          {mode === 'edit' ? 'Edit Degree Program' : 'Create New Degree Program'}
+        </DialogTitle>
+        <DialogContent dividers sx={{ height: '70vh', overflow: 'hidden', p: 0 }}>
+          {error && (
+            <Alert severity="error" sx={{ m: 2 }}>
+              {error}
+            </Alert>
+          )}
+          <Tabs 
+            value={activeTab} 
+            onChange={handleTabChange}
+            sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+          >
+            <Tab label="Basic Info" />
+            <Tab label="Program Details" />
+            <Tab label="Admission & Fees" />
+          </Tabs>
+          <Box sx={{ p: 3, height: 'calc(100% - 48px)', overflowY: 'auto' }}>
+            {/* Tab 0: Basic Information */}
+            {activeTab === 0 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField
                   required
                   fullWidth
-                  label="Duration (Years)"
-                  type="number"
-                  value={form.duration_years}
-                  onChange={handleInputChange('duration_years')}
-                  inputProps={{ min: 1, max: 10 }}
+                  label="Degree Name"
+                  value={form.name}
+                  onChange={handleInputChange('name')}
+                  placeholder="e.g., Master of Commerce"
                 />
-                
                 <TextField
                   required
                   fullWidth
-                  label="Total Credits"
-                  type="number"
-                  value={form.total_credits}
-                  onChange={handleInputChange('total_credits')}
-                  inputProps={{ min: 1, max: 300 }}
+                  label="Degree Code"
+                  value={form.code}
+                  onChange={handleInputChange('code')}
+                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  placeholder="e.g., MCOM"
                 />
-              </Box>
-
-              {/* Courses per Semester Section */}
-              <Box sx={{ mt: 2 }}>
-                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SchoolIcon color="primary" />
-                  <Typography variant="h6">Courses per Semester</Typography>
+                <FormControl fullWidth required>
+                  <InputLabel>Degree Type</InputLabel>
+                  <Select
+                    value={form.degree_type}
+                    label="Degree Type"
+                    onChange={handleSelectChange('degree_type')}
+                  >
+                    <MenuItem value="Certificate">Certificate</MenuItem>
+                    <MenuItem value="Diploma">Diploma</MenuItem>
+                    <MenuItem value="Associate">Associate Degree</MenuItem>
+                    <MenuItem value="Bachelor">Bachelor's Degree</MenuItem>
+                    <MenuItem value="Master">Master's Degree</MenuItem>
+                    <MenuItem value="Doctoral">Doctoral Degree</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth required>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={form.department_id}
+                    label="Department"
+                    onChange={handleSelectChange('department_id')}
+                  >
+                    {departments.map((dept) => (
+                      <MenuItem key={dept.id} value={dept.id}>
+                        {dept.name} ({dept.code})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    required
+                    fullWidth
+                    label="Duration (Years)"
+                    type="number"
+                    value={form.duration_years}
+                    onChange={handleInputChange('duration_years')}
+                    inputProps={{ min: 1, max: 10 }}
+                  />
+                  <TextField
+                    required
+                    fullWidth
+                    label="Total Credits"
+                    type="number"
+                    value={form.total_credits}
+                    onChange={handleInputChange('total_credits')}
+                    inputProps={{ min: 1, max: 300 }}
+                  />
                 </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 2 }}>
-                  {Array.from({ length: form.duration_years * 2 }, (_, index) => {
-                    const semester = index + 1;
-                    return (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 1 }}>Courses Per Semester & Enrollment Dates</Typography>
+                  {Object.keys(form.courses_per_semester).length === 0 && (
+                    <Alert severity="info" sx={{ mb: 2 }}>No semesters added. Click + to add a semester.</Alert>
+                  )}
+                  {Object.entries(form.courses_per_semester).map(([semester, value]) => (
+                    <Box key={semester} sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
+                      <Typography sx={{ minWidth: 90 }}>Semester {semester}</Typography>
                       <TextField
-                        key={semester}
-                        size="small"
-                        label={`Sem ${semester}`}
+                        label="Courses"
                         type="number"
-                        value={form.courses_per_semester[semester.toString()] || ''}
+                        value={String((value as { count: string | number; enrollment_start: string; enrollment_end: string }).count)}
                         onChange={(e) => {
-                          const newCoursesPerSemester = { ...form.courses_per_semester };
-                          if (e.target.value) {
-                            newCoursesPerSemester[semester.toString()] = parseInt(e.target.value) || 0;
-                          } else {
-                            delete newCoursesPerSemester[semester.toString()];
-                          }
-                          setForm({ ...form, courses_per_semester: newCoursesPerSemester });
+                          setForm((prev: any) => ({
+                            ...prev,
+                            courses_per_semester: {
+                              ...prev.courses_per_semester,
+                              [semester]: {
+                                ...(value as { count: string | number; enrollment_start: string; enrollment_end: string }),
+                                count: e.target.value
+                              }
+                            }
+                          }));
                         }}
-                        inputProps={{ min: 0, max: 15 }}
-                        placeholder="0"
+                        sx={{ width: 100 }}
                       />
-                    );
-                  })}
+                      <TextField
+                        label="Enrollment Start"
+                        type="date"
+                        value={(value as { count: string; enrollment_start: string; enrollment_end: string }).enrollment_start}
+                        onChange={(e) => {
+                          setForm((prev: any) => ({
+                            ...prev,
+                            courses_per_semester: {
+                              ...prev.courses_per_semester,
+                              [semester]: {
+                                ...(value as { count: string; enrollment_start: string; enrollment_end: string }),
+                                enrollment_start: e.target.value
+                              }
+                            }
+                          }));
+                        }}
+                        sx={{ width: 170 }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <TextField
+                        label="Enrollment End"
+                        type="date"
+                        value={(value as { count: string; enrollment_start: string; enrollment_end: string }).enrollment_end}
+                        onChange={(e) => {
+                          setForm((prev: any) => ({
+                            ...prev,
+                            courses_per_semester: {
+                              ...prev.courses_per_semester,
+                              [semester]: {
+                                ...(value as { count: string; enrollment_start: string; enrollment_end: string }),
+                                enrollment_end: e.target.value
+                              }
+                            }
+                          }));
+                        }}
+                        sx={{ width: 170 }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <Button color="error" variant="outlined" sx={{ minWidth: 40 }} onClick={() => handleRemoveSemester(semester)}>-</Button>
+                    </Box>
+                  ))}
+                  <Button variant="contained" color="primary" sx={{ mt: 1 }} onClick={handleAddSemester}>+</Button>
                 </Box>
-                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
-                  Specify the number of courses for each semester (leave empty if not applicable)
-                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  label="Program Description"
+                  value={form.description}
+                  onChange={handleInputChange('description')}
+                  placeholder="Comprehensive overview of the degree program"
+                />
               </Box>
-
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                label="Program Description"
-                value={form.description}
-                onChange={handleInputChange('description')}
-                placeholder="Comprehensive overview of the degree program"
-              />
-            </Box>
-          )}
-
-          {/* Tab 1: Program Details */}
-          {activeTab === 1 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                label="Learning Outcomes"
-                value={form.learning_outcomes}
-                onChange={handleInputChange('learning_outcomes')}
-                placeholder="What students will learn and be able to do upon graduation"
-              />
-
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Specializations"
-                value={form.specializations}
-                onChange={handleInputChange('specializations')}
-                placeholder="Available specializations (comma-separated)"
-              />
-
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                label="Career Prospects"
-                value={form.career_prospects}
-                onChange={handleInputChange('career_prospects')}
-                placeholder="Career opportunities and job prospects for graduates"
-              />
-
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Assessment Methods"
-                value={form.assessment_methods}
-                onChange={handleInputChange('assessment_methods')}
-                placeholder="How students will be assessed (exams, assignments, projects, etc.)"
-              />
-
-              <TextField
-                fullWidth
-                label="Accreditation"
-                value={form.accreditation}
-                onChange={handleInputChange('accreditation')}
-                placeholder="Professional accreditation body or certification"
-              />
-            </Box>
-          )}
-
-          {/* Tab 2: Admission & Fees */}
-          {activeTab === 2 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Admission Requirements"
-                value={form.admission_requirements}
-                onChange={handleInputChange('admission_requirements')}
-                placeholder="General admission requirements and prerequisites"
-              />
-
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Entry Requirements"
-                value={form.entry_requirements}
-                onChange={handleInputChange('entry_requirements')}
-                placeholder="Specific entry requirements (GPA, test scores, etc.)"
-              />
-
-              <FormControl fullWidth>
-                <InputLabel>Study Mode</InputLabel>
-                <Select
-                  value={form.study_mode}
-                  label="Study Mode"
-                  onChange={handleSelectChange('study_mode')}
-                >
-                  <MenuItem value="Full-time">Full-time</MenuItem>
-                  <MenuItem value="Part-time">Part-time</MenuItem>
-                  <MenuItem value="Online">Online</MenuItem>
-                  <MenuItem value="Hybrid">Hybrid</MenuItem>
-                  <MenuItem value="Evening">Evening</MenuItem>
-                  <MenuItem value="Weekend">Weekend</MenuItem>
-                </Select>
-              </FormControl>
-
-              <TextField
-                fullWidth
-                label="Location"
-                value={form.location}
-                onChange={handleInputChange('location')}
-                placeholder="Campus location or delivery method"
-              />
-
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Fees Information"
-                value={form.fees}
-                onChange={handleInputChange('fees')}
-                placeholder="Tuition fees, additional costs, payment options"
-              />
-            </Box>
-          )}
-        </Box>
-      </DialogContent>
-
-      <DialogActions>
-        <Button onClick={handleClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-          {loading ? <CircularProgress size={24} /> : 'Create Degree'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+            )}
+            {activeTab === 1 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField label="Specializations" value={form.specializations} onChange={handleInputChange('specializations')} fullWidth />
+                <TextField label="Career Prospects" value={form.career_prospects} onChange={handleInputChange('career_prospects')} fullWidth />
+                <TextField label="Admission Requirements" value={form.admission_requirements} onChange={handleInputChange('admission_requirements')} fullWidth />
+                <TextField label="Accreditation" value={form.accreditation} onChange={handleInputChange('accreditation')} fullWidth />
+                <TextField label="Study Mode" value={form.study_mode} onChange={handleInputChange('study_mode')} fullWidth />
+                <TextField label="Fees" value={form.fees} onChange={handleInputChange('fees')} fullWidth />
+                <TextField label="Location" value={form.location} onChange={handleInputChange('location')} fullWidth />
+                <TextField label="Entry Requirements" value={form.entry_requirements} onChange={handleInputChange('entry_requirements')} fullWidth />
+                <TextField label="Learning Outcomes" value={form.learning_outcomes} onChange={handleInputChange('learning_outcomes')} fullWidth />
+                <TextField label="Assessment Methods" value={form.assessment_methods} onChange={handleInputChange('assessment_methods')} fullWidth />
+                <TextField label="Contact Information" value={form.contact_information} onChange={handleInputChange('contact_information')} fullWidth />
+                <TextField label="Application Deadlines" value={form.application_deadlines} onChange={handleInputChange('application_deadlines')} fullWidth />
+                <TextField label="Application Process" value={form.application_process} onChange={handleInputChange('application_process')} fullWidth />
+              </Box>
+            )}
+            {/* Tab 2: Admission & Fees */}
+            {activeTab === 2 && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Admission Requirements"
+                  value={form.admission_requirements}
+                  onChange={handleInputChange('admission_requirements')}
+                  placeholder="General admission requirements and prerequisites"
+                />
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Entry Requirements"
+                  value={form.entry_requirements}
+                  onChange={handleInputChange('entry_requirements')}
+                  placeholder="Specific entry requirements (GPA, test scores, etc.)"
+                />
+                <FormControl fullWidth>
+                  <InputLabel>Study Mode</InputLabel>
+                  <Select
+                    value={form.study_mode}
+                    label="Study Mode"
+                    onChange={handleSelectChange('study_mode')}
+                  >
+                    <MenuItem value="Full-time">Full-time</MenuItem>
+                    <MenuItem value="Part-time">Part-time</MenuItem>
+                    <MenuItem value="Online">Online</MenuItem>
+                    <MenuItem value="Hybrid">Hybrid</MenuItem>
+                    <MenuItem value="Evening">Evening</MenuItem>
+                    <MenuItem value="Weekend">Weekend</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  label="Location"
+                  value={form.location}
+                  onChange={handleInputChange('location')}
+                  placeholder="Campus location or delivery method"
+                />
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Fees Information"
+                  value={form.fees}
+                  onChange={handleInputChange('fees')}
+                  placeholder="Tuition fees, additional costs, payment options"
+                />
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} variant="contained" disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : (mode === 'edit' ? 'Save Changes' : 'Create Degree')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </React.Fragment>
   );
 };
 

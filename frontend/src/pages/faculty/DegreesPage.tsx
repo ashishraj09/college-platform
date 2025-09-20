@@ -25,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { degreesAPI, coursesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
-import DegreeDialog from '../../components/common/DegreeDialog';
+import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
 
 interface Course {
   id: string;
@@ -70,13 +70,41 @@ interface Degree {
 }
 
 const DegreesPage: React.FC = () => {
+  // Handler to open the create degree dialog
+  const handleCreateDegree = () => {
+  console.log('Create Degree button clicked');
+  setDegreeDialogOpen(true);
+  };
+
+  // Helper to get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'draft':
+        return 'default';
+      case 'submitted':
+      case 'pending_approval':
+        return 'warning';
+      case 'approved':
+        return 'info';
+      case 'active':
+        return 'success';
+      case 'disabled':
+      case 'archived':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+
+  // Handler to view course details
+  const handleViewCourse = (courseId: string) => {
+    navigate(`/faculty/courses/${courseId}`);
+  };
   const [degrees, setDegrees] = useState<Degree[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDegree, setExpandedDegree] = useState<string | null>(null);
   const [degreeCourses, setDegreeCourses] = useState<{ [key: string]: Course[] }>({});
   const [degreeDialogOpen, setDegreeDialogOpen] = useState(false);
-  const [degreeDialogMode, setDegreeDialogMode] = useState<'create' | 'edit'>('create');
-  const [degreeDialogData, setDegreeDialogData] = useState<any>(null);
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
@@ -156,307 +184,248 @@ const DegreesPage: React.FC = () => {
     }
   };
 
-  const handleViewCourse = (courseId: string) => {
-    navigate(`/faculty/courses/${courseId}`);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return 'default';
-      case 'submitted':
-      case 'pending_approval':
-        return 'warning';
-      case 'approved':
-        return 'info';
-      case 'active':
-        return 'success';
-      case 'disabled':
-      case 'archived':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  const handleCreateDegree = () => {
-    setDegreeDialogMode('create');
-    setDegreeDialogData(null);
-    setDegreeDialogOpen(true);
-  };
-
-  const handleEditDegree = (degree: Degree) => {
-    setDegreeDialogMode('edit');
-    setDegreeDialogData(degree);
-    setDegreeDialogOpen(true);
-  };
-
-  if (loading) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Typography>Loading degrees...</Typography>
-      </Box>
-    );
-  }
-
   return (
     <Box sx={{ p: 3 }}>
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <SchoolIcon /> Degrees & Courses
-        </Typography>
-        <Typography variant="body1" color="textSecondary" gutterBottom>
-          Explore degrees in your department and view associated courses
-        </Typography>
-        <Button variant="contained" color="primary" onClick={handleCreateDegree} sx={{ mt: 2 }}>
-          Create New Degree
-        </Button>
-      </Paper>
+      <>
+        {console.log('DegreesPage render: before Create New Degree button')}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SchoolIcon /> Degrees & Courses
+          </Typography>
+          <Typography variant="body1" color="textSecondary" gutterBottom>
+            Explore degrees in your department and view associated courses
+          </Typography>
+          <Button variant="contained" color="primary" onClick={handleCreateDegree} sx={{ mt: 2 }}>
+            Create New Degree
+          </Button>
+        </Paper>
 
-      {degrees.length === 0 ? (
-        <Alert severity="info">
-          No degrees found in your department.
-        </Alert>
-      ) : (
-        <Box sx={{ display: 'grid', gap: 3 }}>
-          {degrees.map((degree) => (
-            <Box key={degree.id}>
-              <Card sx={{ mb: 2 }}>
-                <CardContent>
-                  {/* Header Section */}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <SchoolIcon color="primary" />
-                        {degree.name}
-                      </Typography>
-                      <Typography variant="h6" color="textSecondary" gutterBottom>
-                        {degree.degree_type || 'Degree'} • {degree.code}
-                      </Typography>
-                    </Box>
-                    <Chip 
-                      label={degree.status} 
-                      color={getStatusColor(degree.status) as any}
-                      size="medium"
-                    />
-                  </Box>
-
-                  {/* Quick Info Grid */}
-                  <Box sx={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-                    gap: 2, 
-                    mb: 3,
-                    p: 2,
-                    bgcolor: 'grey.50',
-                    borderRadius: 1
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {/* DurationIcon removed, use text or another icon if needed */}
-                      <Box>
-                        <Typography variant="caption" color="textSecondary">Duration</Typography>
-                        <Typography variant="body2" fontWeight={500}>{degree.duration_years} Years</Typography>
-                      </Box>
-                    </Box>
-                    
-                    {degree.total_credits && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <CreditsIcon color="action" />
-                        <Box>
-                          <Typography variant="caption" color="textSecondary">Total Credits</Typography>
-                          <Typography variant="body2" fontWeight={500}>{degree.total_credits} Credits</Typography>
-                        </Box>
-                      </Box>
-                    )}
-                    
-                    {degree.department && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <SchoolIcon color="action" />
-                        <Box>
-                          <Typography variant="caption" color="textSecondary">Department</Typography>
-                          <Typography variant="body2" fontWeight={500}>{degree.department.name}</Typography>
-                        </Box>
-                      </Box>
-                    )}
-                    
-                    {degree.accreditation && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AccreditationIcon color="action" />
-                        <Box>
-                          <Typography variant="caption" color="textSecondary">Accreditation</Typography>
-                          <Typography variant="body2" fontWeight={500}>{degree.accreditation}</Typography>
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-
-                  {/* Description */}
-                  {degree.description && (
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="body1" sx={{ mb: 1 }}>
-                        {degree.description}
-                      </Typography>
-                    </Box>
-                  )}
-
-                  {/* Specializations */}
-                  {degree.specializations && (
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom color="primary">
-                        Available Specializations:
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {degree.specializations.split(',').map((spec, index) => (
-                          <Chip key={index} label={spec.trim()} variant="outlined" size="small" />
-                        ))}
-                      </Box>
-                    </Box>
-                  )}
-
-                  {/* Career Prospects */}
-                  {degree.career_prospects && (
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <CareerIcon fontSize="small" />
-                        Career Prospects:
-                      </Typography>
-                      <Typography variant="body2" sx={{ pl: 3 }}>
-                        {degree.career_prospects}
-                      </Typography>
-                    </Box>
-                  )}
-
-                  {/* Admission Requirements */}
-                  {degree.admission_requirements && (
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <RequirementIcon fontSize="small" />
-                        Admission Requirements:
-                      </Typography>
-                      <Typography variant="body2" sx={{ pl: 3 }}>
-                        {degree.admission_requirements}
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-                
-                <CardActions>
-                  <Button
-                    onClick={() => handleDegreeExpand(degree.id, degree.code)}
-                    startIcon={expandedDegree === degree.id ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                    size="small"
-                  >
-                    {expandedDegree === degree.id ? 'Hide' : 'Show'} Courses
-                  </Button>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => navigate(`/faculty/degrees/${degree.id}`)}
-                    size="small"
-                  >
-                    View Details
-                  </Button>
-                  {degree.hasDraftVersion ? (
-                    <Button
-                      variant="outlined"
-                      color="secondary"
-                      size="small"
-                      disabled
-                    >
-                      Edit
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outlined"
-                      color="secondary"
-                      onClick={() => handleEditDegree(degree)}
-                      size="small"
-                    >
-                      Edit
-                    </Button>
-                  )}
-                </CardActions>
-
-                {/* Collapse removed, use conditional rendering or another approach if needed */}
+        {degrees.length === 0 ? (
+          <Alert severity="info">
+            No degrees found in your department.
+          </Alert>
+        ) : (
+          <Box sx={{ display: 'grid', gap: 3 }}>
+            {degrees.map((degree) => (
+              <Box key={degree.id}>
+                <Card sx={{ mb: 2 }}>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CourseIcon /> Courses in {degree.name}
-                    </Typography>
-                    
-                    {degreeCourses[degree.id] && degreeCourses[degree.id].length === 0 ? (
-                      <Alert severity="info" sx={{ mt: 2 }}>
-                        No courses found for this degree.
-                      </Alert>
-                    ) : (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 2, mt: 1 }}>
-                        {degreeCourses[degree.id]?.map((course) => (
-                          <Box key={course.id}>
-                            <Card variant="outlined">
-                              <CardContent sx={{ pb: 1 }}>
-                                <Typography variant="subtitle1" gutterBottom>
-                                  {course.name}
-                                </Typography>
-                                <Typography variant="body2" color="textSecondary" gutterBottom>
-                                  {course.code} • {course.credits} credits • Semester {course.semester}
-                                </Typography>
-                                {course.overview && (
-                                  <Typography 
-                                    variant="body2" 
-                                    sx={{ 
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      display: '-webkit-box',
-                                      WebkitLineClamp: 2,
-                                      WebkitBoxOrient: 'vertical',
-                                      mb: 1
-                                    }}
-                                  >
-                                    {course.overview}
-                                  </Typography>
-                                )}
-                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                  <Chip 
-                                    label={course.status} 
-                                    color={getStatusColor(course.status) as any}
-                                    size="small"
-                                  />
-                                  {course.is_elective && (
-                                    <Chip 
-                                      label="Elective" 
-                                      color="secondary"
-                                      size="small"
-                                    />
-                                  )}
-                                </Box>
-                              </CardContent>
-                              <CardActions sx={{ pt: 0 }}>
-                                <Button
-                                  size="small"
-                                  startIcon={<ViewIcon />}
-                                  onClick={() => handleViewCourse(course.id)}
-                                >
-                                  View Details
-                                </Button>
-                              </CardActions>
-                            </Card>
+                    {/* Header Section */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <SchoolIcon color="primary" />
+                          {degree.name}
+                        </Typography>
+                        <Typography variant="h6" color="textSecondary" gutterBottom>
+                          {degree.degree_type || 'Degree'} • {degree.code}
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        label={degree.status} 
+                        color={getStatusColor(degree.status) as any}
+                        size="medium"
+                      />
+                    </Box>
+
+                    {/* Quick Info Grid */}
+                    <Box sx={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                      gap: 2, 
+                      mb: 3,
+                      p: 2,
+                      bgcolor: 'grey.50',
+                      borderRadius: 1
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {/* DurationIcon removed, use text or another icon if needed */}
+                        <Box>
+                          <Typography variant="caption" color="textSecondary">Duration</Typography>
+                          <Typography variant="body2" fontWeight={500}>{degree.duration_years} Years</Typography>
+                        </Box>
+                      </Box>
+                      
+                      {degree.total_credits && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CreditsIcon color="action" />
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">Total Credits</Typography>
+                            <Typography variant="body2" fontWeight={500}>{degree.total_credits} Credits</Typography>
                           </Box>
-                        ))}
+                        </Box>
+                      )}
+                      
+                      {degree.department && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <SchoolIcon color="action" />
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">Department</Typography>
+                            <Typography variant="body2" fontWeight={500}>{degree.department.name}</Typography>
+                          </Box>
+                        </Box>
+                      )}
+                      
+                      {degree.accreditation && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <AccreditationIcon color="action" />
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">Accreditation</Typography>
+                            <Typography variant="body2" fontWeight={500}>{degree.accreditation}</Typography>
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+
+                    {/* Description */}
+                    {degree.description && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          {degree.description}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Specializations */}
+                    {degree.specializations && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom color="primary">
+                          Available Specializations:
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          {degree.specializations.split(',').map((spec, index) => (
+                            <Chip key={index} label={spec.trim()} variant="outlined" size="small" />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Career Prospects */}
+                    {degree.career_prospects && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CareerIcon fontSize="small" />
+                          Career Prospects:
+                        </Typography>
+                        <Typography variant="body2" sx={{ pl: 3 }}>
+                          {degree.career_prospects}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Admission Requirements */}
+                    {degree.admission_requirements && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <RequirementIcon fontSize="small" />
+                          Admission Requirements:
+                        </Typography>
+                        <Typography variant="body2" sx={{ pl: 3 }}>
+                          {degree.admission_requirements}
+                        </Typography>
                       </Box>
                     )}
                   </CardContent>
-                {/* Collapse removed, use conditional rendering or another approach if needed */}
-              </Card>
-            </Box>
-          ))}
-        </Box>
-      )}
-      <DegreeDialog
-        open={degreeDialogOpen}
-        onClose={() => setDegreeDialogOpen(false)}
-        onSuccess={loadDegrees}
-        initialData={degreeDialogData}
-        mode={degreeDialogMode}
-      />
+                  
+                  <CardActions>
+                    <Button
+                      onClick={() => handleDegreeExpand(degree.id, degree.code)}
+                      startIcon={expandedDegree === degree.id ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                      size="small"
+                    >
+                      {expandedDegree === degree.id ? 'Hide' : 'Show'} Courses
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => navigate(`/faculty/degrees/${degree.id}`)}
+                      size="small"
+                    >
+                      View Details
+                    </Button>
+                    {/* Edit functionality removed; only creation is supported. */}
+                  </CardActions>
+
+                  {/* Collapse removed, use conditional rendering or another approach if needed */}
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CourseIcon /> Courses in {degree.name}
+                      </Typography>
+                      
+                      {degreeCourses[degree.id] && degreeCourses[degree.id].length === 0 ? (
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                          No courses found for this degree.
+                        </Alert>
+                      ) : (
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 2, mt: 1 }}>
+                          {degreeCourses[degree.id]?.map((course) => (
+                            <Box key={course.id}>
+                              <Card variant="outlined">
+                                <CardContent sx={{ pb: 1 }}>
+                                  <Typography variant="subtitle1" gutterBottom>
+                                    {course.name}
+                                  </Typography>
+                                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                                    {course.code} • {course.credits} credits • Semester {course.semester}
+                                  </Typography>
+                                  {course.overview && (
+                                    <Typography 
+                                      variant="body2" 
+                                      sx={{ 
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        mb: 1
+                                      }}
+                                    >
+                                      {course.overview}
+                                    </Typography>
+                                  )}
+                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    <Chip 
+                                      label={course.status} 
+                                      color={getStatusColor(course.status) as any}
+                                      size="small"
+                                    />
+                                    {course.is_elective && (
+                                      <Chip 
+                                        label="Elective" 
+                                        color="secondary"
+                                        size="small"
+                                      />
+                                    )}
+                                  </Box>
+                                </CardContent>
+                                <CardActions sx={{ pt: 0 }}>
+                                  <Button
+                                    size="small"
+                                    startIcon={<ViewIcon />}
+                                    onClick={() => handleViewCourse(course.id)}
+                                  >
+                                    View Details
+                                  </Button>
+                                </CardActions>
+                              </Card>
+                            </Box>
+                          ))}
+                        </Box>
+                      )}
+                    </CardContent>
+                  {/* Collapse removed, use conditional rendering or another approach if needed */}
+                </Card>
+              </Box>
+            ))}
+          </Box>
+        )}
+        <CreateDegreeDialog
+          open={degreeDialogOpen}
+          onClose={() => setDegreeDialogOpen(false)}
+          onSuccess={loadDegrees}
+          mode="create"
+        />
+      </>
     </Box>
   );
 };

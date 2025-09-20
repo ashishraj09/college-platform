@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
 import api from '../../services/api';
 import {
   Container,
@@ -32,7 +33,6 @@ import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
 import CreateCourseDialog from '../../components/faculty/CreateCourseDialog';
 import EditEntityConfirmationDialog from '../../components/faculty/EditEntityConfirmationDialog';
-import DegreeDialog from '../../components/common/DegreeDialog';
 import SubmitForApprovalDialog from '../../components/common/SubmitForApprovalDialog';
 import {
   getAvailableEntityActions,
@@ -395,11 +395,7 @@ const FacultyDashboard: React.FC = () => {
 
   // Entity card renderer
   const FacultyItemCard = ({ item, actions, onAction }: { item: any; actions: any[]; onAction: (action: string, item: any) => void }) => (
-  // Accept entityType as prop for clarity
-  // ...existing code...
-  // Update signature to accept entityType
-  // Usage below will be updated
-  <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
+    <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
       <CardContent sx={{ flexGrow: 1 }}>
         <Box sx={{ mb: 2 }}>
           <Typography variant="h6" component="h2">{item.name}</Typography>
@@ -586,7 +582,10 @@ const FacultyDashboard: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<CourseIcon />}
-          onClick={() => setCreateCourseDialogOpen(true)}
+          onClick={() => {
+            setEntityToEdit(null);
+            setCreateCourseDialogOpen(true);
+          }}
         >
           Create New Course
         </Button>
@@ -672,8 +671,8 @@ const FacultyDashboard: React.FC = () => {
   open={createCourseDialogOpen}
   onClose={() => setCreateCourseDialogOpen(false)}
   onSuccess={() => setCreateCourseDialogOpen(false)}
-  mode={entityToEdit && entityToEdit.entityType === 'course' && entityToEdit.status === 'draft' ? 'edit' : 'create'}
-  course={entityToEdit && entityToEdit.entityType === 'course' && entityToEdit.status === 'draft' ? entityToEdit : undefined}
+  mode={createCourseDialogOpen && (!entityToEdit || entityToEdit.entityType !== 'course' || entityToEdit.status !== 'draft') ? 'create' : 'edit'}
+  course={createCourseDialogOpen && entityToEdit && entityToEdit.entityType === 'course' && entityToEdit.status === 'draft' ? entityToEdit : undefined}
       />
       {/* Generic Edit Entity Confirmation Dialog */}
       <EditEntityConfirmationDialog
@@ -683,22 +682,16 @@ const FacultyDashboard: React.FC = () => {
         entity={entityToEdit}
         loading={editEntityLoading}
       />
-      {/* Create Degree Dialog (advanced) */}
-      <DegreeDialog
+      {/* Create/Edit Degree Dialog (unified) */}
+      <CreateDegreeDialog
         open={createDegreeDialogOpen}
         onClose={() => setCreateDegreeDialogOpen(false)}
         onSuccess={() => {
           setCreateDegreeDialogOpen(false);
-          // Optionally reload data
+          loadData();
         }}
-        initialData={entityToEdit && entityToEdit.entityType === 'degree' && entityToEdit.status === 'draft'
-          ? entityToEdit
-          : {
-              userDepartmentId: user?.department?.id,
-              userDepartmentName: user?.department?.name
-            }
-        }
-        mode={entityToEdit && entityToEdit.entityType === 'degree' && entityToEdit.status === 'draft' ? 'edit' : degreeDialogMode}
+        mode={degreeDialogMode}
+        degree={degreeDialogData}
       />
       {/* Course Submit Dialog */}
       <SubmitForApprovalDialog

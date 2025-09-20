@@ -16,6 +16,7 @@ import TestPage from '../pages/TestPage';
 import FacultyDashboard from '../pages/faculty/FacultyDashboard';
 import CourseDetailsView from '../pages/faculty/CourseDetailsView';
 // import DegreesPage from '../pages/faculty/DegreesPage';
+import DegreesPage from '../pages/faculty/DegreesPage';
 import DegreeDetailsPage from '../pages/faculty/DegreeDetailsPage';
 import StudentDashboard from '../pages/student/StudentDashboard';
 import StudentDegreesPage from '../pages/student/DegreesPage';
@@ -127,7 +128,7 @@ const AppRoutes: React.FC = () => {
               <Routes>
                 <Route index element={<FacultyDashboard />} />
                 <Route path="new-dashboard" element={<FacultyDashboard />} />
-                {/* <Route path="degrees" element={<DegreesPage />} /> */}
+                <Route path="degrees" element={<DegreesPage />} />
                 <Route path="degrees/:degreeId" element={<DegreeDetailsPage />} />
                 <Route path="course/:courseId" element={<CourseDetailsView />} />
                 <Route path="courses/:courseId" element={<CourseDetailsView />} />

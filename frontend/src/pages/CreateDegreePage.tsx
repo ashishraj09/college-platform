@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Container, Typography, Paper, Box } from '@mui/material';
-import DegreeDialog from '../components/common/DegreeDialog';
+import CreateDegreeDialog from '../components/faculty/CreateDegreeDialog';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,11 +16,10 @@ const CreateDegreePage: React.FC = () => {
           Create New Degree Program
         </Typography>
         <Paper sx={{ p: 3, mt: 2 }}>
-          <DegreeDialog
+          <CreateDegreeDialog
             open={open}
             onClose={() => { setOpen(false); navigate('/degrees'); }}
             onSuccess={() => { setOpen(false); navigate('/degrees'); }}
-            initialData={{ userDepartmentId: user?.department?.id, userDepartmentName: user?.department?.name }}
             mode="create"
           />
         </Paper>

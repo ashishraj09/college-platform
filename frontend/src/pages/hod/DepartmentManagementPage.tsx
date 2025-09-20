@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import DegreeDialog from '../../components/common/DegreeDialog';
 import {
   Box,
   Container,
@@ -338,30 +337,6 @@ const DepartmentManagementPage: React.FC = () => {
               })()}
             </Box>
             {/* DegreeDialog for create/edit */}
-            <DegreeDialog
-              open={degreeDialogOpen}
-              onClose={() => setDegreeDialogOpen(false)}
-              onSuccess={() => {
-                setDegreeDialogOpen(false);
-                // Reload degrees after edit/create
-                setLoadingDegrees(true);
-                degreesAPI.getDegrees({ departmentId })
-                  .then(data => {
-                    let degreesArr: any[] = [];
-                    if (Array.isArray(data)) {
-                      degreesArr = data;
-                    } else if (data && Array.isArray(data.degrees)) {
-                      degreesArr = data.degrees;
-                    } else if (data && Array.isArray(data.all)) {
-                      degreesArr = data.all;
-                    }
-                    setDegrees(degreesArr);
-                  })
-                  .finally(() => setLoadingDegrees(false));
-              }}
-              initialData={degreeDialogData}
-              mode={degreeDialogMode}
-            />
           </TabPanel>
 
           {/* Courses Tab */}
