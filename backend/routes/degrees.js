@@ -311,9 +311,13 @@ router.get('/',
     const whereClause = {};
     if (department_id) whereClause.department_id = department_id;
     if (status) whereClause.status = status;
-    
-    // For HODs, show all degrees in their department
-    if (req.user && req.user.user_type !== 'admin' && !req.user.is_head_of_department) {
+    // Only filter by created_by for non-admin/non-HOD users when status is not 'active'
+    if (
+      req.user &&
+      req.user.user_type !== 'admin' &&
+      !req.user.is_head_of_department &&
+      status !== 'active'
+    ) {
       whereClause.created_by = req.user.id;
     }
 

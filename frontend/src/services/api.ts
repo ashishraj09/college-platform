@@ -161,6 +161,11 @@ export const degreesAPI = {
     const { data } = await api.get(`/degrees/${degreeId}`);
     return data.degree.comments || [];
   },
+  // Get all active degrees for a department (for course creation/editing dropdown)
+  getActiveDegrees: async (departmentId: string) => {
+    const { data } = await api.get('/degrees', { params: { department_id: departmentId, status: 'active' } });
+    return data;
+  },
 };
 
 // --- Departments API ---

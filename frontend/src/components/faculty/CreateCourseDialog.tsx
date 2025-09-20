@@ -248,10 +248,11 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const loadDegreesByDepartment = async () => {
     try {
       setLoadingDegrees(true);
-      const response = await degreesAPI.getFacultyDegrees(user?.department?.id);
-      
+      const response = await degreesAPI.getActiveDegrees(user?.department?.id);
       if (response && response.all) {
         setDegrees(response.all);
+      } else if (Array.isArray(response)) {
+        setDegrees(response);
       } else {
         setDegrees([]);
       }
