@@ -61,7 +61,9 @@ router.get('/',
           'student_id',
           'is_head_of_department',
           'last_login',
-          'created_at'
+          'created_at',
+          'current_semester',
+          'enrolled_year'
         ],
         limit,
         offset,

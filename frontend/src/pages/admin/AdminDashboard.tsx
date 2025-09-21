@@ -298,6 +298,10 @@ const AdminDashboard: React.FC = () => {
         aVal = a.status || '';
         bVal = b.status || '';
       }
+      if (sortConfig.column === 'current_semester') {
+        aVal = a.current_semester || 0;
+        bVal = b.current_semester || 0;
+      }
       // For string comparison
       if (typeof aVal === 'string' && typeof bVal === 'string') {
         aVal = aVal.toLowerCase();
@@ -432,12 +436,29 @@ const AdminDashboard: React.FC = () => {
       default: return 'default';
     }
   };
+  
+  // Helper function to get ordinal suffix for semester (1st, 2nd, 3rd, etc.)
+  const getOrdinalSuffix = (num: number): string => {
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) {
+      return 'st';
+    }
+    if (j === 2 && k !== 12) {
+      return 'nd';
+    }
+    if (j === 3 && k !== 13) {
+      return 'rd';
+    }
+    return 'th';
+  };
 
   // Loader logic: block dashboard content until all API data is loaded
   const isLoading = users === null || departments === null;
 
   // Pagination controls for each tab (move above return)
-  const handleChangePage = (userType: 'student' | 'faculty' | 'office', newPage: number) => {
+  const handleChangePage = async (userType: 'student' | 'faculty' | 'office', newPage: number) => {
+    // Update state with new page number
     setPagination(prev => ({
       ...prev,
       [userType]: {
@@ -445,17 +466,74 @@ const AdminDashboard: React.FC = () => {
         page: newPage,
       },
     }));
+    
+    // Set loading state
+    setPageLoading(true);
+    
+    try {
+      // Fetch data for the new page
+      const response = await loadUsers(userType, newPage, pagination[userType].limit);
+      
+      // Update the users list by replacing only the users of the current type
+      setUsers(prevUsers => {
+        // Handle null case
+        if (!prevUsers) return response.users;
+        
+        // Filter out users of the current type and add the new ones
+        const otherTypeUsers = prevUsers.filter(user => user.user_type !== userType);
+        return [...otherTypeUsers, ...response.users];
+      });
+      
+      // Update pagination info
+      setPagination(prev => ({
+        ...prev,
+        [userType]: response.pagination,
+      }));
+    } catch (error) {
+      console.error(`Error loading page ${newPage} for ${userType}:`, error);
+    } finally {
+      setPageLoading(false);
+    }
   };
 
-  const handleChangeRowsPerPage = (userType: 'student' | 'faculty' | 'office', newLimit: number) => {
+  const handleChangeRowsPerPage = async (userType: 'student' | 'faculty' | 'office', newLimit: number) => {
+    // Update state with new limit and reset to page 1
     setPagination(prev => ({
       ...prev,
       [userType]: {
         ...prev[userType],
-        page: 1,
+        page: 1, // Reset to page 1 when changing limit
         limit: newLimit,
       },
     }));
+    
+    // Set loading state
+    setPageLoading(true);
+    
+    try {
+      // Fetch data with new limit, starting from page 1
+      const response = await loadUsers(userType, 1, newLimit);
+      
+      // Update the users list by replacing only the users of the current type
+      setUsers(prevUsers => {
+        // Handle null case
+        if (!prevUsers) return response.users;
+        
+        // Filter out users of the current type and add the new ones
+        const otherTypeUsers = prevUsers.filter(user => user.user_type !== userType);
+        return [...otherTypeUsers, ...response.users];
+      });
+      
+      // Update pagination info
+      setPagination(prev => ({
+        ...prev,
+        [userType]: response.pagination,
+      }));
+    } catch (error) {
+      console.error(`Error changing rows per page for ${userType}:`, error);
+    } finally {
+      setPageLoading(false);
+    }
   };
 
   return (
@@ -544,6 +622,7 @@ const AdminDashboard: React.FC = () => {
                       <TableCell onClick={() => handleSort(0, 'email')} style={{ cursor: 'pointer' }}>Email {sortConfig.tab === 0 && sortConfig.column === 'email' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell onClick={() => handleSort(0, 'student_id')} style={{ cursor: 'pointer' }}>Student ID {sortConfig.tab === 0 && sortConfig.column === 'student_id' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell onClick={() => handleSort(0, 'department')} style={{ cursor: 'pointer' }}>Department {sortConfig.tab === 0 && sortConfig.column === 'department' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                      <TableCell onClick={() => handleSort(0, 'current_semester')} style={{ cursor: 'pointer' }}>Semester {sortConfig.tab === 0 && sortConfig.column === 'current_semester' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell onClick={() => handleSort(0, 'last_login')} style={{ cursor: 'pointer' }}>Last Login {sortConfig.tab === 0 && sortConfig.column === 'last_login' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell onClick={() => handleSort(0, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 0 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell>Actions</TableCell>
@@ -557,6 +636,9 @@ const AdminDashboard: React.FC = () => {
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{user.student_id}</TableCell>
                         <TableCell>{user.department?.name || '-'}</TableCell>
+                        <TableCell>
+                          {user.current_semester ? `${user.current_semester}${getOrdinalSuffix(user.current_semester)} Semester` : '-'}
+                        </TableCell>
                         <TableCell>
                           {user.last_login ?
                             new Date(user.last_login).toLocaleString('en-GB', {
