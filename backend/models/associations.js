@@ -27,6 +27,7 @@ async function initializeAssociations() {
   try {
     // Ensure we have Sequelize initialized in production
     if (process.env.NODE_ENV === 'production') {
+      console.log('Production: Getting Sequelize instance before setting up associations');
       await getSequelize();
     }
     
@@ -182,6 +183,7 @@ async function initializeAssociations() {
 
     console.log('Model associations setup complete');
     associationsInitialized = true;
+    console.log('Model associations successfully initialized and marked as complete');
     return true;
   } catch (error) {
     console.error('Error setting up model associations:', error);

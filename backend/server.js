@@ -25,27 +25,14 @@ const models = require('./models');
 
 // In production, we need to ensure model associations are set up
 // for Vercel's serverless environment
-let associationsInitialized = false;
 if (process.env.NODE_ENV === 'production') {
-  console.log('Production environment detected - initializing model associations on first request');
-  // Import the association module directly
-  const { initializeAssociations } = require('./models/associations');
-  
-  // Will be called on first request
-  app.use(async (req, res, next) => {
-    if (!associationsInitialized) {
-      try {
-        console.log('Setting up model associations on first request');
-        associationsInitialized = await initializeAssociations();
-      } catch (error) {
-        console.error('Failed to initialize associations:', error);
-      }
-    }
-    next();
-  });
+  console.log('Production environment detected - associations will be initialized through middleware');
 } else {
   // In development, associations are initialized synchronously when models are loaded
   console.log('Development environment - associations initialized during startup');
+  // Import the association module directly and run it immediately
+  const { initializeAssociations } = require('./models/associations');
+  initializeAssociations();
 }
 
 const authRoutes = require('./routes/auth');
@@ -227,6 +214,11 @@ app.get('/health', async (req, res) => {
 });
 
 // API routes
+const ensureAssociations = require('./middleware/ensureAssociations');
+
+// Apply the associations middleware to all API routes
+app.use('/api', ensureAssociations);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/courses', courseRoutes);
