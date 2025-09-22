@@ -173,15 +173,25 @@ const startServer = async () => {
       console.log('Database models synced successfully.');
     }
     
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
-    });
+    // Only start the server directly in non-production environments
+    // For Vercel, we'll export the app
+    if (process.env.NODE_ENV !== 'production') {
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+        console.log(`📊 Database connection: ${process.env.DB_DIALECT}://${process.env.DB_USER}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
+        console.log(`🔒 SSL Enabled: ${process.env.DB_SSL}`);
+      });
+    }
   } catch (error) {
     console.error('Unable to start server:', error);
     process.exit(1);
   }
 };
 
-startServer();
+// Run the server for local development
+if (process.env.NODE_ENV !== 'production') {
+  startServer();
+}
 
+// Export for Vercel serverless deployment
 module.exports = app;
