@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { Department } = require('../models');
+const models = require('../utils/models');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { auditMiddleware } = require('../middleware/audit');
 
 // Get all departments (now requires authentication)
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const departments = await Department.findAll({
+  const Department = await models.Department();
+  const departments = await Department.findAll({
       order: [['name', 'ASC']],
     });
     res.json(departments);
@@ -23,7 +24,8 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get department by ID
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    const department = await Department.findByPk(req.params.id);
+  const Department = await models.Department();
+  const department = await Department.findByPk(req.params.id);
     if (!department) {
       return res.status(404).json({ error: 'Department not found' });
     }
@@ -51,7 +53,8 @@ router.post('/', authenticateToken, authorizeRoles('admin'), auditMiddleware('cr
     }
 
     // Create department
-    const department = await Department.create({
+  const Department = await models.Department();
+  const department = await Department.create({
       name: name.trim(),
       code: code.trim().toUpperCase(),
       description: description?.trim() || null,

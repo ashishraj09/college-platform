@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, query } = require('express-validator');
-const { User, Department, Degree } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -40,7 +40,9 @@ router.get('/',
         ];
       }
 
-      const { count, rows: users } = await User.findAndCountAll({
+  const User = await models.User();
+  const Department = await models.Department();
+  const { count, rows: users } = await User.findAndCountAll({
         where,
         include: [
           {
@@ -123,7 +125,10 @@ router.get('/:id',
 router.put('/:id',
   // authenticateToken, // Temporarily disabled for testing
   // authorizeRoles('admin', 'office'),
-  captureOriginalData(User, 'id'),
+  async (req, res, next) => {
+    const User = await require('../utils/models').User();
+    return captureOriginalData(User, 'id')(req, res, next);
+  },
   [
     body('first_name').optional().trim().isLength({ min: 1, max: 50 }).withMessage('First name must be less than 50 characters'),
     body('last_name').optional().trim().isLength({ min: 1, max: 50 }).withMessage('Last name must be less than 50 characters'),
@@ -186,7 +191,10 @@ router.put('/:id',
 router.delete('/:id',
   // authenticateToken, // Temporarily disabled for testing
   // authorizeRoles('admin'),
-  captureOriginalData(User, 'id'),
+  async (req, res, next) => {
+    const User = await require('../utils/models').User();
+    return captureOriginalData(User, 'id')(req, res, next);
+  },
   auditMiddleware('delete', 'user', 'User deleted'),
   async (req, res) => {
     try {

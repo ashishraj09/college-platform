@@ -1,17 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { AuditLog, Message, User } = require('../models');
+const models = require('../utils/models');
 
 // GET /api/timeline/:entityType/:entityId
 router.get('/:entityType/:entityId', async (req, res) => {
   const { entityType, entityId } = req.params;
   try {
     // Fetch audit logs
+    const AuditLog = await models.AuditLog();
     const auditLogs = await AuditLog.findAll({
       where: { entity_type: entityType, entity_id: entityId },
       order: [['created_at', 'ASC']]
     });
     // Fetch messages
+    const Message = await models.Message();
     const messages = await Message.findAll({
       where: { type: entityType, reference_id: entityId },
       order: [['created_at', 'ASC']]
@@ -23,6 +25,7 @@ router.get('/:entityType/:entityId', async (req, res) => {
     const allUserIds = Array.from(new Set([...auditUserIds, ...messageUserIds]));
 
     // Fetch user details
+    const User = await models.User();
     const users = await User.findAll({
       where: { id: allUserIds },
       attributes: ['id', 'first_name', 'last_name']

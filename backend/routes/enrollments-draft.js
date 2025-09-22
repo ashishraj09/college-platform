@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
-const { Enrollment, Course, User, Department, Degree } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -20,7 +20,6 @@ router.post('/save-draft',
   async (req, res) => {
     try {
       const { course_ids, academic_year, semester } = req.body;
-      
       // Check if enrollment window is open
       const enrollmentOpen = await isEnrollmentOpen(req.user);
       if (!enrollmentOpen) {
@@ -29,7 +28,11 @@ router.post('/save-draft',
         });
       }
 
+      // Get Enrollment model via async getter
+      const Enrollment = await require('../utils/models').Enrollment();
+
       // Check for existing draft enrollment for this semester/year
+      let enrollment;
       const existingDraft = await Enrollment.findOne({
         where: {
           student_id: req.user.id,
@@ -39,13 +42,9 @@ router.post('/save-draft',
         }
       });
 
-      let enrollment;
-      
       if (existingDraft) {
         // Update existing draft
-        await existingDraft.update({
-          course_ids
-        });
+        await existingDraft.update({ course_ids });
         enrollment = existingDraft;
       } else {
         // Create a new draft enrollment
@@ -71,15 +70,19 @@ router.post('/save-draft',
 
 // Get current enrollment draft
 router.get('/draft',
-  authenticateToken,
   async (req, res) => {
     try {
       const { academic_year, semester } = req.query;
-      
       // If no academic year/semester provided, use current
       const currentYear = new Date().getFullYear();
       const academicYearToUse = academic_year || `${currentYear}-${currentYear + 1}`;
       const semesterToUse = semester || req.user.current_semester;
+
+      // Get models via async getter
+      const Enrollment = await require('../utils/models').Enrollment();
+      const Course = await require('../utils/models').Course();
+      const Department = await require('../utils/models').Department();
+      const Degree = await require('../utils/models').Degree();
 
       const draft = await Enrollment.findOne({
         where: {
@@ -137,7 +140,6 @@ router.post('/submit-draft',
   async (req, res) => {
     try {
       const { draft_id } = req.body;
-      
       // Check if enrollment window is open
       const enrollmentOpen = await isEnrollmentOpen(req.user);
       if (!enrollmentOpen) {
@@ -145,7 +147,10 @@ router.post('/submit-draft',
           error: 'Enrollment window is currently closed. Please check back during the enrollment period.' 
         });
       }
-      
+
+      // Get Enrollment model via async getter
+      const Enrollment = await require('../utils/models').Enrollment();
+
       // Get the draft enrollment
       const draft = await Enrollment.findOne({
         where: {
@@ -154,31 +159,33 @@ router.post('/submit-draft',
           enrollment_status: 'draft'
         }
       });
-      
+
       if (!draft) {
         return res.status(404).json({ error: 'Draft not found or already submitted' });
       }
-      
+
       if (!draft.course_ids || draft.course_ids.length === 0) {
         return res.status(400).json({ error: 'No courses selected' });
       }
-      
-            // Check if student already has an active enrollment request
+
+      // Check if student already has an active enrollment request
+      const currentYear = new Date().getFullYear();
+      const academicYear = `${currentYear}-${currentYear + 1}`;
       const existingActive = await Enrollment.findOne({
         where: {
           student_id: req.user.id,
           academic_year: academicYear,
           semester: req.user.current_semester,
-          enrollment_status: ['pending_hod_approval']
+          enrollment_status: 'pending_hod_approval'
         }
       });
-      
-      if (activeEnrollments.length > 0) {
+
+      if (existingActive) {
         return res.status(400).json({ 
           error: 'You already have an active enrollment request pending approval. Please wait for it to be processed before submitting a new request.'
         });
       }
-      
+
       // Submit the draft for HOD approval
       await draft.update({
         enrollment_status: 'pending_hod_approval',
@@ -189,7 +196,7 @@ router.post('/submit-draft',
         office_approved_by: null,
         office_approved_at: null
       });
-      
+
       res.json({ 
         message: 'Enrollment submitted for approval',
         enrollment: draft

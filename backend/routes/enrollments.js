@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
-const { Enrollment, Course, User, Department, Degree } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -46,6 +46,8 @@ router.get('/',
         }
       }
       
+      const Enrollment = await models.Enrollment();
+      const Course = await models.Course();
       const enrollments = await Enrollment.findAll({
         where: whereClause,
         order: [['created_at', 'DESC']]

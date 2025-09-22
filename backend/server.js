@@ -25,14 +25,13 @@ const { sequelize, getSequelize } = require('./config/database');
 // Load models before routes to ensure models are defined
 const models = require('./models');
 
-// In production, we need to ensure model associations are set up
-// for Vercel's serverless environment
-if (process.env.NODE_ENV === 'production') {
-  console.log('Production environment detected - associations will be initialized through middleware');
+// Determine run mode: 'serverless' or 'traditional'
+const runMode = process.env.RUN_MODE ? process.env.RUN_MODE : 'traditional';
+
+if (runMode === 'serverless') {
+  console.log('Serverless mode detected - associations will be initialized through middleware');
 } else {
-  // In development, associations are initialized synchronously when models are loaded
-  console.log('Development environment - associations initialized during startup');
-  // Import the association module directly and run it immediately
+  console.log('Traditional mode - associations initialized during startup');
   const { initializeAssociations } = require('./models/associations');
   initializeAssociations();
 }
@@ -314,18 +313,17 @@ const startServer = async () => {
   }
 };
 
-// Run the server for local development
-if (process.env.NODE_ENV !== 'production') {
+// Start server only in traditional mode
+if (runMode === 'traditional') {
   startServer();
 }
 
-// For Vercel serverless deployment, we need to initialize the database on each request
+// For serverless deployment, initialize the database on each request
 app.use(async (req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (runMode === 'serverless') {
     try {
-      // Only initialize the database connection when needed
       const dbInstance = await getSequelize();
-      req.sequelize = dbInstance; // Attach to request for later use if needed
+      req.sequelize = dbInstance;
       next();
     } catch (error) {
       console.error('Error initializing database in middleware:', error);
@@ -336,5 +334,5 @@ app.use(async (req, res, next) => {
   }
 });
 
-// Export for Vercel serverless deployment
+// Export for serverless deployment
 module.exports = app;

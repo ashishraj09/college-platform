@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, query } = require('express-validator');
-const { Degree, Department, User, Course } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -15,7 +15,8 @@ router.post('/:id/comment',
     try {
       const { text } = req.body;
       if (!text || text.trim().length < 2) return res.status(400).json({ error: 'Comment text required' });
-      const degree = await Degree.findByPk(req.params.id);
+  const Degree = await models.Degree();
+  const degree = await Degree.findByPk(req.params.id);
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
       const user = req.user || { id: req.body.userId, name: req.body.userName, user_type: req.body.userType };
       const comment = {
@@ -29,8 +30,8 @@ router.post('/:id/comment',
       comments.push(comment);
       await degree.update({ comments });
       // Also add comment to messages table for timeline
-      const Message = require('../models/Message');
-      await Message.create({
+  const Message = await models.Message();
+  await Message.create({
         type: 'degree',
         reference_id: degree.id,
         sender_id: user.id,
@@ -49,6 +50,7 @@ router.patch('/:id/submit',
   auditMiddleware('update', 'degree', 'Degree submitted for approval'),
   async (req, res) => {
     try {
+      const Degree = await models.Degree();
       const degree = await Degree.findByPk(req.params.id);
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
       const user = req.user || { id: req.body.userId, department_id: req.body.departmentId, user_type: 'faculty' };
@@ -59,7 +61,7 @@ router.patch('/:id/submit',
       await degree.update({ status: 'pending_approval', updated_by: user.id });
 
       // Add message to messages table
-      const Message = require('../models/Message');
+      const Message = await models.Message();
       if (req.body.message) {
         await Message.create({
           type: 'degree',
@@ -601,7 +603,10 @@ router.put('/:id',
   // authorizeRoles('faculty', 'admin'), // Temporarily disabled for testing
   degreeValidation,
   handleValidationErrors,
-  captureOriginalData(Degree, 'id'),
+  async (req, res, next) => {
+    const Degree = await require('../utils/models').Degree();
+    return captureOriginalData(Degree, 'id')(req, res, next);
+  },
   auditMiddleware('update', 'degree', 'Degree updated'),
   async (req, res) => {
     try {
@@ -776,7 +781,10 @@ router.patch('/:id/approve',
 router.delete('/:id',
   authenticateToken,
   // authorizeRoles('faculty', 'admin'), // Temporarily disabled for testing
-  captureOriginalData(Degree, 'id'),
+  async (req, res, next) => {
+    const Degree = await require('../utils/models').Degree();
+    return captureOriginalData(Degree, 'id')(req, res, next);
+  },
   auditMiddleware('delete', 'degree', 'Degree deleted'),
   async (req, res) => {
     try {

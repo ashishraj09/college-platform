@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
-const { Enrollment, Course, User, Department, Degree } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -58,6 +58,7 @@ router.get('/pending-approvals',
         };
       }
 
+      const Enrollment = models.Enrollment;
       const pendingEnrollments = await Enrollment.findAll({
         where: whereClause,
         include: includeClause,
@@ -73,6 +74,7 @@ router.get('/pending-approvals',
         const enrollmentJson = enrollment.toJSON();
         
         // Get courses for this enrollment
+        const Course = models.Course;
         const courses = await Course.findAll({
           where: { id: { [Op.in]: enrollmentJson.course_ids || [] } }
         });
