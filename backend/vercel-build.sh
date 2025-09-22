@@ -56,5 +56,17 @@ EOL
 # Run the test
 node pg-test.js
 
+# Run database schema verification
+echo "====== VERIFYING DATABASE SCHEMA ======"
+echo "Checking database environment variables (masked for security):"
+echo "DB_HOST: ${DB_HOST:0:3}*****"
+echo "DB_PORT: ${DB_PORT}"
+echo "DB_NAME: ${DB_NAME}"
+echo "DB_USER: ${DB_USER:0:1}*****"
+echo "DB_SSL: ${DB_SSL}"
+echo "DB_DIALECT: ${DB_DIALECT:-postgres}"
+echo "Running ensure-database-schema.js to verify database schema..."
+node scripts/ensure-database-schema.js
+
 echo "====== BUILD COMPLETED SUCCESSFULLY ======"
 echo "All required dependencies installed and verified"

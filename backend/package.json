@@ -12,7 +12,8 @@
     "db:migrate": "node migrations/migrate.js",
     "test:data:create": "node scripts/test-data.js",
     "test:data:update": "node scripts/test-data.js update",
-    "vercel-build": "chmod +x ./vercel-build.sh && ./vercel-build.sh"
+    "vercel-build": "chmod +x ./vercel-build.sh && ./vercel-build.sh",
+    "db:ensure": "node scripts/ensure-database-schema.js"
   },
   "keywords": [
     "nodejs",

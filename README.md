@@ -283,6 +283,7 @@ npm run dev          # Development server with nodemon
 npm run start        # Production server
 npm run seed         # Seed database with initial data
 npm run db:migrate   # Run database migrations
+node scripts/ensure-database-schema.js  # Verify and create database schema
 ```
 
 ### Frontend  
@@ -302,6 +303,29 @@ npm run eject        # Eject from Create React App
 3. **Email**: Set up production email service (SendGrid, AWS SES)
 4. **Security**: Configure SSL/TLS, secure headers
 5. **Monitoring**: Set up logging and monitoring
+
+### Vercel Deployment
+The application is configured for deployment on Vercel with the following build-time optimizations:
+
+1. **Database Schema Verification**: During the build process, the system verifies the database schema and creates tables if needed
+2. **Model Association Verification**: Ensures all model associations are properly initialized
+3. **Connection Testing**: Validates database connectivity before deployment completes
+4. **Automated Schema Management**: Uses `scripts/ensure-database-schema.js` to handle database schema setup without data loss
+
+This build-time approach ensures that the database is properly configured before the application is deployed, preventing runtime errors in the serverless environment.
+
+#### Setting up Vercel Environment Variables
+For the database schema verification to work correctly, you must set up these environment variables in your Vercel project settings:
+
+- `DB_HOST`: Your database hostname (e.g., `db.example.com`)
+- `DB_PORT`: Database port (typically `5432` for PostgreSQL)
+- `DB_NAME`: Name of your database
+- `DB_USER`: Database username
+- `DB_PASSWORD`: Database password
+- `DB_DIALECT`: Set to `postgres`
+- `DB_SSL`: Set to `true` for cloud-hosted databases
+
+These variables are used during both build time and runtime to ensure proper database connectivity.
 
 ### Environment Variables
 Ensure all production environment variables are properly configured:
