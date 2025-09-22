@@ -42,7 +42,8 @@ A comprehensive enterprise-level web application for managing college courses, e
 - Role-based access control (RBAC)
 - Password encryption with bcrypt
 - Email verification and password reset
-- Rate limiting and security headers
+- Rate limiting with proxy support for Vercel
+- Security headers with Helmet
 
 ### 📚 Course Management
 - Comprehensive course creation with study details

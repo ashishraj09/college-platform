@@ -17,6 +17,8 @@ const app = express();
 app.use(cookieParser());
 // Disable ETag to prevent 304 Not Modified responses
 app.set('etag', false);
+// Trust proxy - required for rate limiting behind proxies like Vercel
+app.set('trust proxy', true);
 
 // Import database with appropriate connection method
 const { sequelize, getSequelize } = require('./config/database');
@@ -77,7 +79,12 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Skip rate limiting for development
-  skip: process.env.NODE_ENV === 'development' ? () => false : undefined,
+  skip: process.env.NODE_ENV === 'development' ? () => true : undefined, // Skip in development
+  // Use the X-Forwarded-For header to identify clients behind proxies
+  keyGenerator: (req) => {
+    // Get IP from X-Forwarded-For header if available (for proxies like Vercel)
+    return req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  },
 });
 
 // Only apply rate limiting to API routes, and be more lenient in development  
