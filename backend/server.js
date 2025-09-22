@@ -130,6 +130,29 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('combined'));
 }
 
+// Root endpoint - provides basic API information
+app.get('/', (req, res) => {
+  res.status(200).json({
+    name: 'College Platform API',
+    version: '1.0.0',
+    description: 'Backend API for College Platform - Enterprise course management system',
+    environment: process.env.NODE_ENV || 'development',
+    documentation: '/api-docs',
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/health',
+      api: '/api',
+      auth: '/api/auth',
+      users: '/api/users',
+      courses: '/api/courses',
+      departments: '/api/departments',
+      degrees: '/api/degrees',
+      enrollments: '/api/enrollments'
+    }
+  });
+});
+
 // Health check endpoint with database connection test
 app.get('/health', async (req, res) => {
   try {
