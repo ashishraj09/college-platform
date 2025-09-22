@@ -5,7 +5,22 @@
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["node_modules/pg/**", "node_modules/pg-hstore/**"],
+        "includeFiles": [
+          "node_modules/pg/**",
+          "node_modules/pg-hstore/**",
+          "node_modules/pg-connection-string/**",
+          "node_modules/pg-types/**",
+          "node_modules/postgres-array/**",
+          "node_modules/postgres-bytea/**",
+          "node_modules/postgres-date/**",
+          "node_modules/postgres-interval/**",
+          "models/**",
+          "middleware/**",
+          "routes/**",
+          "utils/**",
+          "config/**",
+          ".env.production"
+        ],
         "buildCommand": "npm run vercel-build"
       }
     }
@@ -13,7 +28,10 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "server.js"
+      "dest": "server.js",
+      "headers": {
+        "cache-control": "s-maxage=0"
+      }
     }
   ],
   "env": {

@@ -12,7 +12,10 @@ const path = require('path');
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
 dotenv.config({ path: path.join(__dirname, envFile) });
 
-const { sequelize } = require('./config/database');
+// Import database with appropriate connection method
+const { sequelize, getSequelize } = require('./config/database');
+// Load models before routes to ensure models are defined
+require('./models');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const courseRoutes = require('./routes/courses');
@@ -163,13 +166,23 @@ const PORT = process.env.PORT || 5000;
 // Database connection and server startup
 const startServer = async () => {
   try {
+    let dbInstance;
+    
+    // In development, we can use the synchronous connection
+    if (process.env.NODE_ENV !== 'production' && sequelize) {
+      dbInstance = sequelize;
+    } else {
+      // In production or if sync init failed, use async connection
+      dbInstance = await getSequelize();
+    }
+    
     // Test database connection
-    await sequelize.authenticate();
+    await dbInstance.authenticate();
     console.log('Database connection has been established successfully.');
     
     // Sync database models
     if (process.env.NODE_ENV !== 'production') {
-      await sequelize.sync({ alter: true });
+      await dbInstance.sync({ alter: true });
       console.log('Database models synced successfully.');
     }
     
@@ -192,6 +205,23 @@ const startServer = async () => {
 if (process.env.NODE_ENV !== 'production') {
   startServer();
 }
+
+// For Vercel serverless deployment, we need to initialize the database on each request
+app.use(async (req, res, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      // Only initialize the database connection when needed
+      const dbInstance = await getSequelize();
+      req.sequelize = dbInstance; // Attach to request for later use if needed
+      next();
+    } catch (error) {
+      console.error('Error initializing database in middleware:', error);
+      res.status(500).json({ error: 'Database connection error', details: error.message });
+    }
+  } else {
+    next();
+  }
+});
 
 // Export for Vercel serverless deployment
 module.exports = app;
