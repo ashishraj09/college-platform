@@ -147,7 +147,7 @@ export const degreesAPI = {
   getFacultyDegrees: async (deptId?: string, userId?: string, isHodView: boolean = false) => {
     // For HODs viewing all department degrees, use a different approach
     if (isHodView) {
-      return (await api.get('/degrees', { params: { department_id: deptId } })).data;
+      return (await api.get('/degrees', { params: { department_id: deptId, status: 'active' } })).data;
     }
     // Regular faculty view - shows only their own degrees
     return (await api.get('/degrees/my-degrees', { params: { departmentId: deptId, userId } })).data;
@@ -187,6 +187,35 @@ export const enrollmentsAPI = {
   rejectEnrollment: async (id: string, reason: string) => (await api.patch(`/enrollments/${id}/reject`, { reason })).data,
   getPendingApprovals: async (params?: any) => (await api.get('/enrollments/pending-approvals', { params })).data,
   hodDecision: async (payload: { enrollment_ids: string[]; action: 'approve' | 'reject'; rejection_reason?: string }) => (await api.post('/enrollments/hod-decision', payload)).data,
+};
+
+// --- New Enrollment API (Using course codes) ---
+export const enrollmentAPI = {
+  // Student endpoints
+  getAllEnrollments: async (params?: any) => (await api.get('/enrollments/my-enrollments', { params })).data,
+  createDraft: async (payload: { course_codes: string[], semester: number }) => 
+    (await api.get('/enrollments/draft')).data,
+  saveDraft: async (payload: { enrollment_id: string, course_codes: string[] }) => 
+    (await api.put('/enrollments/draft', { course_ids: payload.course_codes })).data,
+  submitForApproval: async (payload: { enrollment_id: string }) => 
+    (await api.post('/enrollments/draft/submit')).data,
+  getMyDegreeCourses: async (params?: any) => 
+    (await api.get('/enrollments/my-degree-courses', { params })).data,
+  checkActiveEnrollmentStatus: async () => 
+    (await api.get('/enrollments/active-status')).data,
+  
+  // HOD endpoints
+  getPendingApprovals: async (params?: { degree_code?: string, semester?: number, search?: string }) => 
+    (await api.get('/enrollment/pending-approvals', { params })).data,
+  approveEnrollments: async (payload: { enrollment_ids: string[] }) => 
+    (await api.post('/enrollment/approve', payload)).data,
+  rejectEnrollments: async (payload: { enrollment_ids: string[], rejection_reason: string }) => 
+    (await api.post('/enrollment/reject', payload)).data,
+  // Individual enrollment approval/rejection
+  approveEnrollment: async (enrollmentId: string) => 
+    (await api.post('/enrollment/approve', { enrollment_ids: [enrollmentId] })).data,
+  rejectEnrollment: async (enrollmentId: string, rejectionReason: string) => 
+    (await api.post('/enrollment/reject', { enrollment_ids: [enrollmentId], rejection_reason: rejectionReason })).data,
 };
 
 // --- Message API ---

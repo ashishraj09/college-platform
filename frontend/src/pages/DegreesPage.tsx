@@ -32,7 +32,8 @@ const DegreesPage: React.FC = () => {
 
   useEffect(() => {
     const fetchDegrees = async () => {
-  const data = await degreesAPI.getDegrees();
+      // Only fetch active degrees
+      const data = await degreesAPI.getDegrees();
       setDegrees(data);
     };
     fetchDegrees();

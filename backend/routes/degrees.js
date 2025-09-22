@@ -239,6 +239,12 @@ router.post('/:id/create-version',
         parent_degree_id: degree.parent_degree_id || degree.id,
         is_latest_version: true,
         status: 'draft',
+        // Copy semester configuration and enrollment data
+        courses_per_semester: degree.courses_per_semester || {},
+        elective_options: degree.elective_options || {},
+        enrollment_config: degree.enrollment_config || {},
+        graduation_requirements: degree.graduation_requirements || {},
+        academic_calendar: degree.academic_calendar || {}
       };
       
       console.log(`[DEBUG] Creating new degree version with data:`, {
@@ -246,7 +252,9 @@ router.post('/:id/create-version',
         code: newDegreeData.code,
         version: newDegreeData.version,
         parent_degree_id: newDegreeData.parent_degree_id,
-        created_by: newDegreeData.created_by
+        created_by: newDegreeData.created_by,
+        has_courses_per_semester: !!newDegreeData.courses_per_semester && Object.keys(newDegreeData.courses_per_semester || {}).length > 0,
+        has_enrollment_config: !!newDegreeData.enrollment_config
       });
 
       // Mark all previous versions as not latest
@@ -275,11 +283,27 @@ router.post('/:id/create-version',
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
         ],
       });
+      
+      // Validate that semester and enrollment data was copied correctly
+      const dataValidation = {
+        courses_per_semester: {
+          original: Object.keys(degree.courses_per_semester || {}).length,
+          copied: Object.keys(createdDegree.courses_per_semester || {}).length,
+          status: Object.keys(degree.courses_per_semester || {}).length === Object.keys(createdDegree.courses_per_semester || {}).length ? 'Success' : 'Warning'
+        },
+        enrollment_config: {
+          copied: !!createdDegree.enrollment_config,
+          status: !!createdDegree.enrollment_config ? 'Success' : 'Warning'
+        }
+      };
+      
+      console.log(`[VALIDATION] Degree version creation data validation:`, dataValidation);
 
       res.status(201).json({
         message: `Degree version ${nextVersion} created successfully`,
         degree: createdDegree,
-        version: nextVersion
+        version: nextVersion,
+        validation: dataValidation
       });
     } catch (error) {
       console.error('Error creating degree version:', error);
@@ -316,7 +340,7 @@ router.get('/',
       req.user &&
       req.user.user_type !== 'admin' &&
       !req.user.is_head_of_department &&
-      status !== 'active'
+      whereClause.status !== 'active'
     ) {
       whereClause.created_by = req.user.id;
     }
@@ -352,7 +376,8 @@ router.get('/',
       return degree;
     }));
 
-    res.json(degreesWithDraftFlag);
+    // Return degrees wrapped in an object with a degrees property to match other endpoints
+    res.json({ degrees: degreesWithDraftFlag });
   } catch (error) {
     console.error('Error fetching degrees:', error);
     res.status(500).json({ error: 'Failed to fetch degrees' });
@@ -381,6 +406,13 @@ router.get('/my-degrees',
       if (user.user_type !== 'admin' && !user.is_head_of_department && user.user_type !== 'office') {
         whereClause.created_by = user.id;
       }
+      
+      // Only filter by status if it's explicitly requested as a non-active status
+      // This ensures that even when status=active is passed, we show all statuses
+      if (req.query.status && req.query.status !== 'active') {
+        whereClause.status = req.query.status;
+      }
+
     } else {
       // If no user context and no departmentId query param, return empty array
       whereClause.department_id = 'none-found';
@@ -849,9 +881,184 @@ router.patch('/:id/publish',
       }
 
       // Handle version management if this is a versioned degree
+      let createdCourses = [];
+      let studentsToUpdate = [];
+      
       if (degree.parent_degree_id || degree.version > 1) {
         // This is a new version being published - archive previous active versions
         const parentId = degree.parent_degree_id || degree.id;
+        
+        // Find previous active version(s) of this degree
+        const previousActiveDegrees = await Degree.findAll({
+          where: {
+            [Op.and]: [
+              {
+                [Op.or]: [
+                  { id: parentId },
+                  { parent_degree_id: parentId },
+                ],
+              },
+              { status: 'active' },
+              { id: { [Op.ne]: degree.id } },
+            ],
+          },
+        });
+        
+        // For each previous active degree, get all its courses and update them
+        // to point to the new degree version
+        const { Course } = require('../models');
+        const courseUpdatePromises = [];
+        
+        for (const prevDegree of previousActiveDegrees) {
+          // Find all courses associated with this previous degree version
+          const courses = await Course.findAll({
+            where: { 
+              degree_id: prevDegree.id,
+              status: 'active'
+            }
+          });
+          
+          console.log(`Found ${courses.length} courses to migrate from degree ${prevDegree.id} (${prevDegree.code} v${prevDegree.version}) to ${degree.id} (${degree.code} v${degree.version})`);
+          
+          if (courses.length === 0) {
+            console.log(`Warning: No courses found for previous degree version ${prevDegree.id} (${prevDegree.code} v${prevDegree.version})`);
+          }
+          
+          // Create copies of these courses for the new degree version
+          for (const course of courses) {
+            // Check if a course with this code already exists for the new degree
+            const existingCourse = await Course.findOne({
+              where: {
+                code: course.code,
+                degree_id: degree.id
+              }
+            });
+            
+            // Find the highest version number for courses with this code
+            const maxVersionCourse = await Course.findOne({
+              where: {
+                code: course.code
+              },
+              order: [['version', 'DESC']]
+            });
+            
+            // Calculate next version number - default to 1 if no existing versions found
+            const nextVersion = maxVersionCourse ? maxVersionCourse.version + 1 : 1;
+            console.log(`For course ${course.code}: Found max version ${maxVersionCourse?.version || 0}, using version ${nextVersion} for new copy`);
+            
+            if (!existingCourse) {
+              // Create a new course linked to the new degree with all relevant fields
+              courseUpdatePromises.push(
+                Course.create({
+                  name: course.name,
+                  code: course.code,
+                  overview: course.overview,
+                  study_details: course.study_details || {},
+                  faculty_details: course.faculty_details || {},
+                  credits: course.credits,
+                  semester: course.semester,
+                  prerequisites: course.prerequisites || [],
+                  max_students: course.max_students,
+                  department_id: course.department_id,
+                  degree_id: degree.id,
+                  status: 'active',
+                  created_by: req.user.id,
+                  is_elective: course.is_elective || false,
+                  version: nextVersion,
+                  parent_course_id: course.id,
+                  is_latest_version: true,
+                  // Copy additional fields
+                  capacity: course.capacity,
+                  enrollment_start_at: course.enrollment_start_at,
+                  enrollment_end_at: course.enrollment_end_at,
+                  start_date: course.start_date,
+                  end_date: course.end_date,
+                  faculty_id: course.faculty_id,
+                  tags: course.tags || [],
+                  syllabus: course.syllabus,
+                  grading_schema: course.grading_schema,
+                  assessment_details: course.assessment_details
+                })
+              );
+            } else {
+              console.log(`Skipping course ${course.code} - already exists in the new degree version ${degree.id}`);
+            }
+          }
+        }
+        
+        // Wait for all course updates to complete
+        try {
+          createdCourses = await Promise.all(courseUpdatePromises);
+          console.log(`Successfully migrated ${createdCourses.length} courses to new degree version ${degree.id} (${degree.code} v${degree.version})`);
+        } catch (courseError) {
+          console.error('Error creating course copies:', courseError);
+          
+          // Check if it's a unique constraint error
+          if (courseError.name === 'SequelizeUniqueConstraintError') {
+            console.log(`Handling unique constraint error: ${courseError.message}`);
+            
+            // Attempt to fetch any courses that were successfully created
+            createdCourses = await Course.findAll({
+              where: {
+                degree_id: degree.id,
+                status: 'active'
+              }
+            });
+            
+            console.log(`Found ${createdCourses.length} courses already created for degree ${degree.id}`);
+          } else {
+            // For other errors, re-throw
+            throw courseError;
+          }
+        }
+        
+        // Update all active students from old degree versions to the new version
+        const { User } = require('../models');
+        
+        // First, find all students associated with previous degree versions
+        studentsToUpdate = await User.findAll({
+          where: {
+            user_type: 'student',
+            status: 'active',
+            degree_id: {
+              [Op.in]: previousActiveDegrees.map(d => d.id)
+            }
+          },
+          attributes: ['id', 'first_name', 'last_name', 'email', 'student_id', 'degree_id', 'current_semester']
+        });
+        
+        console.log(`Found ${studentsToUpdate.length} active students to migrate from previous degree versions to ${degree.id} (${degree.code} v${degree.version})`);
+        
+        if (studentsToUpdate.length > 0) {
+          // Log details about the first few students (for debugging)
+          const sampleStudents = studentsToUpdate.slice(0, Math.min(5, studentsToUpdate.length));
+          console.log('Sample students being migrated:', sampleStudents.map(s => ({
+            id: s.id,
+            name: `${s.first_name} ${s.last_name}`,
+            student_id: s.student_id,
+            email: s.email,
+            old_degree_id: s.degree_id,
+            current_semester: s.current_semester
+          })));
+          
+          // Update all students to point to the new degree version
+          const studentUpdateResult = await User.update(
+            { degree_id: degree.id },
+            {
+              where: {
+                id: {
+                  [Op.in]: studentsToUpdate.map(s => s.id)
+                }
+              }
+            }
+          );
+          
+          console.log(`Successfully updated ${studentUpdateResult[0]} active students to new degree version ${degree.id} (${degree.code} v${degree.version})`);
+        } else {
+          console.log(`No active students found for previous degree versions to migrate`);
+        }
+        
+        // Now archive the old degree versions
         await Degree.update(
           { status: 'archived' },
           {
@@ -879,6 +1086,10 @@ router.patch('/:id/publish',
       res.json({
         message: 'Degree published and is now active',
         degree,
+        migration_summary: {
+          courses_migrated: createdCourses.length,
+          students_updated: studentsToUpdate.length
+        }
       });
     } catch (error) {
       console.error('Error publishing degree:', error);

@@ -38,6 +38,11 @@ class DepartmentsAPI {
     const response = await api.get(`/departments/${departmentId}/degrees`);
     return response.data;
   }
+  
+  async getAllDegrees(): Promise<{ degrees: Degree[] }> {
+    const response = await api.get('/degrees');
+    return response.data;
+  }
 }
 
 export const departmentsAPI = new DepartmentsAPI();

@@ -25,46 +25,61 @@ import {
   Checkbox,
   Alert,
   IconButton,
-  Collapse
+  Collapse,
+  CircularProgress,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   CheckCircle as ApproveIcon,
   Cancel as RejectIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  FilterList as FilterIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { enrollmentAPI } from '../../services/enrollmentApi';
-import { departmentsAPI } from '../../services/departmentsApi';
+
+interface Course {
+  id: string;
+  name: string;
+  code: string;
+  credits: number;
+  semester?: number;
+  version_code: string;
+}
+
+interface Student {
+  id: string;
+  first_name: string;
+  last_name: string;
+  student_id: string;
+  email: string;
+  degree?: Degree;
+}
 
 interface PendingEnrollment {
   id: string;
-  student: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    student_id: string;
-    degree: {
-      id: string;
-      name: string;
-      code: string;
-    };
-  };
-  course: {
-    id: string;
-    name: string;
-    code: string;
-    version_code: string;
-    credits: number;
-  };
+  student_id: string;
+  course_ids: string[];
+  enrollment_status: string;
+  is_submitted: boolean;
+  submitted_at: string;
   academic_year: string;
   semester: number;
+  student: Student;
+  course?: Course;
+  courses?: Course[];
   createdAt: string;
+  updatedAt: string;
 }
 
 interface GroupedEnrollment {
   student: PendingEnrollment['student'];
-  academic_year: string;
   semester: number;
   enrollments: PendingEnrollment[];
 }
@@ -93,9 +108,17 @@ const EnrollmentApprovalsTab: React.FC = () => {
 
   // Selection and approval
   const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
+
+  // State for dialogs
   const [approvalDialog, setApprovalDialog] = useState(false);
   const [rejectionDialog, setRejectionDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  
+  // State for individual approval/rejection
+  const [individualRejectionDialog, setIndividualRejectionDialog] = useState(false);
+  const [individualRejectionGroup, setIndividualRejectionGroup] = useState<GroupedEnrollment | null>(null);
+  const [individualRejectionReason, setIndividualRejectionReason] = useState('');
+  const [approvalInProgress, setApprovalInProgress] = useState(false);
 
   const loadPendingApprovals = React.useCallback(async () => {
     try {
@@ -106,7 +129,82 @@ const EnrollmentApprovalsTab: React.FC = () => {
       if (searchTerm) params.search = searchTerm;
 
       const data = await enrollmentAPI.getPendingApprovals(params);
-      setPendingApprovals(data.pendingApprovals);
+      console.log('Pending approvals data:', data);
+      
+      // The data comes in a flat structure but we need to group it for display
+      // Group enrollments by student and semester
+      const groupedData: GroupedEnrollment[] = [];
+      const groupMap: Record<string, number> = {};
+      
+      if (data.pendingApprovals && data.pendingApprovals.length > 0) {
+        data.pendingApprovals.forEach((enrollment: any) => {
+          // Check if this is the new API format with enrollments array
+          if (enrollment.enrollments && enrollment.enrollments.length > 0) {
+            // New API format - process each enrollment in the enrollments array
+            enrollment.enrollments.forEach((innerEnrollment: any) => {
+              const key = `${enrollment.student.id}-${enrollment.semester}`;
+              
+              if (groupMap[key] === undefined) {
+                // Create a new group
+                groupMap[key] = groupedData.length;
+                groupedData.push({
+                  student: enrollment.student,
+                  semester: enrollment.semester,
+                  enrollments: []
+                });
+              }
+              
+              // Add the enrollment to the group
+              groupedData[groupMap[key]].enrollments.push({
+                ...innerEnrollment,
+                student: enrollment.student
+              });
+            });
+          } else {
+            // Old API format - direct enrollment object
+            const key = `${enrollment.student_id}-${enrollment.semester}`;
+            
+            // Normalize course data - find the first course in the courses array if course is missing
+            if (!enrollment.course && enrollment.courses && enrollment.courses.length > 0) {
+              enrollment.course = enrollment.courses[0];
+            }
+            
+            if (groupMap[key] === undefined) {
+              // Create a new group
+              groupMap[key] = groupedData.length;
+              groupedData.push({
+                student: enrollment.student,
+                semester: enrollment.semester,
+                enrollments: [enrollment]
+              });
+            } else {
+              // Add to existing group
+              groupedData[groupMap[key]].enrollments.push(enrollment);
+            }
+          }
+        });
+      }
+      
+      console.log('Grouped data:', groupedData);
+      setPendingApprovals(groupedData);
+      
+      // Extract unique degrees from the enrollment requests to populate the dropdown
+      if (!selectedDegree && data.pendingApprovals && data.pendingApprovals.length > 0) {
+        const uniqueDegrees = new Map<string, Degree>();
+        
+        data.pendingApprovals.forEach((enrollment: any) => {
+          const student = enrollment.student || (enrollment.enrollments && enrollment.enrollments[0]?.student);
+          if (student?.degree && !uniqueDegrees.has(student.degree.id)) {
+            uniqueDegrees.set(student.degree.id, {
+              id: student.degree.id,
+              name: student.degree.name,
+              code: student.degree.code
+            });
+          }
+        });
+        
+        setDegrees(Array.from(uniqueDegrees.values()));
+      }
     } catch (err) {
       setError('Failed to load pending approvals');
       console.error(err);
@@ -116,39 +214,15 @@ const EnrollmentApprovalsTab: React.FC = () => {
   }, [selectedDegree, selectedSemester, searchTerm]);
 
   useEffect(() => {
+    // Just load pending approvals - degrees will be extracted from the response
     loadPendingApprovals();
-    loadDepartments();
   }, [loadPendingApprovals]);
-
-  const loadDepartments = async () => {
-    try {
-      const data = await departmentsAPI.getAllDepartments();
-  // Removed setDepartments, not needed
-      
-      // Load degrees for the selected department (in real app, would be HOD's department)
-      if (data.departments.length > 0) {
-        const deptId = data.departments[0].id; // Use first department for demo
-        const degreesData = await departmentsAPI.getDepartmentDegrees(deptId);
-        setDegrees(degreesData.degrees);
-      }
-    } catch (err) {
-      console.error('Failed to load departments:', err);
-    }
-  };
 
   const toggleGroupExpansion = (groupKey: string) => {
     setExpandedGroups(prev => ({
       ...prev,
       [groupKey]: !prev[groupKey]
     }));
-  };
-
-  const handleEnrollmentSelection = (enrollmentId: string, checked: boolean) => {
-    setSelectedEnrollments(prev => 
-      checked 
-        ? [...prev, enrollmentId]
-        : prev.filter(id => id !== enrollmentId)
-    );
   };
 
   const handleGroupSelection = (group: GroupedEnrollment, checked: boolean) => {
@@ -164,9 +238,8 @@ const EnrollmentApprovalsTab: React.FC = () => {
     if (selectedEnrollments.length === 0) return;
 
     try {
-      await enrollmentAPI.hodDecision({
-        enrollment_ids: selectedEnrollments,
-        action: 'approve'
+      await enrollmentAPI.approveEnrollments({
+        enrollment_ids: selectedEnrollments
       });
       setSuccess('Enrollments approved successfully');
       setSelectedEnrollments([]);
@@ -182,18 +255,61 @@ const EnrollmentApprovalsTab: React.FC = () => {
     if (selectedEnrollments.length === 0 || !rejectionReason.trim()) return;
 
     try {
-      await enrollmentAPI.hodDecision({
+      await enrollmentAPI.rejectEnrollments({
         enrollment_ids: selectedEnrollments,
-        action: 'reject',
         rejection_reason: rejectionReason
       });
-      setSuccess('Enrollments rejected successfully');
+      setSuccess('Enrollments returned to draft status successfully');
       setSelectedEnrollments([]);
       setRejectionDialog(false);
       setRejectionReason('');
       loadPendingApprovals();
     } catch (err) {
       setError('Failed to reject enrollments');
+      console.error(err);
+    }
+  };
+
+  // Individual approval/rejection handlers
+  const handleIndividualApprove = async (group: GroupedEnrollment) => {
+    if (approvalInProgress) return;
+    
+    try {
+      setApprovalInProgress(true);
+      const enrollmentIds = group.enrollments.map(e => e.id);
+      
+      await enrollmentAPI.approveEnrollments({
+        enrollment_ids: enrollmentIds
+      });
+      
+      setSuccess(`Enrollment for ${group.student.first_name} ${group.student.last_name} approved successfully`);
+      loadPendingApprovals();
+    } catch (err) {
+      setError('Failed to approve enrollment');
+      console.error(err);
+    } finally {
+      setApprovalInProgress(false);
+    }
+  };
+
+  const handleIndividualReject = async () => {
+    if (!individualRejectionGroup || !individualRejectionReason.trim()) return;
+    
+    try {
+      const enrollmentIds = individualRejectionGroup.enrollments.map(e => e.id);
+      
+      await enrollmentAPI.rejectEnrollments({
+        enrollment_ids: enrollmentIds,
+        rejection_reason: individualRejectionReason
+      });
+      
+      setSuccess(`Enrollment for ${individualRejectionGroup.student.first_name} ${individualRejectionGroup.student.last_name} returned to draft status successfully`);
+      setIndividualRejectionGroup(null);
+      setIndividualRejectionDialog(false);
+      setIndividualRejectionReason('');
+      loadPendingApprovals();
+    } catch (err) {
+      setError('Failed to reject enrollment');
       console.error(err);
     }
   };
@@ -297,7 +413,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
               startIcon={<RejectIcon />}
               onClick={() => setRejectionDialog(true)}
             >
-              Reject Selected
+              Return to Draft
             </Button>
           </Box>
         </Paper>
@@ -317,7 +433,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
       ) : (
         <Box>
           {pendingApprovals.map((group) => {
-            const groupKey = `${group.student.id}-${group.academic_year}-${group.semester}`;
+            const groupKey = `${group.student.id}-${group.semester}`;
             const isExpanded = expandedGroups[groupKey];
             const isGroupSelected = group.enrollments.every(e => selectedEnrollments.includes(e.id));
             const isPartiallySelected = group.enrollments.some(e => selectedEnrollments.includes(e.id));
@@ -338,10 +454,10 @@ const EnrollmentApprovalsTab: React.FC = () => {
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Student ID: {group.student.student_id} | 
-                          Degree: {group.student.degree.name} ({group.student.degree.code})
+                          Degree: {group.student.degree?.name} ({group.student.degree?.code})
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Academic Year: {group.academic_year} | Semester: {group.semester}
+                          Semester: {group.semester}
                         </Typography>
                       </Box>
                     </Box>
@@ -352,6 +468,29 @@ const EnrollmentApprovalsTab: React.FC = () => {
                         color="primary" 
                         variant="outlined" 
                       />
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent expansion toggling
+                          handleIndividualApprove(group);
+                        }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="error"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent expansion toggling
+                          setIndividualRejectionGroup(group);
+                          setIndividualRejectionDialog(true);
+                        }}
+                      >
+                        Return to Draft
+                      </Button>
                       <IconButton
                         onClick={() => toggleGroupExpansion(groupKey)}
                         size="small"
@@ -367,7 +506,6 @@ const EnrollmentApprovalsTab: React.FC = () => {
                         <Table size="small">
                           <TableHead>
                             <TableRow>
-                              <TableCell>Select</TableCell>
                               <TableCell>Course Code</TableCell>
                               <TableCell>Course Name</TableCell>
                               <TableCell>Credits</TableCell>
@@ -375,22 +513,34 @@ const EnrollmentApprovalsTab: React.FC = () => {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {group.enrollments.map((enrollment) => (
-                              <TableRow key={enrollment.id}>
-                                <TableCell>
-                                  <Checkbox
-                                    checked={selectedEnrollments.includes(enrollment.id)}
-                                    onChange={(e) => handleEnrollmentSelection(enrollment.id, e.target.checked)}
-                                  />
-                                </TableCell>
-                                <TableCell>{enrollment.course.version_code}</TableCell>
-                                <TableCell>{enrollment.course.name}</TableCell>
-                                <TableCell>{enrollment.course.credits}</TableCell>
-                                <TableCell>
-                                  {new Date(enrollment.createdAt).toLocaleDateString()}
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {group.enrollments.map((enrollment) => {
+                              // Handle both single course and multiple courses formats
+                              if (enrollment.courses && enrollment.courses.length > 0) {
+                                // Multiple courses format
+                                return enrollment.courses.map((course: any) => (
+                                  <TableRow key={`${enrollment.id}-${course.id}`}>
+                                    <TableCell>{course.code}</TableCell>
+                                    <TableCell>{course.name}</TableCell>
+                                    <TableCell>{course.credits}</TableCell>
+                                    <TableCell>
+                                      {new Date(enrollment.createdAt).toLocaleDateString()}
+                                    </TableCell>
+                                  </TableRow>
+                                ));
+                              } else {
+                                // Single course format
+                                return (
+                                  <TableRow key={enrollment.id}>
+                                    <TableCell>{enrollment.course?.version_code || enrollment.course?.code || 'N/A'}</TableCell>
+                                    <TableCell>{enrollment.course?.name || 'N/A'}</TableCell>
+                                    <TableCell>{enrollment.course?.credits || 'N/A'}</TableCell>
+                                    <TableCell>
+                                      {new Date(enrollment.createdAt).toLocaleDateString()}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              }
+                            })}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -421,10 +571,10 @@ const EnrollmentApprovalsTab: React.FC = () => {
 
       {/* Rejection Dialog */}
       <Dialog open={rejectionDialog} onClose={() => setRejectionDialog(false)}>
-        <DialogTitle>Reject Enrollments</DialogTitle>
+        <DialogTitle>Return Enrollments to Draft</DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
-            Please provide a reason for rejecting {selectedEnrollments.length} selected enrollment(s):
+            Please provide a reason for returning {selectedEnrollments.length} selected enrollment(s) to draft status:
           </Typography>
           <TextField
             fullWidth
@@ -444,7 +594,49 @@ const EnrollmentApprovalsTab: React.FC = () => {
             color="error"
             disabled={!rejectionReason.trim()}
           >
-            Reject
+            Return to Draft
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Individual Rejection Dialog */}
+      <Dialog open={individualRejectionDialog} onClose={() => setIndividualRejectionDialog(false)}>
+        <DialogTitle>Return Enrollment to Draft</DialogTitle>
+        <DialogContent>
+          {individualRejectionGroup && (
+            <>
+              <Typography gutterBottom>
+                Please provide a reason for returning this enrollment to draft status:
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                {individualRejectionGroup.student.first_name} {individualRejectionGroup.student.last_name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Student ID: {individualRejectionGroup.student.student_id}<br />
+                Semester: {individualRejectionGroup.semester}<br />
+                Courses: {individualRejectionGroup.enrollments.length}
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Rejection Reason"
+                value={individualRejectionReason}
+                onChange={(e) => setIndividualRejectionReason(e.target.value)}
+                sx={{ mt: 2 }}
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIndividualRejectionDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleIndividualReject} 
+            variant="contained" 
+            color="error"
+            disabled={!individualRejectionReason.trim()}
+          >
+            Return to Draft
           </Button>
         </DialogActions>
       </Dialog>

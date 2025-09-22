@@ -114,15 +114,16 @@ const CreateUser: React.FC = () => {
 
   const fetchDegrees = async () => {
     try {
-      const response = await degreesAPI.getDegrees();
-  // Degrees API may return an array or an object like { all: [], degrees: [] }
-  let list: any[] = [];
-  if (Array.isArray(response)) list = response;
-  else if (Array.isArray(response?.data)) list = response.data;
-  else if (Array.isArray(response?.degrees)) list = response.degrees;
-  else if (Array.isArray(response?.all)) list = response.all;
-  else list = response;
-  setDegrees(list || []);
+      // Only fetch active degrees for user assignment
+      const response = await degreesAPI.getDegrees({ status: 'active' });
+      // Degrees API may return an array or an object like { all: [], degrees: [] }
+      let list: any[] = [];
+      if (Array.isArray(response)) list = response;
+      else if (Array.isArray(response?.data)) list = response.data;
+      else if (Array.isArray(response?.degrees)) list = response.degrees;
+      else if (Array.isArray(response?.all)) list = response.all;
+      else list = response;
+      setDegrees(list || []);
     } catch (error) {
       console.error('Error fetching degrees:', error);
     }

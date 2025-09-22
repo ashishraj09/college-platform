@@ -19,11 +19,32 @@ const Enrollment = sequelize.define('Enrollment', {
     type: DataTypes.JSON,
     allowNull: false,
     defaultValue: [],
-    // Array of UUIDs for group enrollment
+    // Array of UUIDs for courses
+    comment: 'Array of course IDs - we store IDs internally but can use codes in API'
+  },
+  course_codes: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      // This is a virtual field that will be populated when needed
+      return [];
+    },
+    set(value) {
+      // This is a placeholder for API compatibility
+      // Actual conversion happens in the routes
+    }
   },
   enrollment_status: {
-    type: DataTypes.ENUM('pending_hod_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
-    defaultValue: 'pending_hod_approval',
+    type: DataTypes.ENUM('draft', 'pending_hod_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
+    defaultValue: 'draft',
+  },
+  is_submitted: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Flag to track if a draft has been submitted for approval'
+  },
+  submitted_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
   hod_approved_by: {
     type: DataTypes.UUID,

@@ -154,4 +154,27 @@ router.delete('/:id', authenticateToken, authorizeRoles('admin'), auditMiddlewar
   }
 });
 
+// Get all degrees for a department
+router.get('/:id/degrees', authenticateToken, async (req, res) => {
+  try {
+    const { Degree } = require('../models');
+    
+    const degrees = await Degree.findAll({
+      where: {
+        department_id: req.params.id,
+        status: ['active', 'draft', 'pending_approval', 'approved'] // Include all valid statuses
+      },
+      order: [['name', 'ASC']]
+    });
+    
+    res.json({ degrees });
+  } catch (error) {
+    console.error('Error fetching department degrees:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch department degrees',
+      message: error.message 
+    });
+  }
+});
+
 module.exports = router;

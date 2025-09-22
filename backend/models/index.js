@@ -3,7 +3,6 @@ const Department = require('./Department');
 const Degree = require('./Degree');
 const Course = require('./Course');
 const Enrollment = require('./Enrollment');
-const EnrollmentDraft = require('./EnrollmentDraft');
 const AuditLog = require('./AuditLog');
 const Message = require('./Message');
 
@@ -99,12 +98,8 @@ Course.belongsTo(User, {
   onUpdate: 'CASCADE'
 });
 
-Course.hasMany(Enrollment, { 
-  foreignKey: 'course_id', 
-  as: 'enrollments' 
-});
-
-// NOTE: Course-Lecturer associations (many-to-many) have been removed
+// UPDATED: Removed direct course-enrollment association
+// Since we're now using course_ids JSON array instead of individual course_id
 
 // Enrollment associations
 Enrollment.belongsTo(User, { 
@@ -114,12 +109,13 @@ Enrollment.belongsTo(User, {
   onUpdate: 'CASCADE'
 });
 
-Enrollment.belongsTo(Course, { 
-  foreignKey: 'course_id', 
-  as: 'course',
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-});
+// REMOVED: Direct Enrollment-Course association
+// Enrollment.belongsTo(Course, { 
+//   foreignKey: 'course_id', 
+//   as: 'course',
+//   onDelete: 'CASCADE',
+//   onUpdate: 'CASCADE'
+// });
 
 Enrollment.belongsTo(User, { 
   foreignKey: 'hod_approved_by', 
@@ -135,23 +131,10 @@ Enrollment.belongsTo(User, {
   onUpdate: 'CASCADE'
 });
 
-// EnrollmentDraft associations
-EnrollmentDraft.belongsTo(User, { 
-  foreignKey: 'student_id', 
-  as: 'student',
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-});
-
 // User reverse associations for enrollments
 User.hasMany(Enrollment, { 
   foreignKey: 'student_id', 
   as: 'enrollments' 
-});
-
-User.hasMany(EnrollmentDraft, { 
-  foreignKey: 'student_id', 
-  as: 'enrollmentDrafts' 
 });
 
 User.hasMany(Course, { 
@@ -188,7 +171,6 @@ module.exports = {
   Degree,
   Course,
   Enrollment,
-  EnrollmentDraft,
   AuditLog,
   Message
 };

@@ -212,7 +212,7 @@ const DepartmentManagementPage: React.FC = () => {
       setRejectDegreeId(null);
       // Reload degrees
       setLoadingDegrees(true);
-      degreesAPI.getDegrees({ departmentId })
+      degreesAPI.getDegrees({ departmentId, status: 'active' })
         .then(data => {
           let degreesArr: any[] = [];
           if (Array.isArray(data)) {

@@ -54,7 +54,6 @@ interface ApprovalItem {
 
 interface PendingEnrollment {
   id: string;
-  academic_year: string;
   semester: number;
   enrollment_status: string;
   createdAt: string;
@@ -161,9 +160,36 @@ const HODApprovalDashboard: React.FC = () => {
         } : null
       }));
       
+      
       setPendingCourses(transformedCourses);
       setPendingDegrees(transformedDegrees);
-      setPendingEnrollments(enrollmentsResponse.pendingApprovals || []);
+      
+      // Transform enrollment data to match PendingEnrollment interface
+      const transformedEnrollments: PendingEnrollment[] = (enrollmentsResponse.pendingApprovals || []).map(enrollment => ({
+        id: enrollment.id,
+        semester: enrollment.semester,
+        enrollment_status: enrollment.enrollment_status,
+        createdAt: enrollment.submitted_at || new Date().toISOString(),
+        student: {
+          id: enrollment.student_id,
+          first_name: '', // These fields need to be populated from elsewhere if needed
+          last_name: '',
+          student_id: enrollment.student_id,
+          degree: {
+            name: '',
+            code: ''
+          }
+        },
+        course: {
+          id: enrollment.courses && enrollment.courses.length > 0 ? enrollment.courses[0].id : '',
+          name: enrollment.courses && enrollment.courses.length > 0 ? enrollment.courses[0].name : '',
+          code: enrollment.courses && enrollment.courses.length > 0 ? enrollment.courses[0].code : '',
+          credits: 0,
+          semester: enrollment.semester
+        }
+      }));
+      
+      setPendingEnrollments(transformedEnrollments);
     } catch (error) {
       console.error('Error loading pending items:', error);
       enqueueSnackbar('Failed to load pending approvals', { variant: 'error' });
@@ -519,7 +545,7 @@ const HODApprovalDashboard: React.FC = () => {
                                 sx={{ mr: 1 }} 
                               />
                               <Chip 
-                                label={enrollment.academic_year} 
+                                label={`Semester ${enrollment.semester}`}
                                 size="small" 
                                 color="primary" 
                                 sx={{ mr: 1 }} 

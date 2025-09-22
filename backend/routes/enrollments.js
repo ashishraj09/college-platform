@@ -1,370 +1,127 @@
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
-const { Enrollment, EnrollmentDraft, Course, User, Department, Degree } = require('../models');
+const { Enrollment, Course, User, Department, Degree } = require('../models');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
+const { isEnrollmentOpen } = require('../utils/enrollment');
 
-// Get student's enrollments
-router.get('/my-enrollments',
-  // authenticateToken, // Temporarily disabled for testing
+// Base route for all enrollments with flexible filtering
+router.get('/',
+  authenticateToken,
   async (req, res) => {
     try {
-      // For testing, we'll use a mock user - in real app this comes from auth token
-      const mockUser = {
-        id: 'aa1f87d8-d895-4f46-a6ba-2157a6154f49',
-        user_type: 'student',
-        department_id: '550e8400-e29b-41d4-a716-446655440001',
-        degree_id: 'c5989675-11a5-4f02-aeee-6d0cacd988aa',
-        enrolled_year: 2024
-      };
-
-      const { academic_year, status } = req.query;
-
-      const whereClause = { student_id: mockUser.id };
-      if (academic_year) whereClause.academic_year = academic_year;
-      if (status) whereClause.enrollment_status = status;
-
+      const { status, semester, student_id } = req.query;
+      
+      // Define current academic year (typically based on the user's enrolled year)
+      const currentAcademicYear = req.user.enrolled_year || new Date().getFullYear();
+      
+      // Build where clause
+      const whereClause = {};
+      
+      // Filter by student ID - default to current user if not an admin
+      if (req.user.user_type === 'admin' && student_id) {
+        whereClause.student_id = student_id;
+      } else {
+        whereClause.student_id = req.user.id;
+      }
+      
+      // Add semester filter (default to user's current semester)
+      if (semester) {
+        whereClause.semester = semester;
+      } else {
+        whereClause.semester = req.user.current_semester;
+      }
+      
+      // Add status filter if provided (can be a single status or a comma-separated list)
+      if (status) {
+        // Check if status is a comma-separated string and convert to array
+        if (typeof status === 'string' && status.includes(',')) {
+          whereClause.enrollment_status = { [Op.in]: status.split(',') };
+        } else if (Array.isArray(status)) {
+          whereClause.enrollment_status = { [Op.in]: status };
+        } else {
+          whereClause.enrollment_status = status;
+        }
+      }
+      
       const enrollments = await Enrollment.findAll({
         where: whereClause,
-        include: [
-          {
-            model: Course,
-            as: 'course',
-            include: [
-              {
-                model: Department,
-                as: 'department',
-                attributes: ['id', 'name', 'code']
-              },
-              {
-                model: Degree,
-                as: 'degree',
-                attributes: ['id', 'name', 'code']
-              }
-            ]
-          },
-          {
-            model: User,
-            as: 'hodApprover',
-            attributes: ['id', 'first_name', 'last_name', 'email'],
-            required: false
-          },
-          {
-            model: User,
-            as: 'officeApprover',
-            attributes: ['id', 'first_name', 'last_name', 'email'],
-            required: false
-          }
-        ],
         order: [['created_at', 'DESC']]
       });
 
-      res.json(enrollments);
+      // Process enrollments to include course details
+      const enrollmentsWithCourses = [];
+      for (const enrollment of enrollments) {
+        // Get course details for all course_ids in the enrollment
+        const courseIds = enrollment.course_ids || [];
+        const courses = await Course.findAll({
+          where: {
+            id: {
+              [Op.in]: courseIds
+            }
+          },
+          attributes: ['id', 'name', 'code']
+        });
+
+        // Create a new object with enrollment and course details
+        enrollmentsWithCourses.push({
+          ...enrollment.get({ plain: true }),
+          courses: courses.map(course => ({
+            id: course.id,
+            name: course.name,
+            code: course.code
+          }))
+        });
+      }
+      
+      // Check if there's a draft enrollment for the current semester
+      const hasDraft = enrollmentsWithCourses.some(e => 
+        e.enrollment_status === 'draft' && 
+        e.academic_year === currentAcademicYear && 
+        e.semester === req.user.current_semester
+      );
+      
+      // Check if there are any active enrollments in the approval pipeline
+      const hasActiveEnrollment = enrollmentsWithCourses.some(e => 
+        ['pending_hod_approval'].includes(e.enrollment_status) &&
+        e.academic_year === currentAcademicYear && 
+        e.semester === req.user.current_semester
+      );
+
+      res.json({
+        enrollments: enrollmentsWithCourses,
+        currentSemester: req.user.current_semester,
+        hasDraft,
+        hasActiveEnrollment
+      });
     } catch (error) {
-      console.error('Error fetching student enrollments:', error);
+      console.error('Error fetching enrollments:', error);
       res.status(500).json({ error: 'Failed to fetch enrollments' });
     }
   }
 );
 
-// Get student's degree courses by semester
-router.get('/my-degree-courses',
-  // authenticateToken, // Temporarily disabled for testing  
-  async (req, res) => {
-    try {
-      // For testing, we'll use a mock user - in real app this comes from auth token
-      const mockUser = {
-        id: 'aa1f87d8-d895-4f46-a6ba-2157a6154f49',
-        user_type: 'student',
-        department_id: '550e8400-e29b-41d4-a716-446655440001',
-        degree_id: 'c5989675-11a5-4f02-aeee-6d0cacd988aa',
-        enrolled_year: 2024,
-        current_semester: 3 // Add current semester to mock user
-      };
-
-      const { semester } = req.query;
-
-      // Get user's degree information
-      const user = await User.findByPk(mockUser.id, {
-        include: [
-          {
-            model: Degree,
-            as: 'degree',
-            include: [
-              {
-                model: Department,
-                as: 'department'
-              }
-            ]
-          }
-        ]
-      });
-
-      if (!user || !user.degree) {
-        return res.status(400).json({ error: 'Student degree information not found' });
-      }
-
-      // Get courses for the student's degree (all semesters)
-      const whereClause = {
-        degree_id: user.degree.id,
-        status: 'active'
-        // Remove semester filter to get all courses
-      };
-
-      const courses = await Course.findAll({
-        where: whereClause,
-        include: [
-          {
-            model: Department,
-            as: 'department',
-            attributes: ['id', 'name', 'code']
-          },
-          {
-            model: Degree,
-            as: 'degree',
-            attributes: ['id', 'name', 'code']
-          },
-          {
-            model: User,
-            as: 'creator',
-            attributes: ['id', 'first_name', 'last_name', 'email']
-          }
-        ],
-        order: [['semester', 'ASC'], ['name', 'ASC']]
-      });
-
-      // Get student's existing enrollments to mark already enrolled courses
-      const existingEnrollments = await Enrollment.findAll({
-        where: { 
-          student_id: mockUser.id,
-          enrollment_status: ['pending_hod_approval', 'pending_office_approval', 'approved', 'rejected']
-        },
-        attributes: ['course_id', 'enrollment_status', 'rejection_reason', 'hod_approved_at', 'office_approved_at']
-      });
-
-      const enrolledCourseIds = existingEnrollments
-        .filter(e => e.enrollment_status !== 'rejected')
-        .map(e => e.course_id);
-
-      // Add enrollment status to courses
-      const coursesWithEnrollmentStatus = courses.map(course => {
-        const enrollment = existingEnrollments.find(e => e.course_id === course.id);
-        return {
-          ...course.toJSON(),
-          isEnrolled: enrolledCourseIds.includes(course.id),
-          enrollmentStatus: enrollment?.enrollment_status || null,
-          rejectionReason: enrollment?.rejection_reason || null,
-          conversationMessages: [], // Empty array since this column doesn't exist yet
-          hodApprovedAt: enrollment?.hod_approved_at || null,
-          officeApprovedAt: enrollment?.office_approved_at || null
-        };
-      });
-
-      res.json({
-        degree: user.degree,
-        student: {
-          current_semester: mockUser.current_semester,
-          enrolled_year: mockUser.enrolled_year
-        },
-        courses: coursesWithEnrollmentStatus,
-        enrollment_start_at: user.degree.enrollment_start_dates?.[mockUser.current_semester?.toString()] || null,
-        enrollment_end_at: user.degree.enrollment_end_dates?.[mockUser.current_semester?.toString()] || null
-      });
-    } catch (error) {
-      console.error('Error fetching degree courses:', error);
-      res.status(500).json({ error: 'Failed to fetch degree courses' });
-    }
-  }
-);
-
-// Create enrollment request
-router.post('/enroll',
-  [
-    body('course_ids').isArray({ min: 1 }).withMessage('At least one course must be selected'),
-    body('course_ids.*').isUUID().withMessage('Invalid course ID'),
-    body('academic_year').matches(/^\d{4}-\d{4}$/).withMessage('Academic year must be in format YYYY-YYYY'),
-    body('semester').isInt({ min: 1, max: 2 }).withMessage('Semester must be 1 or 2'),
-    handleValidationErrors
-  ],
-  async (req, res) => {
-    try {
-      // For testing, we'll use a mock user - in real app this comes from auth token
-      const mockUser = {
-        id: 'aa1f87d8-d895-4f46-a6ba-2157a6154f49',
-        user_type: 'student',
-        department_id: '550e8400-e29b-41d4-a716-446655440001',
-        degree_id: 'c5989675-11a5-4f02-aeee-6d0cacd988aa',
-        enrolled_year: 2024
-      };
-
-      const { course_ids, academic_year, semester } = req.body;
-
-      // Check if courses exist and are active
-      const courses = await Course.findAll({
-        where: {
-          id: { [Op.in]: course_ids },
-          status: 'active'
-        },
-        include: [
-          {
-            model: Department,
-            as: 'department'
-          }
-        ]
-      });
-
-      if (courses.length !== course_ids.length) {
-        return res.status(400).json({ error: 'One or more courses not found or not active' });
-      }
-
-      // Check for existing enrollments
-      const existingEnrollments = await Enrollment.findAll({
-        where: {
-          student_id: mockUser.id,
-          course_id: { [Op.in]: course_ids },
-          academic_year,
-          semester
-        }
-      });
-
-      if (existingEnrollments.length > 0) {
-        return res.status(400).json({ 
-          error: 'Already enrolled or have pending enrollment for one or more courses',
-          existing: existingEnrollments.map(e => e.course_id)
-        });
-      }
-
-      // Create enrollment records
-      const enrollmentData = course_ids.map(course_id => ({
-        student_id: mockUser.id,
-        course_id,
-        academic_year,
-        semester,
-        enrollment_status: 'pending_hod_approval'
-      }));
-
-      const newEnrollments = await Enrollment.bulkCreate(enrollmentData);
-
-      // Fetch created enrollments with course details
-      const enrollments = await Enrollment.findAll({
-        where: { 
-          id: { [Op.in]: newEnrollments.map(e => e.id) }
-        },
-        include: [
-          {
-            model: Course,
-            as: 'course',
-            include: [
-              {
-                model: Department,
-                as: 'department',
-                attributes: ['id', 'name', 'code']
-              },
-              {
-                model: Degree,
-                as: 'degree',
-                attributes: ['id', 'name', 'code']
-              }
-            ]
-          }
-        ]
-      });
-
-      res.status(201).json({
-        message: `Successfully submitted enrollment request for ${course_ids.length} courses`,
-        enrollments
-      });
-    } catch (error) {
-      console.error('Error creating enrollments:', error);
-      res.status(500).json({ error: 'Failed to create enrollment requests' });
-    }
-  }
-);
-
-// Get all university courses organized by department and degree
-router.get('/university-courses',
-  async (req, res) => {
-    try {
-      const { department_id } = req.query;
-
-      // Get departments with degrees and courses
-      const whereClause = {};
-      if (department_id) whereClause.id = department_id;
-
-      const departments = await Department.findAll({
-        where: whereClause,
-        include: [
-          {
-            model: Degree,
-            as: 'degrees',
-            where: { status: 'active' },
-            required: false,
-            include: [
-              {
-                model: Course,
-                as: 'courses',
-                where: { status: 'active' },
-                required: false,
-                include: [
-                  {
-                    model: User,
-                    as: 'creator',
-                    attributes: ['id', 'first_name', 'last_name']
-                  }
-                ]
-              }
-            ]
-          }
-        ],
-        order: [
-          ['name', 'ASC'],
-          [{ model: Degree, as: 'degrees' }, 'name', 'ASC'],
-          [{ model: Degree, as: 'degrees' }, { model: Course, as: 'courses' }, 'semester', 'ASC'],
-          [{ model: Degree, as: 'degrees' }, { model: Course, as: 'courses' }, 'name', 'ASC']
-        ]
-      });
-
-      res.json(departments);
-    } catch (error) {
-      console.error('Error fetching university courses:', error);
-      res.status(500).json({ error: 'Failed to fetch university courses' });
-    }
-  }
-);
-
-// Get or create enrollment draft for current semester
+// UPDATED: Get enrollment draft for current semester (doesn't create automatically)
 router.get('/draft',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
     try {
-      const mockUser = {
-        id: 'aa1f87d8-d895-4f46-a6ba-2157a6154f49',
-        current_semester: 3
-      };
-
-      const currentYear = new Date().getFullYear();
-      const academicYear = `${currentYear}-${currentYear + 1}`;
-
-      let draft = await EnrollmentDraft.findOne({
+      let draft = await Enrollment.findOne({
         where: {
-          student_id: mockUser.id,
-          academic_year: academicYear,
-          semester: mockUser.current_semester
+          student_id: req.user.id,
+          semester: req.user.current_semester,
+          enrollment_status: 'draft'
         }
       });
 
+      // No longer automatically creating a draft
       if (!draft) {
-        draft = await EnrollmentDraft.create({
-          student_id: mockUser.id,
-          academic_year: academicYear,
-          semester: mockUser.current_semester,
-          course_ids: []
-        });
+        return res.json({ exists: false, message: 'No draft exists yet' });
       }
 
-      res.json(draft);
+      res.json({ exists: true, draft });
     } catch (error) {
       console.error('Error fetching enrollment draft:', error);
       res.status(500).json({ error: 'Failed to fetch enrollment draft' });
@@ -372,61 +129,66 @@ router.get('/draft',
   }
 );
 
-// Save enrollment draft (can be called multiple times)
+// UPDATED: Save enrollment draft (can be called multiple times)
 router.put('/draft',
   [
     body('course_ids').isArray().withMessage('Course IDs must be an array'),
     body('course_ids.*').isUUID().withMessage('Invalid course ID'),
     handleValidationErrors
   ],
+  authenticateToken,
   async (req, res) => {
     try {
-      const mockUser = {
-        id: 'aa1f87d8-d895-4f46-a6ba-2157a6154f49',
-        current_semester: 3
-      };
-
       const { course_ids } = req.body;
       const currentYear = new Date().getFullYear();
       const academicYear = `${currentYear}-${currentYear + 1}`;
 
+      // Check if enrollment window is open
+      const enrollmentOpen = await isEnrollmentOpen(req.user);
+      if (!enrollmentOpen) {
+        return res.status(400).json({ 
+          error: 'Enrollment window is currently closed. Please check back during the enrollment period.' 
+        });
+      }
+
       // Find or create draft
-      let draft = await EnrollmentDraft.findOne({
+      let draft = await Enrollment.findOne({
         where: {
-          student_id: mockUser.id,
+          student_id: req.user.id,
           academic_year: academicYear,
-          semester: mockUser.current_semester
+          semester: req.user.current_semester,
+          enrollment_status: 'draft'
         }
       });
 
       if (!draft) {
-        draft = await EnrollmentDraft.create({
-          student_id: mockUser.id,
+        draft = await Enrollment.create({
+          student_id: req.user.id,
           academic_year: academicYear,
-          semester: mockUser.current_semester,
+          semester: req.user.current_semester,
           course_ids: course_ids,
-          is_submitted: false
+          enrollment_status: 'draft'
         });
       } else {
         // Allow updates if:
-        // 1. Not submitted yet, OR
+        // 1. Status is draft, OR
         // 2. Previous submission was rejected (allow resubmission)
-        const hasRejectedEnrollments = await Enrollment.findOne({
+        const hasRejectedEnrollment = await Enrollment.findOne({
           where: {
-            student_id: mockUser.id,
+            student_id: req.user.id,
             academic_year: academicYear,
-            semester: mockUser.current_semester,
+            semester: req.user.current_semester,
             enrollment_status: 'rejected'
           }
         });
 
-        if (!draft.is_submitted || hasRejectedEnrollments) {
+        if (draft.enrollment_status === 'draft' || hasRejectedEnrollment) {
           await draft.update({
             course_ids: course_ids,
-            is_submitted: false // Reset submission status for resubmission
+            enrollment_status: 'draft' // Reset status for resubmission
           });
         } else {
-          return res.status(400).json({ error: 'Cannot modify submitted enrollment that is still under review' });
+          return res.status(400).json({ error: 'Cannot modify enrollment that is still under review' });
         }
       }
 
@@ -438,25 +200,28 @@ router.put('/draft',
   }
 );
 
-// Submit enrollment draft to HOD
+// UPDATED: Submit enrollment draft to HOD
 router.post('/draft/submit',
-  // authenticateToken, // Temporarily disabled for testing
+  authenticateToken,
   async (req, res) => {
     try {
-      const mockUser = {
-        id: 'aa1f87d8-d895-4f46-a6ba-2157a6154f49',
-        current_semester: 3
-      };
-
       const currentYear = new Date().getFullYear();
       const academicYear = `${currentYear}-${currentYear + 1}`;
+
+      // Check if enrollment window is open
+      const enrollmentOpen = await isEnrollmentOpen(req.user);
+      if (!enrollmentOpen) {
+        return res.status(400).json({ 
+          error: 'Enrollment window is currently closed. Please check back during the enrollment period.' 
+        });
+      }
 
       // Check if student already has active enrollment requests
       const activeEnrollments = await Enrollment.findAll({
         where: {
-          student_id: mockUser.id,
+          student_id: req.user.id,
           academic_year: academicYear,
-          semester: mockUser.current_semester,
+          semester: req.user.current_semester,
           enrollment_status: ['pending_hod_approval', 'pending_office_approval']
         }
       });
@@ -468,11 +233,12 @@ router.post('/draft/submit',
         });
       }
 
-      const draft = await EnrollmentDraft.findOne({
+      const draft = await Enrollment.findOne({
         where: {
-          student_id: mockUser.id,
+          student_id: req.user.id,
           academic_year: academicYear,
-          semester: mockUser.current_semester
+          semester: req.user.current_semester,
+          enrollment_status: 'draft'
         }
       });
 
@@ -480,52 +246,19 @@ router.post('/draft/submit',
         return res.status(404).json({ error: 'No draft found' });
       }
 
-      if (draft.is_submitted) {
-        return res.status(400).json({ error: 'Draft already submitted' });
+      if (draft.enrollment_status !== 'draft') {
+        return res.status(400).json({ error: 'This enrollment is not in draft status' });
       }
 
       if (!draft.course_ids || draft.course_ids.length === 0) {
         return res.status(400).json({ error: 'No courses selected' });
       }
 
-      // Create or update enrollment records with pending status
-      const enrollmentPromises = draft.course_ids.map(async (courseId) => {
-        // Check if enrollment already exists
-        const existingEnrollment = await Enrollment.findOne({
-          where: {
-            student_id: mockUser.id,
-            course_id: courseId,
-            academic_year: academicYear,
-            semester: mockUser.current_semester
-          }
-        });
-
-        if (existingEnrollment) {
-          // Update existing enrollment (e.g., resubmitting after rejection)
-          return await existingEnrollment.update({
-            enrollment_status: 'pending_hod_approval',
-            rejection_reason: null, // Clear any previous rejection reason
-            hod_approved_by: null,
-            hod_approved_at: null
-          });
-        } else {
-          // Create new enrollment
-          return await Enrollment.create({
-            student_id: mockUser.id,
-            course_id: courseId,
-            academic_year: academicYear,
-            semester: mockUser.current_semester,
-            enrollment_status: 'pending_hod_approval'
-          });
-        }
-      });
-
-      await Promise.all(enrollmentPromises);
-
-      // Mark draft as submitted
+      // Update enrollment record to pending_hod_approval status
       await draft.update({
-        is_submitted: true,
-        submitted_at: new Date()
+        enrollment_status: 'pending_hod_approval',
+        submitted_at: new Date(),
+        rejection_reason: null // Clear any previous rejection reason
       });
 
       res.json({ message: 'Enrollment submitted for HOD approval' });
@@ -536,182 +269,149 @@ router.post('/draft/submit',
   }
 );
 
-// Check if student has active enrollment requests
-router.get('/active-status',
-  // authenticateToken, // Temporarily disabled for testing
+// Get courses available for the student's degree
+router.get('/my-degree-courses',
+  authenticateToken,
   async (req, res) => {
     try {
-      const mockUser = {
-        id: 'aa1f87d8-d895-4f46-a6ba-2157a6154f49',
-        current_semester: 3
-      };
+      const { academic_year, semester } = req.query;
+      
+      if (!req.user.degree_id) {
+        return res.status(400).json({ error: 'User does not have an assigned degree' });
+      }
 
-      const currentYear = new Date().getFullYear();
-      const academicYear = `${currentYear}-${currentYear + 1}`;
-
-      // Check for active enrollment requests
-      const activeEnrollments = await Enrollment.findAll({
-        where: {
-          student_id: mockUser.id,
-          academic_year: academicYear,
-          semester: mockUser.current_semester,
-          enrollment_status: ['pending_hod_approval', 'pending_office_approval']
-        },
+      // Get degree information
+      const degree = await Degree.findByPk(req.user.degree_id, {
         include: [
           {
-            model: Course,
-            as: 'course',
-            attributes: ['name', 'code', 'credits']
+            model: Department,
+            as: 'department',
+            attributes: ['id', 'name', 'code']
           }
         ]
       });
 
-      const hasActiveEnrollment = activeEnrollments.length > 0;
-
-      res.json({
-        hasActiveEnrollment,
-        activeEnrollments: activeEnrollments.map(enrollment => ({
-          id: enrollment.id,
-          courseId: enrollment.course_id,
-          courseName: enrollment.Course.name,
-          courseCode: enrollment.Course.code,
-          status: enrollment.enrollment_status,
-          submittedAt: enrollment.created_at
-        })),
-        count: activeEnrollments.length
-      });
-    } catch (error) {
-      console.error('Error checking active enrollment status:', error);
-      res.status(500).json({ error: 'Failed to check enrollment status' });
-    }
-  }
-);
-
-// HOD endpoints for enrollment approval
-router.get('/pending-approvals',
-  // authenticateToken, // Temporarily disabled for testing
-  async (req, res) => {
-    try {
-      const mockHOD = {
-        id: '550e8400-e29b-41d4-a716-446655440002', // Valid UUID for mock HOD
-        department_id: '550e8400-e29b-41d4-a716-446655440001'
-      };
-
-      const { degree_id, semester, search } = req.query;
+      if (!degree) {
+        return res.status(404).json({ error: 'Degree not found' });
+      }
 
       const whereClause = {
-        enrollment_status: 'pending_hod_approval'
+        degree_id: req.user.degree_id,
+        status: 'active'
       };
 
-      const includeClause = [
-        {
-          model: User,
-          as: 'student',
-          where: {
-            department_id: mockHOD.department_id
-          },
-          include: [
-            {
-              model: Degree,
-              as: 'degree',
-              ...(degree_id && { where: { id: degree_id } })
-            }
-          ]
-        },
-        {
-          model: Course,
-          as: 'course',
-          ...(semester && { where: { semester: parseInt(semester) } })
-        }
-      ];
+      if (academic_year) whereClause.academic_year = academic_year;
+      if (semester) whereClause.semester = semester;
 
-      // Add search filter if provided
-      if (search) {
-        includeClause[0].where = {
-          ...includeClause[0].where,
-          [Op.or]: [
-            { first_name: { [Op.iLike]: `%${search}%` } },
-            { last_name: { [Op.iLike]: `%${search}%` } },
-            { student_id: { [Op.iLike]: `%${search}%` } }
-          ]
-        };
-      }
-
-      const pendingEnrollments = await Enrollment.findAll({
+      const courses = await Course.findAll({
         where: whereClause,
-        include: includeClause,
-        order: [
-          ['createdAt', 'ASC'],
-          [{ model: User, as: 'student' }, 'first_name', 'ASC']
-        ]
+        include: [
+          {
+            model: Department,
+            as: 'department',
+            attributes: ['id', 'name', 'code']
+          }
+        ],
+        order: [['code', 'ASC']]
       });
 
-      // Group by student and academic year/semester
-      const groupedEnrollments = pendingEnrollments.reduce((acc, enrollment) => {
-        const key = `${enrollment.student.id}-${enrollment.academic_year}-${enrollment.semester}`;
-        if (!acc[key]) {
-          acc[key] = {
-            student: enrollment.student,
-            academic_year: enrollment.academic_year,
-            semester: enrollment.semester,
-            enrollments: []
-          };
-        }
-        acc[key].enrollments.push(enrollment);
-        return acc;
-      }, {});
+      const currentYear = new Date().getFullYear();
+      const academicYear = `${currentYear}-${currentYear + 1}`;
+      
+      // Get semester-specific enrollment dates from degree configuration
+      const semesterStr = req.user.current_semester.toString();
+      const semesterConfig = degree.courses_per_semester?.[semesterStr];
+      
+      // Format the response to match the expected DegreeCourses structure
+      const response = {
+        degree: {
+          id: degree.id,
+          name: degree.name,
+          code: degree.code,
+          duration_years: degree.duration_years,
+          courses_per_semester: degree.courses_per_semester,
+          department: degree.department
+        },
+        student: {
+          current_semester: req.user.current_semester,
+          enrolled_year: req.user.enrolled_year
+        },
+        courses: courses,
+        enrollment_start_at: semesterConfig?.enrollment_start || null,
+        enrollment_end_at: semesterConfig?.enrollment_end || null
+      };
 
-      res.json({
-        pendingApprovals: Object.values(groupedEnrollments)
-      });
+      res.json(response);
     } catch (error) {
-      console.error('Error fetching pending approvals:', error);
-      res.status(500).json({ error: 'Failed to fetch pending approvals' });
+      console.error('Error fetching degree courses:', error);
+      res.status(500).json({ error: 'Failed to fetch degree courses' });
     }
   }
 );
 
-// HOD approve/reject enrollment
-router.post('/hod-decision',
-  [
-    body('enrollment_ids').isArray({ min: 1 }).withMessage('At least one enrollment must be selected'),
-    body('enrollment_ids.*').isUUID().withMessage('Invalid enrollment ID'),
-    body('action').isIn(['approve', 'reject']).withMessage('Action must be approve or reject'),
-    body('rejection_reason').optional().isLength({ min: 1 }).withMessage('Rejection reason required when rejecting'),
-    handleValidationErrors
-  ],
+// Get user's enrollments with optional status filter
+router.get('/my-enrollments',
+  authenticateToken,
   async (req, res) => {
     try {
-      const mockHOD = {
-        id: '550e8400-e29b-41d4-a716-446655440002' // Valid UUID for mock HOD
+      const { status, academic_year, semester } = req.query;
+      const currentYear = new Date().getFullYear();
+      const currentAcademicYear = `${currentYear}-${currentYear + 1}`;
+      
+      // Build where clause
+      const whereClause = {
+        student_id: req.user.id,
+        academic_year: academic_year || currentAcademicYear,
+        semester: semester || req.user.current_semester
       };
+      
+      // Add status filter if provided (can be a single status or an array)
+      if (status) {
+        if (Array.isArray(status)) {
+          whereClause.enrollment_status = { [Op.in]: status };
+        } else {
+          whereClause.enrollment_status = status;
+        }
+      }
+      
+      const enrollments = await Enrollment.findAll({
+        where: whereClause,
+        order: [['created_at', 'DESC']]
+      });
 
-      const { enrollment_ids, action, rejection_reason } = req.body;
+      // Process enrollments to include course details
+      const enrollmentsWithCourses = [];
+      for (const enrollment of enrollments) {
+        // Get course details for all course_ids in the enrollment
+        const courseIds = enrollment.course_ids || [];
+        const courses = await Course.findAll({
+          where: {
+            id: {
+              [Op.in]: courseIds
+            }
+          },
+          attributes: ['id', 'name', 'code']
+        });
 
-      const updateData = {
-        hod_approved_at: new Date()
-      };
-
-      if (action === 'approve') {
-        updateData.enrollment_status = 'pending_office_approval';
-      } else {
-        updateData.enrollment_status = 'rejected';
-        updateData.rejection_reason = rejection_reason;
+        // Create a new object with enrollment and course details
+        enrollmentsWithCourses.push({
+          ...enrollment.get({ plain: true }),
+          courses: courses.map(course => ({
+            id: course.id,
+            name: course.name,
+            code: course.code
+          }))
+        });
       }
 
-      await Enrollment.update(updateData, {
-        where: {
-          id: { [Op.in]: enrollment_ids },
-          enrollment_status: 'pending_hod_approval'
-        }
-      });
-
-      res.json({ 
-        message: `Enrollments ${action}${action === 'approve' ? 'd' : 'ed'} successfully` 
+      res.json({
+        enrollments: enrollmentsWithCourses,
+        count: enrollmentsWithCourses.length,
+        hasActiveEnrollment: enrollmentsWithCourses.length > 0
       });
     } catch (error) {
-      console.error('Error processing HOD decision:', error);
-      res.status(500).json({ error: 'Failed to process decision' });
+      console.error('Error fetching enrollments:', error);
+      res.status(500).json({ error: 'Failed to fetch enrollments' });
     }
   }
 );
