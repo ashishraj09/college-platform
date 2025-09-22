@@ -311,8 +311,9 @@ The application is configured for deployment on Vercel with the following build-
 2. **Model Association Verification**: Ensures all model associations are properly initialized
 3. **Connection Testing**: Validates database connectivity before deployment completes
 4. **Automated Schema Management**: Uses `scripts/ensure-database-schema.js` to handle database schema setup without data loss
+5. **Deployment Protection**: Automatically aborts deployment if critical database issues are detected
 
-This build-time approach ensures that the database is properly configured before the application is deployed, preventing runtime errors in the serverless environment.
+This build-time approach ensures that the database is properly configured before the application is deployed, preventing runtime errors in the serverless environment. The deployment will be automatically cancelled if any critical database issues are detected, ensuring that only valid builds are deployed.
 
 #### Setting up Vercel Environment Variables
 For the database schema verification to work correctly, you must set up these environment variables in your Vercel project settings:

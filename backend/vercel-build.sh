@@ -66,7 +66,15 @@ echo "DB_USER: ${DB_USER:0:1}*****"
 echo "DB_SSL: ${DB_SSL}"
 echo "DB_DIALECT: ${DB_DIALECT:-postgres}"
 echo "Running ensure-database-schema.js to verify database schema..."
-node scripts/ensure-database-schema.js
+
+# Run the schema verification
+if node scripts/ensure-database-schema.js; then
+  echo "✅ Schema verification completed successfully."
+else
+  echo "❌ Schema verification failed! Aborting deployment."
+  echo "Please check database configuration and ensure connectivity."
+  exit 1  # Exit with error code to prevent deployment
+fi
 
 echo "====== BUILD COMPLETED SUCCESSFULLY ======"
 echo "All required dependencies installed and verified"
