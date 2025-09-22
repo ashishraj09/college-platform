@@ -159,28 +159,60 @@ app.get('/health', async (req, res) => {
     // Try to connect to the database
     let dbStatus = 'disconnected';
     let dbMessage = null;
+    let dbDetails = null;
     
     try {
       // Use the correct method depending on environment
       const db = sequelize || await getSequelize();
       
       // Test database connection with a simple query
-      await db.query('SELECT 1');
+      const [result] = await db.query('SELECT 1 as connected, current_timestamp as time');
       dbStatus = 'connected';
       dbMessage = 'Database connection successful';
+      dbDetails = {
+        dialect: db.getDialect(),
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT,
+        database: process.env.DB_NAME,
+        ssl_enabled: process.env.DB_SSL === 'true' ? 'true' : 'false',
+        ssl_active: db.config.dialectOptions?.ssl ? 'true' : 'false',
+        time: result[0]?.time
+      };
     } catch (dbError) {
       dbStatus = 'disconnected';
       dbMessage = dbError.message;
+      dbDetails = {
+        error: dbError.name,
+        stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+      };
     }
+    
+    // Get CORS configuration info
+    const corsInfo = {
+      frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+      allowedOrigins: corsOptions.origin,
+      currentHost: req.headers.host,
+      requestOrigin: req.headers.origin
+    };
+    
+    // Get server info
+    const serverInfo = {
+      nodeEnv: process.env.NODE_ENV,
+      port: PORT,
+      isVercel: !!process.env.VERCEL
+    };
     
     // Prepare and send response
     const healthData = {
       status: 'OK',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
+      server: serverInfo,
+      cors: corsInfo,
       database: {
         status: dbStatus,
-        message: dbMessage
+        message: dbMessage,
+        details: dbDetails
       }
     };
     
@@ -190,7 +222,8 @@ app.get('/health', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       status: 'ERROR',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -275,7 +308,7 @@ const startServer = async () => {
       app.listen(PORT, () => {
         console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
         console.log(`📊 Database connection: ${process.env.DB_DIALECT}://${process.env.DB_USER}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
-        console.log(`🔒 SSL Enabled: ${process.env.DB_SSL}`);
+        console.log(`🔒 SSL Enabled: ${process.env.DB_SSL === 'true' ? 'Yes' : 'No'}`);
       });
     }
   } catch (error) {

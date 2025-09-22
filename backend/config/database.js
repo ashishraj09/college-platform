@@ -26,7 +26,7 @@ const initializeSequelize = async () => {
       dialect: process.env.DB_DIALECT || 'postgres',
       dialectModule: pg, // Explicitly provide the pg module
       dialectOptions: {
-        ...(process.env.NODE_ENV === 'production' && process.env.DB_SSL === 'true' ? {
+        ...(process.env.DB_SSL === 'true' ? {
           ssl: {
             require: true,
             rejectUnauthorized: false,
@@ -129,6 +129,15 @@ if (process.env.NODE_ENV !== 'production') {
       password: process.env.DB_PASSWORD,
       dialect: process.env.DB_DIALECT || 'postgres',
       dialectModule: pg,
+      dialectOptions: {
+        ...(process.env.DB_SSL === 'true' ? {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false,
+          },
+        } : {}),
+        connectTimeout: 60000,
+      },
       logging: true,
       pool: {
         max: 10,
