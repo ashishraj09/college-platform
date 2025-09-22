@@ -70,9 +70,9 @@ router.post('/register',
       } = req.body;
 
       // Check if user already exists
-  const User = getModel('User');
-  const Department = getModel('Department');
-  const Degree = getModel('Degree');
+  const User = await getModel('User');
+  const Department = await getModel('Department');
+  const Degree = await getModel('Degree');
 
   const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
@@ -168,9 +168,9 @@ router.post('/login',
       const { email, password } = req.body;
 
       // Find user with related data
-      const User = getModel('User');
-      const Department = getModel('Department');
-      const Degree = getModel('Degree');
+      const User = await getModel('User');
+      const Department = await getModel('Department');
+      const Degree = await getModel('Degree');
 
       const user = await User.findOne({
         where: { email },
@@ -242,7 +242,7 @@ router.post('/forgot-password',
     try {
       const { email } = req.body;
 
-  const User = getModel('User');
+  const User = await getModel('User');
   const user = await User.findOne({ where: { email } });
       
       // Always return success to prevent email enumeration
@@ -505,9 +505,9 @@ router.post('/create-demo-users', async (req, res) => {
 // Get current authenticated user's profile
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const User = getModel('User');
-    const Department = getModel('Department');
-    const Degree = getModel('Degree');
+  const User = await getModel('User');
+  const Department = await getModel('Department');
+  const Degree = await getModel('Degree');
     const userId = req.user.id;
     const user = await User.findByPk(userId, {
       attributes: { exclude: ['password'] },

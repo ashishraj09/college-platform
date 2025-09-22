@@ -1,7 +1,12 @@
 // Utility to always get the correct, initialized Sequelize model instance
-const { sequelize } = require('../config/database');
+const { getSequelize } = require('../config/database');
 
-function getModel(name) {
+/**
+ * Returns a promise that resolves to the requested model from the initialized Sequelize instance.
+ * Usage: const User = await getModel('User');
+ */
+async function getModel(name) {
+  const sequelize = await getSequelize();
   if (!sequelize || !sequelize.models[name]) {
     throw new Error(`Model '${name}' is not initialized or does not exist.`);
   }
