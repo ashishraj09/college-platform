@@ -103,13 +103,46 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('combined'));
 }
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-  });
+// Health check endpoint with database connection test
+app.get('/health', async (req, res) => {
+  try {
+    // Try to connect to the database
+    let dbStatus = 'disconnected';
+    let dbMessage = null;
+    
+    try {
+      // Use the correct method depending on environment
+      const db = sequelize || await getSequelize();
+      
+      // Test database connection with a simple query
+      await db.query('SELECT 1');
+      dbStatus = 'connected';
+      dbMessage = 'Database connection successful';
+    } catch (dbError) {
+      dbStatus = 'disconnected';
+      dbMessage = dbError.message;
+    }
+    
+    // Prepare and send response
+    const healthData = {
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      database: {
+        status: dbStatus,
+        message: dbMessage
+      }
+    };
+    
+    // If database is not connected, use 503 status code
+    const statusCode = dbStatus === 'connected' ? 200 : 503;
+    res.status(statusCode).json(healthData);
+  } catch (error) {
+    res.status(500).json({
+      status: 'ERROR',
+      error: error.message
+    });
+  }
 });
 
 // API routes

@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { sequelize, defineModel } = require('../config/database');
 
-const Department = sequelize.define('Department', {
+const Department = defineModel('Department', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,

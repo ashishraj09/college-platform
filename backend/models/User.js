@@ -1,7 +1,8 @@
 const { DataTypes, Op } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { sequelize, defineModel } = require('../config/database');
 
-const User = sequelize.define('User', {
+// Use the proper adapter approach that works in both environments
+const User = defineModel('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -177,5 +178,7 @@ const User = sequelize.define('User', {
     },
   },
 });
+
+module.exports = User;
 
 module.exports = User;

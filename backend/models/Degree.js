@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { sequelize, defineModel } = require('../config/database');
 
-const Degree = sequelize.define('Degree', {
+const Degree = defineModel('Degree', {
   comments: {
     type: DataTypes.JSON,
     allowNull: true,
