@@ -13,6 +13,7 @@ const api = axios.create({
 });
 
 // Request interceptor to add dev bypass header only
+// Centralized request interceptor to attach JWT access token
 api.interceptors.request.use(
   (config) => {
     // Add dev bypass header if enabled
@@ -22,11 +23,14 @@ api.interceptors.request.use(
     ) {
       config.headers['X-Dev-Bypass-Auth'] = 'true';
     }
+    // Attach JWT access token if present
+    const accessToken = localStorage.getItem('accessToken');
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`;
+    }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor for handling auth errors
