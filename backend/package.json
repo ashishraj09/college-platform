@@ -11,7 +11,8 @@
     "seed": "node seeders/seed.js",
     "db:migrate": "node migrations/migrate.js",
     "test:data:create": "node scripts/test-data.js",
-    "test:data:update": "node scripts/test-data.js update"
+    "test:data:update": "node scripts/test-data.js update",
+    "vercel-build": "chmod +x ./vercel-build.sh && ./vercel-build.sh"
   },
   "keywords": [
     "nodejs",
