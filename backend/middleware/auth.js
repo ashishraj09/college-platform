@@ -1,11 +1,12 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, initializeAssociations } = require('../models');
 
 const authenticateToken = async (req, res, next) => {
   // Dev mode bypass: if header X-Dev-Bypass-Auth is true, skip auth
   if (process.env.NODE_ENV === 'development' && req.headers['x-dev-bypass-auth'] === 'true') {
     return next();
   }
+  
   try {
     // Read JWT from HTTP-only cookie
     const token = req.cookies && req.cookies.token;
@@ -18,34 +19,48 @@ const authenticateToken = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    const user = await User.findByPk(decoded.userId, {
-      include: [
-        { model: require('../models').Department, as: 'department' },
-        { model: require('../models').Degree, as: 'degree' },
-      ],
-    });
+    try {
+      // Make sure associations are initialized before querying with includes
+      if (process.env.NODE_ENV === 'production') {
+        const { initializeAssociations } = require('../models/associations');
+        await initializeAssociations();
+      }
+      
+      const user = await User.findByPk(decoded.userId, {
+        include: [
+          { model: require('../models').Department, as: 'department' },
+          { model: require('../models').Degree, as: 'degree' },
+        ],
+      });
+      
+      if (!user) {
+        return res.status(401).json({ 
+          error: 'User not found' 
+        });
+      }
 
-    if (!user) {
-      return res.status(401).json({ 
-        error: 'User not found' 
+      if (user.status !== 'active') {
+        return res.status(401).json({ 
+          error: 'Account is not active' 
+        });
+      }
+
+      req.user = user;
+      // Rolling session: reset cookie expiration on every authenticated request
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production' ? true : false,
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        maxAge: 60 * 60 * 1000 // 60 minutes
+      });
+      next();
+    } catch (error) {
+      console.error('Authentication error (database):', error.message);
+      return res.status(500).json({
+        error: 'Internal server error during authentication',
+        message: process.env.NODE_ENV === 'production' ? undefined : error.message
       });
     }
-
-    if (user.status !== 'active') {
-      return res.status(401).json({ 
-        error: 'Account is not active' 
-      });
-    }
-
-    req.user = user;
-    // Rolling session: reset cookie expiration on every authenticated request
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' ? true : false,
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      maxAge: 60 * 60 * 1000 // 60 minutes
-    });
-    next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ 

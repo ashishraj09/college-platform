@@ -12,10 +12,42 @@ const path = require('path');
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
 dotenv.config({ path: path.join(__dirname, envFile) });
 
+// Create Express app
+const app = express();
+app.use(cookieParser());
+// Disable ETag to prevent 304 Not Modified responses
+app.set('etag', false);
+
 // Import database with appropriate connection method
 const { sequelize, getSequelize } = require('./config/database');
 // Load models before routes to ensure models are defined
-require('./models');
+const models = require('./models');
+
+// In production, we need to ensure model associations are set up
+// for Vercel's serverless environment
+let associationsInitialized = false;
+if (process.env.NODE_ENV === 'production') {
+  console.log('Production environment detected - initializing model associations on first request');
+  // Import the association module directly
+  const { initializeAssociations } = require('./models/associations');
+  
+  // Will be called on first request
+  app.use(async (req, res, next) => {
+    if (!associationsInitialized) {
+      try {
+        console.log('Setting up model associations on first request');
+        associationsInitialized = await initializeAssociations();
+      } catch (error) {
+        console.error('Failed to initialize associations:', error);
+      }
+    }
+    next();
+  });
+} else {
+  // In development, associations are initialized synchronously when models are loaded
+  console.log('Development environment - associations initialized during startup');
+}
+
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const courseRoutes = require('./routes/courses');
@@ -25,11 +57,6 @@ const enrollmentRoutes = require('./routes/enrollments');
 const enrollmentDraftRoutes = require('./routes/enrollments-draft');
 const enrollmentHodRoutes = require('./routes/enrollments-hod');
 const enrollmentNewRoutes = require('./routes/enrollment');
-
-const app = express();
-app.use(cookieParser());
-// Disable ETag to prevent 304 Not Modified responses
-app.set('etag', false);
 
 // Request/response logger middleware
 app.use((req, res, next) => {

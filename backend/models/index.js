@@ -1,3 +1,4 @@
+// Import models
 const User = require('./User');
 const Department = require('./Department');
 const Degree = require('./Degree');
@@ -6,165 +7,26 @@ const Enrollment = require('./Enrollment');
 const AuditLog = require('./AuditLog');
 const Message = require('./Message');
 
-// Message associations
-Message.belongsTo(User, { foreignKey: 'sender_id', as: 'sender', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-User.hasMany(Message, { foreignKey: 'sender_id', as: 'messages' });
+// Always import the associations module
+const { initializeAssociations } = require('./associations');
 
-// User associations
-User.belongsTo(Department, { 
-  foreignKey: 'department_id', 
-  as: 'department',
-  onDelete: 'SET NULL',
-  onUpdate: 'CASCADE'
-});
+// In development, immediately initialize associations synchronously
+// This ensures they're ready before any routes are accessed
+if (process.env.NODE_ENV !== 'production') {
+  console.log('Development environment - initializing associations immediately');
+  // Run the initialization function synchronously in development
+  try {
+    initializeAssociations();
+    console.log('Model associations initialized successfully in development mode');
+  } catch (error) {
+    console.error('Failed to initialize associations in development mode:', error);
+  }
+} else {
+  // In production, we'll set up associations asynchronously when needed
+  console.log('Production environment detected - associations will be initialized on first request');
+}
 
-User.belongsTo(Degree, { 
-  foreignKey: 'degree_id', 
-  as: 'degree',
-  onDelete: 'SET NULL',
-  onUpdate: 'CASCADE'
-});
-
-// Department associations
-Department.hasMany(User, { 
-  foreignKey: 'department_id', 
-  as: 'users' 
-});
-
-Department.hasMany(Degree, { 
-  foreignKey: 'department_id', 
-  as: 'degrees' 
-});
-
-Department.hasMany(Course, { 
-  foreignKey: 'department_id', 
-  as: 'courses' 
-});
-
-// Degree associations
-Degree.belongsTo(Department, { 
-  foreignKey: 'department_id', 
-  as: 'department',
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-});
-
-Degree.hasMany(User, { 
-  foreignKey: 'degree_id', 
-  as: 'students' 
-});
-
-Degree.hasMany(Course, { 
-  foreignKey: 'degree_id', 
-  as: 'courses' 
-});
-
-// Match Course: add creator association for Degree
-Degree.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
-
-// Course associations
-Course.belongsTo(Department, { 
-  foreignKey: 'department_id', 
-  as: 'department',
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-});
-
-Course.belongsTo(Degree, { 
-  foreignKey: 'degree_id', 
-  as: 'degree',
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-});
-
-Course.belongsTo(User, { 
-  foreignKey: 'created_by', 
-  as: 'creator',
-  onDelete: 'RESTRICT',
-  onUpdate: 'CASCADE'
-});
-
-Course.belongsTo(User, { 
-  foreignKey: 'updated_by', 
-  as: 'updater',
-  onDelete: 'SET NULL',
-  onUpdate: 'CASCADE'
-});
-
-Course.belongsTo(User, { 
-  foreignKey: 'approved_by', 
-  as: 'approver',
-  onDelete: 'SET NULL',
-  onUpdate: 'CASCADE'
-});
-
-// UPDATED: Removed direct course-enrollment association
-// Since we're now using course_ids JSON array instead of individual course_id
-
-// Enrollment associations
-Enrollment.belongsTo(User, { 
-  foreignKey: 'student_id', 
-  as: 'student',
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-});
-
-// REMOVED: Direct Enrollment-Course association
-// Enrollment.belongsTo(Course, { 
-//   foreignKey: 'course_id', 
-//   as: 'course',
-//   onDelete: 'CASCADE',
-//   onUpdate: 'CASCADE'
-// });
-
-Enrollment.belongsTo(User, { 
-  foreignKey: 'hod_approved_by', 
-  as: 'hodApprover',
-  onDelete: 'SET NULL',
-  onUpdate: 'CASCADE'
-});
-
-Enrollment.belongsTo(User, { 
-  foreignKey: 'office_approved_by', 
-  as: 'officeApprover',
-  onDelete: 'SET NULL',
-  onUpdate: 'CASCADE'
-});
-
-// User reverse associations for enrollments
-User.hasMany(Enrollment, { 
-  foreignKey: 'student_id', 
-  as: 'enrollments' 
-});
-
-User.hasMany(Course, { 
-  foreignKey: 'created_by', 
-  as: 'createdCourses' 
-});
-
-User.hasMany(Course, { 
-  foreignKey: 'updated_by', 
-  as: 'updatedCourses' 
-});
-
-User.hasMany(Course, { 
-  foreignKey: 'approved_by', 
-  as: 'approvedCourses' 
-});
-
-// Audit Log associations
-AuditLog.belongsTo(User, { 
-  foreignKey: 'user_id', 
-  as: 'user',
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-});
-
-User.hasMany(AuditLog, { 
-  foreignKey: 'user_id', 
-  as: 'auditLogs' 
-});
-
+// Export all models
 module.exports = {
   User,
   Department,
@@ -172,5 +34,6 @@ module.exports = {
   Course,
   Enrollment,
   AuditLog,
-  Message
+  Message,
+  initializeAssociations
 };
