@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { body } = require('express-validator');
-const { User, Department, Degree, Course } = require('../models');
+// Remove direct model imports, use getModel utility
+const getModel = require('../utils/getModel');
 const { Op } = require('sequelize');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware } = require('../middleware/audit');
@@ -69,7 +70,11 @@ router.post('/register',
       } = req.body;
 
       // Check if user already exists
-      const existingUser = await User.findOne({ where: { email } });
+  const User = getModel('User');
+  const Department = getModel('Department');
+  const Degree = getModel('Degree');
+
+  const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         return res.status(400).json({ error: 'User with this email already exists' });
       }
@@ -113,7 +118,7 @@ router.post('/register',
       const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       // Create user
-      const user = await User.create({
+  const user = await User.create({
         email,
         password: hashedPassword,
         first_name,
@@ -163,6 +168,10 @@ router.post('/login',
       const { email, password } = req.body;
 
       // Find user with related data
+      const User = getModel('User');
+      const Department = getModel('Department');
+      const Degree = getModel('Degree');
+
       const user = await User.findOne({
         where: { email },
         include: [
@@ -233,7 +242,8 @@ router.post('/forgot-password',
     try {
       const { email } = req.body;
 
-      const user = await User.findOne({ where: { email } });
+  const User = getModel('User');
+  const user = await User.findOne({ where: { email } });
       
       // Always return success to prevent email enumeration
       if (!user) {
@@ -495,6 +505,9 @@ router.post('/create-demo-users', async (req, res) => {
 // Get current authenticated user's profile
 router.get('/me', authenticateToken, async (req, res) => {
   try {
+    const User = getModel('User');
+    const Department = getModel('Department');
+    const Degree = getModel('Degree');
     const userId = req.user.id;
     const user = await User.findByPk(userId, {
       attributes: { exclude: ['password'] },
