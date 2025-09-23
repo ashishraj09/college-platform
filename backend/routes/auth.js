@@ -215,12 +215,23 @@ router.post('/login',
       const { password: _, password_reset_token, email_verification_token, ...userResponse } = user.toJSON();
 
       // Set JWT as HTTP-only cookie, expires in 60 minutes
-      res.cookie('token', accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production' ? true : false,
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      // Secure cross-site cookie settings for production
+      const cookieOptions = {
+        httpOnly: true, // Prevent JS access
+        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in prod
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Allow cross-site in prod
         maxAge: 60 * 60 * 1000 // 60 minutes
-      });
+      };
+      // Set domain for production if FRONTEND_URL is available
+      if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
+        try {
+          const url = new URL(process.env.FRONTEND_URL);
+          cookieOptions.domain = url.hostname;
+        } catch (e) {
+          // fallback: do not set domain
+        }
+      }
+      res.cookie('token', accessToken, cookieOptions);
       res.json({
         message: 'Login successful',
         user: userResponse
