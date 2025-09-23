@@ -34,7 +34,7 @@ const initializeSequelize = async () => {
         } : {}),
         connectTimeout: 60000,
       },
-      logging: process.env.NODE_ENV === 'development' ? console.log : false,
+      logging: process.env.NODE_ENV === 'development' ? (msg) => console.log(msg) : false,
       pool: {
         max: 5, // Reduced for serverless environment
         min: 0,
