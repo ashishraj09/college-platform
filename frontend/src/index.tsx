@@ -7,14 +7,14 @@ import reportWebVitals from './reportWebVitals';
 // Suppress ResizeObserver loop completed with undelivered notifications error
 window.addEventListener('error', (event) => {
   if (event.message && event.message.includes('ResizeObserver loop completed with undelivered notifications')) {
-    console.log('ResizeObserver warning intercepted:', {
-      message: event.message,
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno,
-      error: event.error,
-      stack: event.error?.stack
-    });
+    // console.log('ResizeObserver warning intercepted:', {
+    //   message: event.message,
+    //   filename: event.filename,
+    //   lineno: event.lineno,
+    //   colno: event.colno,
+    //   error: event.error,
+    //   stack: event.error?.stack
+    // });
     event.preventDefault();
     event.stopPropagation();
   } else {
