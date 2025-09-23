@@ -56,18 +56,6 @@ const Degree = defineModel('Degree', {
     defaultValue: {},
     comment: 'JSON object storing number of courses per semester. Format: {"1": 6, "2": 7, "3": 5, ...}',
   },
-  enrollment_start_dates: {
-    type: DataTypes.JSON,
-    allowNull: true,
-    defaultValue: {},
-    comment: 'JSON object storing enrollment start date per semester. Format: {"1": "2025-08-01T09:00:00Z", "2": "...", ...}',
-  },
-  enrollment_end_dates: {
-    type: DataTypes.JSON,
-    allowNull: true,
-    defaultValue: {},
-    comment: 'JSON object storing enrollment end date per semester. Format: {"1": "2025-08-20T17:00:00Z", "2": "...", ...}',
-  },
   department_id: {
     type: DataTypes.UUID,
     allowNull: false,

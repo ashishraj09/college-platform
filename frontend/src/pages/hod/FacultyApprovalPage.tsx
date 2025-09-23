@@ -65,8 +65,7 @@ const FacultyApprovalPage: React.FC = () => {
     setTimelineDialogOpen(true);
     setTimelineEntityName(item.name || '');
     try {
-      const res = await fetch(`/api/timeline/${type}/${item.id}`);
-      const events = await res.json();
+      const events = await timelineAPI.getTimeline(type, item.id);
       setTimelineEvents(events);
     } catch (e) {
       setTimelineEvents([]);

@@ -138,7 +138,7 @@ if (process.env.NODE_ENV !== 'production') {
         } : {}),
         connectTimeout: 60000,
       },
-      logging: true,
+      logging: (msg) => console.log(msg),
       pool: {
         max: 10,
         min: 0,

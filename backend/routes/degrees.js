@@ -89,6 +89,7 @@ router.patch('/:id/approve',
     const sequelize = require('../config/database').sequelize;
     const transaction = await sequelize.transaction();
     try {
+      const { Degree } = await models.getMany('Degree');
       const degree = await Degree.findByPk(req.params.id, { transaction });
       if (!degree) {
         await transaction.rollback();
@@ -138,6 +139,7 @@ router.patch('/:id/reject',
   async (req, res) => {
     try {
       const { reason } = req.body;
+      const { Degree } = await models.getMany('Degree');
       const degree = await Degree.findByPk(req.params.id);
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
       const user = req.user || { department_id: degree.department_id, is_head_of_department: true };
@@ -175,7 +177,7 @@ router.post('/:id/create-version',
   async (req, res) => {
     try {
       console.log(`[DEBUG] Create version request for degree ID: ${req.params.id} by user:`, req.user);
-      
+      const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
       const degree = await Degree.findByPk(req.params.id, {
         include: [
           { model: Department, as: 'department' },
@@ -327,6 +329,7 @@ router.get('/',
   authenticateToken,
   async (req, res) => {
   try {
+    const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
     const {
       department_id,
       status,
@@ -378,8 +381,8 @@ router.get('/',
       return degree;
     }));
 
-    // Return degrees wrapped in an object with a degrees property to match other endpoints
-    res.json({ degrees: degreesWithDraftFlag });
+  // Return degrees as an array for simplicity (frontend expects an array)
+  res.json(degreesWithDraftFlag);
   } catch (error) {
     console.error('Error fetching degrees:', error);
     res.status(500).json({ error: 'Failed to fetch degrees' });
@@ -391,6 +394,7 @@ router.get('/my-degrees',
   authenticateToken,
   async (req, res) => {
   try {
+    const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
     // For development/testing when authentication is disabled
     // Use departmentId from query params or default test user context
     const departmentIdFromQuery = req.query.departmentId;
@@ -527,8 +531,6 @@ router.post('/',
         department_id,
         status: 'draft', // Default status
         courses_per_semester: req.body.courses_per_semester || {},
-        enrollment_start_dates: req.body.enrollment_start_dates || {},
-        enrollment_end_dates: req.body.enrollment_end_dates || {},
       });
 
       // Fetch degree with associations
@@ -563,30 +565,62 @@ router.post('/',
   }
 );
 
-// Get degree by ID
+// Get degree by id or by code. If param looks like a UUID, treat as id; otherwise treat as code.
 router.get('/:id',
   authenticateToken,
   async (req, res) => {
     try {
-      const degree = await Degree.findByPk(req.params.id, {
-        include: [
-          { model: Department, as: 'department' },
-          { 
-            model: Course, 
-            as: 'courses',
-            include: [
-              { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name'] },
-            ],
-          },
-        ],
-      });
+      const param = req.params.id;
+      const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-      if (!degree) {
-        return res.status(404).json({ error: 'Degree not found' });
+      const { Degree, Department, User, Course } = await models.getMany('Degree', 'Department', 'User', 'Course');
+
+      let degree = null;
+
+      // Support query params: ?id=<uuid> (override) and ?status=<status>
+      const { status, id: queryId } = req.query;
+      const idToUse = queryId || (uuidV4Regex.test(param) ? param : null);
+
+      if (idToUse) {
+        // Lookup by primary key (query id overrides path param)
+        degree = await Degree.findByPk(idToUse, {
+          include: [
+            { model: Department, as: 'department' },
+            {
+              model: Course,
+              as: 'courses',
+              include: [ { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name'] } ],
+            },
+          ],
+        });
+
+        if (!degree) return res.status(404).json({ error: 'Degree not found' });
+
+        // If status filter requested for an id lookup, enforce it
+        if (status && String(degree.status) !== String(status)) {
+          return res.status(404).json({ error: 'Degree not found' });
+        }
+      } else {
+        // Lookup by code (default to active version unless overridden by query)
+        const whereClause = { code: String(param).toUpperCase() };
+        if (status) whereClause.status = status;
+        if (queryId) whereClause.id = queryId;
+        if (!status && !queryId) whereClause.status = 'active';
+
+        degree = await Degree.findOne({
+          where: whereClause,
+          include: [
+            { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+            { model: Course, as: 'courses' },
+            { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name'] }
+          ]
+        });
       }
-      
-      // Only allow access if user is admin or degree creator
-      if (req.user && req.user.user_type !== 'admin' && degree.created_by !== req.user.id) {
+
+      if (!degree) return res.status(404).json({ error: 'Degree not found' });
+
+      // Only allow access if user is admin or degree creator when fetching by id
+      if (uuidV4Regex.test(param) && req.user && req.user.user_type !== 'admin' && degree.created_by !== req.user.id) {
         return res.status(403).json({ error: 'Access denied: You do not own this degree' });
       }
 
@@ -645,8 +679,6 @@ router.put('/:id',
         'description',
         'duration_years',
         'courses_per_semester',
-        'enrollment_start_dates',
-        'enrollment_end_dates',
         'status',
         'prerequisites',
         'study_details',

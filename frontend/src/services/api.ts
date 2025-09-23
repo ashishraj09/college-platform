@@ -125,6 +125,8 @@ export const coursesAPI = {
     return (await api.get('/courses/my-courses', { params })).data;
   },
   getDepartmentCourses: async (params?: { departmentId?: string }) => (await api.get('/courses/department-courses', { params })).data,
+  // Get available courses for a semester (used by student enrollment UI)
+  getAvailableCourses: async (semester?: number) => (await api.get('/courses/available', { params: { semester } })).data,
   submitCourse: async (id: string, payload?: any) => (await api.patch(`/courses/${id}/submit`, payload)).data,
   publishCourse: async (id: string, payload?: any) => (await api.patch(`/courses/${id}/publish`, payload)).data,
   checkCanEdit: async (id: string) => (await api.get(`/courses/${id}/can-edit`)).data,
@@ -134,7 +136,13 @@ export const coursesAPI = {
 
 // --- Degrees API (backwards-compatible) ---
 export const degreesAPI = {
-  getDegrees: async (params?: any) => (await api.get('/degrees', { params })).data,
+  getDegrees: async (params?: any) => {
+    const { data } = await api.get('/degrees', { params });
+    // Backend may return { degrees: [...] } or an array directly. Normalize to array.
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.degrees)) return data.degrees;
+    return [];
+  },
   getDegreeById: async (id: string) => (await api.get(`/degrees/${id}`)).data,
   createDegree: async (payload: any) => (await api.post('/degrees', payload)).data,
   updateDegree: async (id: string, payload: any) => (await api.put(`/degrees/${id}`, payload)).data,
@@ -196,21 +204,47 @@ export const enrollmentsAPI = {
 // --- New Enrollment API (Using course codes) ---
 export const enrollmentAPI = {
   // Student endpoints
-  getAllEnrollments: async (params?: any) => (await api.get('/enrollments/my-enrollments', { params })).data,
-  createDraft: async (payload: { course_codes: string[], semester: number }) => 
-    (await api.get('/enrollments/draft')).data,
-  saveDraft: async (payload: { enrollment_id: string, course_codes: string[] }) => 
-    (await api.put('/enrollments/draft', { course_ids: payload.course_codes })).data,
+  getAllEnrollments: async () => (await api.get('/enrollments')).data,
+  createDraft: async (payload: { course_codes: string[], semester: number, degree_code: string, department_code: string }) => {
+    // Backend no longer exposes /enrollments/draft; fetch drafts via enrollments list
+    const { course_codes, semester, department_code } = payload as any;
+    // Send department_code to backend
+    const result = await api.post('/enrollments', { course_codes, semester, department_code });
+    return result.data;
+  },
+  saveDraft: async (payload: { enrollment_id: string, course_codes: string[], department_code?: string }) => 
+    (await api.put('/enrollments/draft', { enrollment_id: payload.enrollment_id, course_codes: payload.course_codes, department_code: payload.department_code })).data,
   submitForApproval: async (payload: { enrollment_id: string }) => 
     (await api.post('/enrollments/draft/submit')).data,
   getMyDegreeCourses: async (params?: any) => 
     (await api.get('/enrollments/my-degree-courses', { params })).data,
-  checkActiveEnrollmentStatus: async () => 
-    (await api.get('/enrollments/active-status')).data,
+  checkActiveEnrollmentStatus: async () => {
+    // Backend now returns a plain array at GET /enrollments.
+    // Fetch all enrollments for the current user and compute derived fields client-side.
+    const enrollments: any[] = await enrollmentsAPI.getEnrollments();
+
+    const activeEnrollments = Array.isArray(enrollments) ? enrollments : [];
+    const hasDraft = activeEnrollments.some(e => e.enrollment_status === 'draft');
+    const draftEnrollment = activeEnrollments.find(e => e.enrollment_status === 'draft') || null;
+
+    return {
+      activeEnrollments,
+      hasDraft,
+      draftEnrollment
+    };
+  },
   
   // HOD endpoints
   getPendingApprovals: async (params?: { degree_code?: string, semester?: number, search?: string }) => 
-    (await api.get('/enrollment/pending-approvals', { params })).data,
+    (async (params?: any) => {
+      const { data } = await api.get('/enrollment/pending-approvals', { params });
+      // Normalize to object with pendingApprovals array
+      if (!data) return { pendingApprovals: [] };
+      if (Array.isArray(data)) return { pendingApprovals: data };
+      if (Array.isArray(data.pendingApprovals)) return data;
+      // Some backends may return { pendingApprovals: [] } nested under data.degree, etc.
+      return { pendingApprovals: [] };
+    })(),
   approveEnrollments: async (payload: { enrollment_ids: string[] }) => 
     (await api.post('/enrollment/approve', payload)).data,
   rejectEnrollments: async (payload: { enrollment_ids: string[], rejection_reason: string }) => 
@@ -220,6 +254,17 @@ export const enrollmentAPI = {
     (await api.post('/enrollment/approve', { enrollment_ids: [enrollmentId] })).data,
   rejectEnrollment: async (enrollmentId: string, rejectionReason: string) => 
     (await api.post('/enrollment/reject', { enrollment_ids: [enrollmentId], rejection_reason: rejectionReason })).data,
+  // Get enrollments by degree code (new helper calling backend /enrollment/degree/:code)
+  getEnrollmentsByDegree: async (degreeCode: string, params?: { semester?: number; academic_year?: string; status?: string }) => {
+    const { data } = await api.get(`/enrollment/degree/${degreeCode}`, { params });
+    // Normalize response: expect { degree, enrollment_dates, courses }
+    if (!data) return { degree: null, enrollment_dates: {}, courses: [] };
+    return {
+      degree: data.degree || null,
+      enrollment_dates: data.enrollment_dates || {},
+      courses: Array.isArray(data.courses) ? data.courses : []
+    };
+  },
 };
 
 // --- Message API ---
@@ -242,3 +287,6 @@ export const timelineAPI = {
 
 // --- Default export ---
 export default api;
+
+// Re-export shared types for convenience
+export type { CourseWithEnrollmentStatus, UniversityDepartment, Enrollment, EnrollmentData, EnrollmentResponse } from './types';

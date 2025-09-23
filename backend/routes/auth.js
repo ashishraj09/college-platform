@@ -50,6 +50,10 @@ const resetPasswordValidation = [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
 ];
 
+// Cookie domain configuration: read only from env var. Do not default to a parent domain here.
+// This avoids unintentionally setting a domain that breaks local development.
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN;
+
 // Register user (Admin only)
 router.post('/register', 
   registerValidation,
@@ -217,20 +221,12 @@ router.post('/login',
       // Set JWT as HTTP-only cookie, expires in 60 minutes
       // Secure cross-site cookie settings for production
       const cookieOptions = {
-        httpOnly: true, // Prevent JS access
-        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in prod
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Allow cross-site in prod
-        maxAge: 60 * 60 * 1000 // 60 minutes
+        httpOnly: true,
+        secure: true, // Always secure in production
+        sameSite: 'none', // Always allow cross-site in production
+        maxAge: 60 * 60 * 1000
       };
-      // Set domain for production if FRONTEND_URL is available
-      if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
-        try {
-          const url = new URL(process.env.FRONTEND_URL);
-          cookieOptions.domain = url.hostname;
-        } catch (e) {
-          // fallback: do not set domain
-        }
-      }
+      if (COOKIE_DOMAIN) cookieOptions.domain = COOKIE_DOMAIN;
       res.cookie('token', accessToken, cookieOptions);
       res.json({
         message: 'Login successful',
@@ -367,11 +363,9 @@ router.post('/logout',
   // auditMiddleware('logout', 'system', 'User logout'), // Temporarily disabled
   (req, res) => {
   // Clear the auth cookie
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' ? true : false,
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-  });
+  const clearOpts = { httpOnly: true, secure: true, sameSite: 'none' };
+  if (COOKIE_DOMAIN) clearOpts.domain = COOKIE_DOMAIN;
+  res.clearCookie('token', clearOpts);
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -516,9 +510,9 @@ router.post('/create-demo-users', async (req, res) => {
 // Get current authenticated user's profile
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-  const User = await models.User();
-  const Department = await models.Department();
-  const Degree = await models.Degree();
+    const User = await models.User();
+    const Department = await models.Department();
+    const Degree = await models.Degree();
     const userId = req.user.id;
     const user = await User.findByPk(userId, {
       attributes: { exclude: ['password'] },
@@ -536,7 +530,11 @@ router.get('/me', authenticateToken, async (req, res) => {
       ]
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
+
+    // Add convenience fields for degree code and semester
+    const userJson = user.toJSON();
+    userJson.semester = userJson.current_semester || null;
+    res.json(userJson);
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -13,61 +13,60 @@ router.get('/',
   async (req, res) => {
     try {
       const { status, semester, student_id } = req.query;
-      
-      // Define current academic year (typically based on the user's enrolled year)
       const currentAcademicYear = req.user.enrolled_year || new Date().getFullYear();
-      
+      const Enrollment = await models.Enrollment();
+      const Course = await models.Course();
       // Build where clause
       const whereClause = {};
-      
+      // If status is provided, filter by status
+      if (status) {
+        if (Array.isArray(status)) {
+          whereClause.enrollment_status = { [Op.in]: status };
+        } else {
+          whereClause.enrollment_status = status;
+        }
+      }
       // Filter by student ID - default to current user if not an admin
       if (req.user.user_type === 'admin' && student_id) {
         whereClause.student_id = student_id;
+      } else if (req.user.is_head_of_department) {
+        // HOD: show all enrollments for their department
+        // This requires a join, so we fetch all and filter below
       } else {
         whereClause.student_id = req.user.id;
       }
-      
       // Add semester filter (default to user's current semester)
       if (semester) {
         whereClause.semester = semester;
       } else {
         whereClause.semester = req.user.current_semester;
       }
-      
-      // Add status filter if provided (can be a single status or a comma-separated list)
-      if (status) {
-        // Check if status is a comma-separated string and convert to array
-        if (typeof status === 'string' && status.includes(',')) {
-          whereClause.enrollment_status = { [Op.in]: status.split(',') };
-        } else if (Array.isArray(status)) {
-          whereClause.enrollment_status = { [Op.in]: status };
-        } else {
-          whereClause.enrollment_status = status;
-        }
-      }
-      
-      const Enrollment = await models.Enrollment();
-      const Course = await models.Course();
-      const enrollments = await Enrollment.findAll({
+      let enrollments = await Enrollment.findAll({
         where: whereClause,
         order: [['created_at', 'DESC']]
       });
-
+      // If HOD, filter enrollments to only those in their department
+      if (req.user.is_head_of_department) {
+        const User = await models.User();
+        const Degree = await models.Degree();
+        // Get all students in HOD's department
+        const students = await User.findAll({ where: { department_id: req.user.department_id } });
+        const studentIds = students.map(s => s.id);
+        enrollments = enrollments.filter(e => studentIds.includes(e.student_id));
+      }
       // Process enrollments to include course details
       const enrollmentsWithCourses = [];
       for (const enrollment of enrollments) {
-        // Get course details for all course_ids in the enrollment
-        const courseIds = enrollment.course_ids || [];
+        // Get course details for all course_codes in the enrollment
+        const courseCodes = enrollment.course_codes || [];
         const courses = await Course.findAll({
           where: {
-            id: {
-              [Op.in]: courseIds
+            code: {
+              [Op.in]: courseCodes
             }
           },
           attributes: ['id', 'name', 'code']
         });
-
-        // Create a new object with enrollment and course details
         enrollmentsWithCourses.push({
           ...enrollment.get({ plain: true }),
           courses: courses.map(course => ({
@@ -77,27 +76,7 @@ router.get('/',
           }))
         });
       }
-      
-      // Check if there's a draft enrollment for the current semester
-      const hasDraft = enrollmentsWithCourses.some(e => 
-        e.enrollment_status === 'draft' && 
-        e.academic_year === currentAcademicYear && 
-        e.semester === req.user.current_semester
-      );
-      
-      // Check if there are any active enrollments in the approval pipeline
-      const hasActiveEnrollment = enrollmentsWithCourses.some(e => 
-        ['pending_hod_approval'].includes(e.enrollment_status) &&
-        e.academic_year === currentAcademicYear && 
-        e.semester === req.user.current_semester
-      );
-
-      res.json({
-        enrollments: enrollmentsWithCourses,
-        currentSemester: req.user.current_semester,
-        hasDraft,
-        hasActiveEnrollment
-      });
+      res.json(enrollmentsWithCourses);
     } catch (error) {
       console.error('Error fetching enrollments:', error);
       res.status(500).json({ error: 'Failed to fetch enrollments' });
@@ -110,6 +89,8 @@ router.get('/draft',
   authenticateToken,
   async (req, res) => {
     try {
+      const { Enrollment } = await models.getMany('Enrollment');
+
       let draft = await Enrollment.findOne({
         where: {
           student_id: req.user.id,
@@ -120,7 +101,8 @@ router.get('/draft',
 
       // No longer automatically creating a draft
       if (!draft) {
-        return res.json({ exists: false, message: 'No draft exists yet' });
+        // Return empty object when no draft exists to simplify frontend handling
+        return res.json({});
       }
 
       res.json({ exists: true, draft });
@@ -134,14 +116,16 @@ router.get('/draft',
 // UPDATED: Save enrollment draft (can be called multiple times)
 router.put('/draft',
   [
-    body('course_ids').isArray().withMessage('Course IDs must be an array'),
-    body('course_ids.*').isUUID().withMessage('Invalid course ID'),
+    body('course_codes').isArray().withMessage('Course codes must be an array'),
+    body('course_codes.*').isString().withMessage('Invalid course code'),
     handleValidationErrors
   ],
   authenticateToken,
   async (req, res) => {
     try {
-      const { course_ids } = req.body;
+      const { Enrollment, Course } = await models.getMany('Enrollment', 'Course');
+
+      const { course_codes } = req.body;
       const currentYear = new Date().getFullYear();
       const academicYear = `${currentYear}-${currentYear + 1}`;
 
@@ -150,6 +134,25 @@ router.put('/draft',
       if (!enrollmentOpen) {
         return res.status(400).json({ 
           error: 'Enrollment window is currently closed. Please check back during the enrollment period.' 
+        });
+      }
+
+      // Validate course_codes
+      const courses = await Course.findAll({
+        where: {
+          code: { [Op.in]: course_codes }
+        }
+      });
+
+      // Deduplicate found codes
+      const foundCodes = Array.from(new Set(courses.map(c => c.code)));
+      const requestedCodes = Array.from(new Set(course_codes));
+      // Compare sets
+      if (foundCodes.length !== requestedCodes.length || !requestedCodes.every(code => foundCodes.includes(code))) {
+        return res.status(400).json({ 
+          error: 'One or more course codes are invalid for this degree program',
+          found: foundCodes,
+          requested: requestedCodes
         });
       }
 
@@ -164,12 +167,20 @@ router.put('/draft',
       });
 
       if (!draft) {
+        // Get department code from user
+        let department_code = null;
+        if (req.user.department_id) {
+          const Department = await models.Department();
+          const dept = await Department.findOne({ where: { id: req.user.department_id } });
+          if (dept) department_code = dept.code;
+        }
         draft = await Enrollment.create({
           student_id: req.user.id,
           academic_year: academicYear,
           semester: req.user.current_semester,
-          course_ids: course_ids,
-          enrollment_status: 'draft'
+          course_codes: course_codes,
+          enrollment_status: 'draft',
+          department_code
         });
       } else {
         // Allow updates if:
@@ -186,7 +197,7 @@ router.put('/draft',
 
         if (draft.enrollment_status === 'draft' || hasRejectedEnrollment) {
           await draft.update({
-            course_ids: course_ids,
+            course_codes: course_codes,
             enrollment_status: 'draft' // Reset status for resubmission
           });
         } else {
@@ -194,7 +205,11 @@ router.put('/draft',
         }
       }
 
-      res.json({ message: 'Draft saved successfully', draft });
+      // Add course_codes to response
+      const draftPlain = draft.get({ plain: true });
+      draftPlain.course_codes = course_codes;
+
+      res.json({ message: 'Draft saved successfully', draft: draftPlain });
     } catch (error) {
       console.error('Error saving enrollment draft:', error);
       res.status(500).json({ error: 'Failed to save enrollment draft' });
@@ -204,9 +219,16 @@ router.put('/draft',
 
 // UPDATED: Submit enrollment draft to HOD
 router.post('/draft/submit',
+  [
+    body('course_codes').optional().isArray().withMessage('Course codes must be an array'),
+    body('course_codes.*').optional().isString().withMessage('Invalid course code'),
+    handleValidationErrors
+  ],
   authenticateToken,
   async (req, res) => {
     try {
+      const { Enrollment, Course } = await models.getMany('Enrollment', 'Course');
+
       const currentYear = new Date().getFullYear();
       const academicYear = `${currentYear}-${currentYear + 1}`;
 
@@ -235,7 +257,7 @@ router.post('/draft/submit',
         });
       }
 
-      const draft = await Enrollment.findOne({
+      let draft = await Enrollment.findOne({
         where: {
           student_id: req.user.id,
           academic_year: academicYear,
@@ -244,15 +266,43 @@ router.post('/draft/submit',
         }
       });
 
+      // If no draft, but course_codes are provided, create a draft
+      if (!draft && req.body.course_codes) {
+        // Validate course_codes
+        const courses = await Course.findAll({
+          where: {
+            code: { [Op.in]: req.body.course_codes }
+          }
+        });
+        if (courses.length !== req.body.course_codes.length) {
+          return res.status(400).json({ error: 'One or more course codes are invalid', found: courses.map(c => c.code), requested: req.body.course_codes });
+        }
+        // Get department code from user
+        let department_code = null;
+        if (req.user.department_id) {
+          const Department = await models.Department();
+          const dept = await Department.findOne({ where: { id: req.user.department_id } });
+          if (dept) department_code = dept.code;
+        }
+        draft = await Enrollment.create({
+          student_id: req.user.id,
+          academic_year: academicYear,
+          semester: req.user.current_semester,
+          course_codes: req.body.course_codes,
+          enrollment_status: 'draft',
+          department_code
+        });
+      }
+
       if (!draft) {
-        return res.status(404).json({ error: 'No draft found' });
+        return res.status(404).json({ error: 'No draft found and no course_codes provided' });
       }
 
       if (draft.enrollment_status !== 'draft') {
         return res.status(400).json({ error: 'This enrollment is not in draft status' });
       }
 
-      if (!draft.course_ids || draft.course_ids.length === 0) {
+      if (!draft.course_codes || draft.course_codes.length === 0) {
         return res.status(400).json({ error: 'No courses selected' });
       }
 
@@ -281,6 +331,9 @@ router.get('/my-degree-courses',
       if (!req.user.degree_id) {
         return res.status(400).json({ error: 'User does not have an assigned degree' });
       }
+
+      // Load needed models
+      const { Degree, Department, Course } = await models.getMany('Degree', 'Department', 'Course');
 
       // Get degree information
       const degree = await Degree.findByPk(req.user.degree_id, {
@@ -376,6 +429,8 @@ router.get('/my-enrollments',
         }
       }
       
+      const { Enrollment, Course } = await models.getMany('Enrollment', 'Course');
+
       const enrollments = await Enrollment.findAll({
         where: whereClause,
         order: [['created_at', 'DESC']]

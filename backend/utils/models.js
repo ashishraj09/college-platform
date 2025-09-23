@@ -22,6 +22,13 @@ const models = {
     const Message = await getModel('Message');
     return { User, Department, Degree, Course, Enrollment, AuditLog, Message };
   }
+  ,
+  // Parallel model loader for speed when multiple models are needed
+  getMany: async (...names) => {
+    const promises = names.map(name => getModel(name));
+    const results = await Promise.all(promises);
+    return names.reduce((acc, name, i) => { acc[name] = results[i]; return acc; }, {});
+  }
 };
 
 module.exports = models;

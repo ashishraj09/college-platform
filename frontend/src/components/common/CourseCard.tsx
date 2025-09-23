@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import SchoolIcon from '@mui/icons-material/School';
 import EventIcon from '@mui/icons-material/Event';
-import { CourseWithEnrollmentStatus } from '../../services/enrollmentApi';
+import type { CourseWithEnrollmentStatus } from '../../services/api';
 
 interface CourseCardProps {
   course: CourseWithEnrollmentStatus;

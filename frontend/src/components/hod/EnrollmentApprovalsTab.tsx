@@ -42,7 +42,7 @@ import {
   FilterList as FilterIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { enrollmentAPI } from '../../services/enrollmentApi';
+import { enrollmentAPI, enrollmentsAPI } from '../../services/api';
 
 interface Course {
   id: string;
@@ -128,8 +128,10 @@ const EnrollmentApprovalsTab: React.FC = () => {
       if (selectedSemester) params.semester = selectedSemester;
       if (searchTerm) params.search = searchTerm;
 
-      const data = await enrollmentAPI.getPendingApprovals(params);
-      console.log('Pending approvals data:', data);
+  // Fetch enrollments list (backend now returns a plain array). Keep compatibility with legacy { pendingApprovals: [] }.
+  const raw = await enrollmentsAPI.getEnrollments(params);
+  const data = Array.isArray(raw) ? { pendingApprovals: raw } : (raw || {});
+  console.log('Pending approvals data:', data);
       
       // The data comes in a flat structure but we need to group it for display
       // Group enrollments by student and semester

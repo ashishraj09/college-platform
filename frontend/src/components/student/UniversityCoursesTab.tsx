@@ -29,8 +29,8 @@ import {
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import enrollmentAPI, { UniversityDepartment } from '../../services/enrollmentApi';
-import { departmentsAPI } from '../../services/api';
+import { enrollmentAPI, departmentsAPI, coursesAPI } from '../../services/api';
+import type { UniversityDepartment } from '../../services/api';
 
 interface Department {
   id: string;
@@ -71,8 +71,38 @@ const UniversityCoursesTab: React.FC = () => {
   const fetchUniversityCourses = async () => {
     try {
       setCoursesLoading(true);
-      const data = await enrollmentAPI.getUniversityCourses(selectedDepartmentId || undefined);
-      setUniversityCourses(data);
+      const params = selectedDepartmentId ? { status: 'active' } : undefined;
+      const departments = await departmentsAPI.getDepartments(params ? { status: 'active' } : undefined);
+      const filtered = selectedDepartmentId ? departments.filter((d: any) => d.id === selectedDepartmentId) : departments;
+
+      const results: any[] = [];
+      for (const dept of filtered) {
+        const deptCourses = await coursesAPI.getDepartmentCourses({ departmentId: dept.id });
+        const degreesMap: Record<string, any> = {};
+        for (const course of deptCourses) {
+          const degreeCode = course.degree?.code || 'unknown';
+          if (!degreesMap[degreeCode]) {
+            degreesMap[degreeCode] = {
+              id: course.degree?.id || degreeCode,
+              name: course.degree?.name || 'General',
+              code: degreeCode,
+              duration_years: course.degree?.duration_years || 0,
+              courses: [],
+            };
+          }
+          degreesMap[degreeCode].courses.push(course);
+        }
+        results.push({
+          id: dept.id,
+          name: dept.name,
+          code: dept.code,
+          description: dept.description,
+          status: dept.status,
+          degrees: Object.values(degreesMap),
+        });
+      }
+
+      setUniversityCourses(results);
     } catch (error) {
       console.error('Error fetching university courses:', error);
       enqueueSnackbar('Failed to fetch courses', { variant: 'error' });

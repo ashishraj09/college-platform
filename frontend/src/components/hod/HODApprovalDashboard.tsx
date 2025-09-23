@@ -30,8 +30,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { coursesAPI, degreesAPI } from '../../services/api';
-import { enrollmentAPI } from '../../services/enrollmentApi';
+import { coursesAPI, degreesAPI, enrollmentAPI, enrollmentsAPI } from '../../services/api';
 
 interface ApprovalItem {
   id: string;
@@ -165,30 +164,34 @@ const HODApprovalDashboard: React.FC = () => {
       setPendingDegrees(transformedDegrees);
       
       // Transform enrollment data to match PendingEnrollment interface
-      const transformedEnrollments: PendingEnrollment[] = (enrollmentsResponse.pendingApprovals || []).map(enrollment => ({
+      const rawEnrollments: any[] = Array.isArray(enrollmentsResponse)
+        ? enrollmentsResponse
+        : (enrollmentsResponse && enrollmentsResponse.pendingApprovals) || [];
+
+      const transformedEnrollments: PendingEnrollment[] = rawEnrollments.map((enrollment: any) => ({
         id: enrollment.id,
         semester: enrollment.semester,
         enrollment_status: enrollment.enrollment_status,
         createdAt: enrollment.submitted_at || new Date().toISOString(),
         student: {
           id: enrollment.student_id,
-          first_name: '', // These fields need to be populated from elsewhere if needed
-          last_name: '',
+          first_name: enrollment.student?.first_name || '',
+          last_name: enrollment.student?.last_name || '',
           student_id: enrollment.student_id,
           degree: {
-            name: '',
-            code: ''
+            name: enrollment.student?.degree?.name || '',
+            code: enrollment.student?.degree?.code || ''
           }
         },
         course: {
           id: enrollment.courses && enrollment.courses.length > 0 ? enrollment.courses[0].id : '',
           name: enrollment.courses && enrollment.courses.length > 0 ? enrollment.courses[0].name : '',
           code: enrollment.courses && enrollment.courses.length > 0 ? enrollment.courses[0].code : '',
-          credits: 0,
+          credits: enrollment.courses && enrollment.courses.length > 0 ? (enrollment.courses[0].credits || 0) : 0,
           semester: enrollment.semester
         }
       }));
-      
+
       setPendingEnrollments(transformedEnrollments);
     } catch (error) {
       console.error('Error loading pending items:', error);
@@ -298,7 +301,7 @@ const HODApprovalDashboard: React.FC = () => {
 
     setActionLoading(true);
     try {
-      await enrollmentAPI.hodDecision({
+      await enrollmentsAPI.hodDecision({
         enrollment_ids: selectedEnrollments,
         action: 'approve'
       });
@@ -331,7 +334,7 @@ const HODApprovalDashboard: React.FC = () => {
 
     setActionLoading(true);
     try {
-      await enrollmentAPI.hodDecision({
+      await enrollmentsAPI.hodDecision({
         enrollment_ids: selectedEnrollments,
         action: 'reject',
         rejection_reason: trimmedReason

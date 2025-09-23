@@ -15,23 +15,11 @@ const Enrollment = defineModel('Enrollment', {
       key: 'id',
     },
   },
-  course_ids: {
+  course_codes: {
     type: DataTypes.JSON,
     allowNull: false,
     defaultValue: [],
-    // Array of UUIDs for courses
-    comment: 'Array of course IDs - we store IDs internally but can use codes in API'
-  },
-  course_codes: {
-    type: DataTypes.VIRTUAL,
-    get() {
-      // This is a virtual field that will be populated when needed
-      return [];
-    },
-    set(value) {
-      // This is a placeholder for API compatibility
-      // Actual conversion happens in the routes
-    }
+    comment: 'Array of course codes for enrollment'
   },
   enrollment_status: {
     type: DataTypes.ENUM('draft', 'pending_hod_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
@@ -88,6 +76,11 @@ const Enrollment = defineModel('Enrollment', {
       min: 1,
       max: 10,
     },
+  },
+  department_code: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Department code for HOD filtering'
   },
   // ...removed grade and grade_points fields...
 }, {

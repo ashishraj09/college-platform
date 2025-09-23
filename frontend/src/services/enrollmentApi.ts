@@ -1,5 +1,6 @@
 
 import api from './api';
+import { enrollmentAPI as centralEnrollmentAPI, enrollmentsAPI as centralEnrollmentsAPI, coursesAPI, departmentsAPI } from './api';
 
 export interface Enrollment {
   id: string;
@@ -171,339 +172,98 @@ export interface EnrollmentResponse {
   currentSemester: number;
 }
 
-class EnrollmentAPI {
-  private enrollmentData: EnrollmentResponse | null = null;
-  private lastFetchTime: number = 0;
-  private fetchPromise: Promise<EnrollmentResponse> | null = null;
-  private readonly CACHE_DURATION = 30000; // 30 seconds cache
+// Proxy object that delegates to the centralized APIs in src/services/api.ts
+export const enrollmentAPI = {
+  // Student-facing methods (delegates to enrollmentAPI in services/api.ts)
+  getAvailableCourses: (semester?: number) => coursesAPI.getAvailableCourses(semester),
+  getAllEnrollments: () => centralEnrollmentAPI.getAllEnrollments(),
+  createDraft: (payload: { course_codes: string[]; semester: number; degree_code: string; department_code: string }) => centralEnrollmentAPI.createDraft(payload),
+  saveDraft: (payload: { enrollment_id: string; course_codes: string[] }) => centralEnrollmentAPI.saveDraft(payload),
+  submitForApproval: (payload: { enrollment_id: string }) => centralEnrollmentAPI.submitForApproval(payload),
+  getMyDegreeCourses: (params?: any) => centralEnrollmentAPI.getMyDegreeCourses(params),
+  checkActiveEnrollmentStatus: () => centralEnrollmentAPI.checkActiveEnrollmentStatus(),
 
-  // Central method to fetch all enrollment data
-  async fetchEnrollmentData(forceRefresh = false): Promise<EnrollmentResponse> {
-    const now = Date.now();
-    
-    // Use cached data if available and not expired, unless force refresh is requested
-    if (
-      !forceRefresh && 
-      this.enrollmentData && 
-      now - this.lastFetchTime < this.CACHE_DURATION
-    ) {
-      return this.enrollmentData;
-    }
-    
-    // If a fetch is already in progress, return that promise to avoid duplicate requests
-    if (this.fetchPromise) {
-      return this.fetchPromise;
-    }
-    
-    // Make the API call
-    const fetchOperation = async (): Promise<EnrollmentResponse> => {
-      const response = await api.get('/enrollments');
-      const data: EnrollmentResponse = response.data;
-      this.enrollmentData = data;
-      this.lastFetchTime = now;
-      return data;
-    };
-    
-    this.fetchPromise = fetchOperation();
-    
-    try {
-      return await this.fetchPromise;
-    } finally {
-      this.fetchPromise = null;
-    }
-  }
+  // HOD/admin methods (delegates to enrollmentAPI)
+  getPendingApprovals: (params?: any) => centralEnrollmentAPI.getPendingApprovals(params),
+  approveEnrollments: (payload: { enrollment_ids: string[] }) => centralEnrollmentAPI.approveEnrollments(payload),
+  rejectEnrollments: (payload: { enrollment_ids: string[]; rejection_reason: string }) => centralEnrollmentAPI.rejectEnrollments(payload),
+  approveEnrollment: (enrollmentId: string) => centralEnrollmentAPI.approveEnrollment(enrollmentId),
+  rejectEnrollment: (enrollmentId: string, rejectionReason: string) => centralEnrollmentAPI.rejectEnrollment(enrollmentId, rejectionReason),
 
-  // Get all enrollments with filtering options
-  async getAllEnrollments(params?: {
-    status?: string | string[];
-    semester?: number;
-    student_id?: string;
-  }): Promise<EnrollmentResponse> {
-    // If no params, use the cached data
-    if (!params || Object.keys(params).length === 0) {
-      return this.fetchEnrollmentData();
-    }
-    
-    // Otherwise, make a direct API call with the filters
-    const processedParams: Record<string, string | number> = {};
-    
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        // Convert array parameters to comma-separated strings
-        if (Array.isArray(value)) {
-          processedParams[key] = value.join(',');
-        } else {
-          processedParams[key] = value;
+  // Compatibility wrappers expected by older components
+  hodDecision: (payload: { enrollment_ids: string[]; action: 'approve' | 'reject'; rejection_reason?: string }) => {
+    // The centralized enrollmentsAPI exposes hodDecision which expects this payload
+    return centralEnrollmentsAPI.hodDecision ? centralEnrollmentsAPI.hodDecision(payload) : Promise.reject(new Error('hodDecision not implemented'));
+  },
+
+  getEnrollmentDraft: () => {
+    // enrollmentAPI.getEnrollmentDraft isn't available; emulate via enrollmentsAPI endpoints if present
+    if (centralEnrollmentsAPI && (centralEnrollmentsAPI as any).getEnrollments) {
+      return (async () => {
+        try {
+          const drafts = await (centralEnrollmentsAPI as any).getEnrollments({ status: 'draft' });
+          if (Array.isArray(drafts) && drafts.length > 0) return { exists: true, draft: drafts[0] };
+          return { exists: false };
+        } catch (err) {
+          return { exists: false };
         }
+      })();
+    }
+    return Promise.resolve({ exists: false });
+  },
+
+  saveEnrollmentDraft: (courseIds: string[]) => {
+    // Map to new saveDraft signature which expects { enrollment_id, course_codes }
+    // If there is no enrollment_id available, call saveDraft with empty enrollment_id and course_codes
+    return centralEnrollmentAPI.saveDraft ? centralEnrollmentAPI.saveDraft({ enrollment_id: '', course_codes: courseIds }) : Promise.reject(new Error('saveDraft not available'));
+  },
+
+  submitEnrollmentDraft: () => {
+    return centralEnrollmentAPI.submitForApproval ? centralEnrollmentAPI.submitForApproval({ enrollment_id: '' }) : Promise.reject(new Error('submitForApproval not available'));
+  },
+
+  // Additional server-side enrollment utilities (delegate to enrollmentsAPI where appropriate)
+  createEnrollment: (payload: any) => centralEnrollmentsAPI.createEnrollment ? centralEnrollmentsAPI.createEnrollment(payload) : Promise.reject(new Error('createEnrollment not available')),
+  getUniversityCourses: async (departmentId?: string) => {
+    // Compose departments + department courses into the UniversityDepartment shape expected by UI
+    const params = departmentId ? { departmentId } : undefined;
+    const departments = await departmentsAPI.getDepartments(params ? { status: 'active' } : undefined);
+    // If a departmentId filter is provided, filter locally
+    const filtered = departmentId ? departments.filter((d: any) => d.id === departmentId) : departments;
+
+    // For each department, fetch its active degrees and courses via coursesAPI.getDepartmentCourses
+    const results: any[] = [];
+    for (const dept of filtered) {
+      const deptCourses = await coursesAPI.getDepartmentCourses({ departmentId: dept.id });
+      // The coursesAPI returns a flat list of courses; group them by degree if degree info exists
+      // We'll try to assemble degrees by degree.code if present, else return a single degree container
+      const degreesMap: Record<string, any> = {};
+      for (const course of deptCourses) {
+        const degreeCode = course.degree?.code || 'unknown';
+        if (!degreesMap[degreeCode]) {
+          degreesMap[degreeCode] = {
+            id: course.degree?.id || degreeCode,
+            name: course.degree?.name || 'General',
+            code: degreeCode,
+            duration_years: course.degree?.duration_years || 0,
+            courses: [],
+          };
+        }
+        degreesMap[degreeCode].courses.push(course);
+      }
+
+      const degrees = Object.values(degreesMap);
+      results.push({
+        id: dept.id,
+        name: dept.name,
+        code: dept.code,
+        description: dept.description,
+        status: dept.status,
+        degrees,
       });
     }
-    
-    const response = await api.get('/enrollments', { params: processedParams });
-    return response.data;
-  }
+    return results;
+  },
+};
 
-  // Get student's enrollments with filtering options
-  async getMyEnrollments(params?: {
-    status?: string | string[];
-    semester?: number;
-  }): Promise<{
-    enrollments: EnrollmentData[];
-    count: number;
-    hasActiveEnrollment: boolean;
-  }> {
-    // Use the centralized method if no specific filters
-    if (!params || Object.keys(params).length === 0) {
-      const data = await this.fetchEnrollmentData();
-      
-      // Calculate derived values locally
-      const activeEnrollments = data.enrollments.filter(
-        e => e.enrollment_status !== 'draft' && e.enrollment_status !== 'rejected'
-      );
-      
-      return {
-        enrollments: data.enrollments,
-        count: data.enrollments.length,
-        hasActiveEnrollment: activeEnrollments.length > 0
-      };
-    }
-    
-    // Otherwise use the getAllEnrollments with filters
-    const response = await this.getAllEnrollments(params);
-    
-    // Calculate derived values locally
-    const activeEnrollments = response.enrollments.filter(
-      e => e.enrollment_status !== 'draft' && e.enrollment_status !== 'rejected'
-    );
-    
-    return {
-      enrollments: response.enrollments,
-      count: response.enrollments.length,
-      hasActiveEnrollment: activeEnrollments.length > 0
-    };
-  }
-
-  // Cache for my degree courses data
-  private myDegreeCoursesCache: { [semester: string]: any } = {};
-  private myDegreeCoursesCacheTime: { [semester: string]: number } = {};
-
-  // Get student's degree courses by semester
-  async getMyDegreeCourses(semester?: number): Promise<DegreeCourses> {
-    const semKey = String(semester || 'all');
-    const now = Date.now();
-    
-    // Use cached data if available and not expired
-    if (
-      this.myDegreeCoursesCache[semKey] &&
-      this.myDegreeCoursesCacheTime[semKey] &&
-      now - this.myDegreeCoursesCacheTime[semKey] < this.CACHE_DURATION
-    ) {
-      return this.myDegreeCoursesCache[semKey];
-    }
-    
-    const params: any = {};
-    if (semester) params.semester = semester;
-    const response = await api.get('/enrollments/my-degree-courses', { params });
-    
-    // Cache the response
-    this.myDegreeCoursesCache[semKey] = response.data;
-    this.myDegreeCoursesCacheTime[semKey] = now;
-    
-    return response.data;
-  }
-
-  // Helper method to invalidate cache after mutations
-  invalidateCache(): void {
-    this.enrollmentData = null;
-    this.lastFetchTime = 0;
-    this.myDegreeCoursesCache = {};
-    this.myDegreeCoursesCacheTime = {};
-  }
-
-  // Create enrollment request
-  async createEnrollment(enrollmentData: EnrollmentRequest): Promise<{
-    message: string;
-    enrollments: Enrollment[];
-  }> {
-    const response = await api.post('/enrollments/enroll', enrollmentData);
-    this.invalidateCache();
-    return response.data;
-  }
-
-  // Get all university courses organized by department
-  async getUniversityCourses(departmentId?: string): Promise<UniversityDepartment[]> {
-    const params: any = {};
-    if (departmentId) params.department_id = departmentId;
-    const response = await api.get('/enrollments/university-courses', { params });
-    return response.data;
-  }
-
-  // Helper method to get current semester
-  getCurrentSemester(): number {
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    
-    // Assuming semester 1 is July-December, semester 2 is January-June
-    return month >= 7 ? 1 : 2;
-  }
-  
-  // Public method to force refresh the enrollment data
-  async refreshEnrollmentData(): Promise<EnrollmentResponse> {
-    return this.fetchEnrollmentData(true);
-  }
-
-  // Draft management
-  async getEnrollmentDraft(): Promise<{ exists: boolean; draft?: EnrollmentData; message?: string }> {
-    try {
-      // Use the cached data when possible
-      const data = await this.fetchEnrollmentData();
-      
-      // Find draft enrollment for current semester
-      const currentSemester = this.getCurrentSemester();
-      
-      const draft = data.enrollments.find(e => 
-        e.enrollment_status === 'draft' && 
-        e.semester === currentSemester
-      );
-      
-      if (draft) {
-        return { 
-          exists: true, 
-          draft 
-        };
-      } else {
-        return { 
-          exists: false, 
-          message: 'No draft exists yet' 
-        };
-      }
-    } catch (error) {
-      console.error('Error getting enrollment draft:', error);
-      return { 
-        exists: false, 
-        message: 'Error fetching draft' 
-      };
-    }
-  }
-
-  async saveEnrollmentDraft(courseIds: string[]): Promise<{ message: string; draft: any }> {
-    const response = await api.put('/enrollments/draft', { course_ids: courseIds });
-    this.invalidateCache();
-    return response.data;
-  }
-
-  async submitEnrollmentDraft(): Promise<{ message: string }> {
-    const response = await api.post('/enrollments/draft/submit');
-    this.invalidateCache();
-    return response.data;
-  }
-
-  // HOD approval methods
-  async getPendingApprovals(params?: {
-    degree_id?: string;
-    semester?: string;
-    search?: string;
-  }): Promise<{ pendingApprovals: EnrollmentData[] }> {
-    try {
-      // Always use the direct API call to ensure proper filtering
-      const response = await api.get('/enrollments-hod/pending-approvals', { params });
-      return response.data;
-    } catch (error) {
-      console.error('Error getting pending approvals:', error);
-      return { pendingApprovals: [] };
-    }
-  }
-
-  async hodDecision(data: {
-    enrollment_ids: string[];
-    action: 'approve' | 'reject';
-    rejection_reason?: string;
-  }): Promise<{ message: string }> {
-    const response = await api.post('/enrollments-hod/hod-decision', data);
-    this.invalidateCache();
-    return response.data;
-  }
-
-  async checkActiveEnrollmentStatus(): Promise<{
-    hasActiveEnrollment: boolean;
-    activeEnrollments: EnrollmentData[];
-    hasDraft: boolean;
-    draftEnrollment: EnrollmentData | null;
-  }> {
-    try {
-      // Use the cached data
-      const data = await this.fetchEnrollmentData();
-      
-      // Get current semester from data
-      const currentSemester = data.currentSemester || 1;
-      
-      // Filter enrollments for the current semester
-      const currentSemesterEnrollments = data.enrollments.filter(
-        enrollment => enrollment.semester === currentSemester
-      );
-      
-      // Get active enrollments (in approval pipeline)
-      // These are enrollments that are not drafts, rejected, or cancelled
-      const activeEnrollments = currentSemesterEnrollments.filter(
-        enrollment => 
-          enrollment.enrollment_status !== 'draft' && 
-          enrollment.enrollment_status !== 'rejected' &&
-          enrollment.enrollment_status !== 'cancelled'
-          // Important: Do NOT filter out approved enrollments, as we need them
-          // for the hasApprovedEnrollment check in the UI
-      );
-      
-      // Get pending enrollments (not approved or rejected yet)
-      const pendingEnrollments = activeEnrollments.filter(
-        enrollment => enrollment.enrollment_status !== 'approved'
-      );
-      
-      // Check for draft enrollments
-      const draftEnrollments = currentSemesterEnrollments.filter(
-        enrollment => enrollment.enrollment_status === 'draft'
-      );
-      
-      return {
-        // Only return hasActiveEnrollment: true when there are pending enrollments
-        // (not drafts, not approved)
-        hasActiveEnrollment: pendingEnrollments.length > 0,
-        // Return all active enrollments including approved ones for UI filtering
-        activeEnrollments,
-        hasDraft: draftEnrollments.length > 0,
-        draftEnrollment: draftEnrollments.length > 0 ? draftEnrollments[0] : null
-      };
-    } catch (error) {
-      console.error('Error checking active enrollment status:', error);
-      return {
-        hasActiveEnrollment: false,
-        activeEnrollments: [],
-        hasDraft: false,
-        draftEnrollment: null
-      };
-    }
-  }
-  
-  // Helper methods for enrollment approvals
-  async approveEnrollments(data: {
-    enrollment_ids: string[];
-  }): Promise<{ message: string }> {
-    return this.hodDecision({
-      enrollment_ids: data.enrollment_ids,
-      action: 'approve'
-    });
-  }
-  
-  async rejectEnrollments(data: {
-    enrollment_ids: string[];
-    rejection_reason: string;
-  }): Promise<{ message: string }> {
-    return this.hodDecision({
-      enrollment_ids: data.enrollment_ids,
-      action: 'reject',
-      rejection_reason: data.rejection_reason
-    });
-  }
-}
-
-const enrollmentApiInstance = new EnrollmentAPI();
-export const enrollmentAPI = enrollmentApiInstance;
-export default enrollmentApiInstance;
+export default enrollmentAPI;

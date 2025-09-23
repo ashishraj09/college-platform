@@ -59,6 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Try to get user profile on initial load
     authAPI.getProfile()
       .then(profile => {
+        console.log('AuthContext: profile from authAPI.getProfile():', profile);
         if (profile && profile.id) {
           dispatch(setUser(profile));
         } else {
