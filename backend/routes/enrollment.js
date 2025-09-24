@@ -18,6 +18,7 @@ router.post('/create',
     body('degree_code').isString().withMessage('Degree code is required')
   ],
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('create', 'enrollment', 'Created enrollment draft'),
   handleValidationErrors,
   async (req, res) => {
     try {
@@ -82,6 +83,16 @@ router.post('/create',
         enrollment_status: 'draft'
       });
 
+      // Add message to Message table if provided
+      const Message = require('../models/Message');
+      if (req.body.message) {
+        await Message.create({
+          type: 'enrollment',
+          reference_id: enrollment.id,
+          sender_id: req.user.id,
+          message: req.body.message,
+        });
+      }
       res.status(201).json(enrollment);
     } catch (error) {
       console.error('Error creating enrollment:', error);
@@ -93,6 +104,7 @@ router.post('/create',
 // Get user's draft enrollments
 router.get('/drafts',
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('read', 'enrollment', 'Fetched enrollment drafts'),
   async (req, res) => {
     try {
       const drafts = await Enrollment.findAll({
@@ -113,116 +125,10 @@ router.get('/drafts',
   }
 );
 
-// Get pending approvals for HOD
-router.get('/pending-approvals',
-  authenticateToken,
-  async (req, res) => {
-    try {
-      // Check if user is a head of department
-      if (!req.user.is_head_of_department) {
-        return res.status(403).json({ error: 'Only department heads can view pending approvals' });
-      }
-      
-      const { degree_id, semester, search } = req.query;
-      
-      // Define where clause for enrollment status
-      const whereClause = {
-        enrollment_status: 'pending_hod_approval'
-      };
-      
-      // Add semester filter to the where clause if provided
-      if (semester) {
-        whereClause.semester = parseInt(semester);
-      }
-
-      const includeClause = [
-        {
-          model: User,
-          as: 'student',
-          where: {
-            department_id: req.user.department_id
-          },
-          include: [
-            {
-              model: Degree,
-              as: 'degree',
-              ...(degree_id && { where: { id: degree_id } })
-            }
-          ]
-        }
-        // Removed Course association as we now use course_ids JSON array
-      ];
-
-      // Add search filter if provided
-      if (search) {
-        includeClause[0].where[Op.or] = [
-          { first_name: { [Op.iLike]: `%${search}%` } },
-          { last_name: { [Op.iLike]: `%${search}%` } },
-          { student_id: { [Op.iLike]: `%${search}%` } }
-        ];
-      }
-
-      const pendingEnrollments = await Enrollment.findAll({
-        where: whereClause,
-        include: includeClause,
-        order: [
-          ['created_at', 'ASC'],
-          [{ model: User, as: 'student' }, 'first_name', 'ASC']
-        ]
-      });
-
-      // After fetching enrollments, we need to get course details separately
-      // since we're using course_ids JSON field instead of direct association
-      const enrichedEnrollments = await Promise.all(pendingEnrollments.map(async (enrollment) => {
-        const enrollmentJson = enrollment.toJSON();
-        
-        // Get courses for this enrollment
-        // Use course_codes to fetch course details
-        const courses = await Course.findAll({
-          where: { code: { [Op.in]: enrollmentJson.course_codes || [] } }
-        });
-        // Create individual enrollment objects for each course
-        return courses.map(course => ({
-          ...enrollmentJson,
-          course: {
-            id: course.id,
-            name: course.name,
-            code: course.code,
-            credits: course.credits || 0
-          }
-        }));
-      }));
-      
-      // Flatten the array of arrays
-      const flattenedEnrollments = enrichedEnrollments.flat();
-
-      // Group by student and academic year/semester
-      const groupedEnrollments = flattenedEnrollments.reduce((acc, enrollment) => {
-        const key = `${enrollment.student.id}-${enrollment.academic_year}-${enrollment.semester}`;
-        if (!acc[key]) {
-          acc[key] = {
-            student: enrollment.student,
-            academic_year: enrollment.academic_year,
-            semester: enrollment.semester,
-            enrollments: []
-          };
-        }
-        acc[key].enrollments.push(enrollment);
-        return acc;
-      }, {});
-
-      // Return an array of grouped enrollments (frontend expects an array)
-      res.json(Object.values(groupedEnrollments));
-    } catch (error) {
-      console.error('Error fetching pending approvals:', error);
-      res.status(500).json({ error: 'Failed to fetch pending approvals' });
-    }
-  }
-);
-
 // HOD: Approve enrollments
 router.post('/approve',
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('update', 'enrollment', 'Approved enrollments'),
   [
     body('enrollment_ids').isArray({ min: 1 }).withMessage('enrollment_ids must be a non-empty array')
   ],
@@ -256,6 +162,18 @@ router.post('/approve',
           })
         )
       );
+      // Add message to Message table if provided
+      const Message = require('../models/Message');
+      if (req.body.message) {
+        for (const enrollment of updatedEnrollments) {
+          await Message.create({
+            type: 'enrollment',
+            reference_id: enrollment.id,
+            sender_id: req.user.id,
+            message: req.body.message,
+          });
+        }
+      }
       res.json({
         message: `${updatedEnrollments.length} enrollment(s) approved successfully`,
         enrollments: updatedEnrollments
@@ -270,6 +188,7 @@ router.post('/approve',
 // HOD: Reject enrollments
 router.post('/reject',
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('update', 'enrollment', 'Rejected enrollments'),
   [
     body('enrollment_ids').isArray({ min: 1 }).withMessage('At least one enrollment must be selected'),
     body('rejection_reason').isString().notEmpty().withMessage('Rejection reason is required')
@@ -318,6 +237,18 @@ router.post('/reject',
         )
       );
       
+      // Add message to Message table if provided
+      const Message = require('../models/Message');
+      if (req.body.message) {
+        for (const enrollment of updatedEnrollments) {
+          await Message.create({
+            type: 'enrollment',
+            reference_id: enrollment.id,
+            sender_id: req.user.id,
+            message: req.body.message,
+          });
+        }
+      }
       res.json({
         message: `${updatedEnrollments.length} enrollment(s) rejected successfully`,
         enrollments: updatedEnrollments
@@ -358,6 +289,7 @@ const findDegreeByCode = async (codeStr) => {
 // Get enrollments by degree code (optionally filter by semester and academic_year)
 router.get('/degree/:code',
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('read', 'enrollment', 'Fetched enrollments by degree'),
   async (req, res) => {
     try {
       const { code } = req.params;

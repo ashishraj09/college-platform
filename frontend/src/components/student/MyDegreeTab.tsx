@@ -33,7 +33,7 @@ import { enrollmentAPI } from '../../services/api';
 import { coursesAPI, timelineAPI } from '../../services/api';
 import type { CourseWithEnrollmentStatus } from '../../services/api';
 import CourseCard from '../common/CourseCard';
-import CourseTimelineDialog from '../common/CourseTimelineDialog';
+import TimelineDialog from '../common/TimelineDialog';
 import { formatEnrollmentStatus } from '../../utils/formatters';
 
 // Icons
@@ -41,6 +41,7 @@ import SchoolIcon from '@mui/icons-material/School';
 import HistoryIcon from '@mui/icons-material/History';
 import CheckIcon from '@mui/icons-material/Check';
 import InfoIcon from '@mui/icons-material/Info';
+import Timeline from '@mui/icons-material/Timeline';
 import EditIcon from '@mui/icons-material/Edit';
 import WarningIcon from '@mui/icons-material/Warning';
 import EventIcon from '@mui/icons-material/Event';
@@ -114,24 +115,26 @@ const MyDegreeTab: React.FC = () => {
     setSelectedCourseForTimeline(course);
     
     try {
-      // First try to get timeline for the enrollment if an enrollmentId is provided
+      let timelineData;
       if (enrollmentId) {
-        const timelineData = await timelineAPI.getTimeline('enrollment', enrollmentId);
-        if (timelineData && timelineData.timeline) {
-          setCourseTimelineData(timelineData.timeline);
+        timelineData = await timelineAPI.getTimeline('enrollment', enrollmentId);
+      }
+      let events = [];
+      if (timelineData) {
+        if (timelineData.timeline) {
+          // New format: already unified
+          events = timelineData.timeline;
         } else {
-          setCourseTimelineData([]);
-        }
-      } 
-      // If no enrollment ID or the above fails, try to get timeline for the course
-      else {
-        const timelineData = await timelineAPI.getTimeline('course', course.id);
-        if (timelineData && timelineData.timeline) {
-          setCourseTimelineData(timelineData.timeline);
-        } else {
-          setCourseTimelineData([]);
+          // Old format: separate audit/messages arrays
+          const audit = timelineData.audit || [];
+          const messages = timelineData.messages || [];
+          events = [
+            ...audit.map((e: any) => ({ ...e, type: 'audit' })),
+            ...messages.map((e: any) => ({ ...e, type: 'message' }))
+          ];
         }
       }
+      setCourseTimelineData(events);
     } catch (error) {
       console.error('Error fetching timeline data:', error);
       setCourseTimelineData([]);
@@ -880,9 +883,10 @@ const MyDegreeTab: React.FC = () => {
             </Typography>
             {activeEnrollments.some(enrollment => enrollment.enrollment_status === 'approved') && (
               <Button 
-                variant="outlined" 
-                size="small" 
-                startIcon={<InfoIcon />}
+                variant="text"
+                color="primary"
+                startIcon={<Timeline />}
+                sx={{ textTransform: 'none', fontWeight: 500, fontSize: 16, minWidth: 0, px: 1, mr: { sm: 2, xs: 0 }, textDecoration: 'underline' }}
                 onClick={() => {
                   // Get the first approved enrollment's first course to show the timeline
                   const approvedEnrollment = activeEnrollments.find(e => e.enrollment_status === 'approved');
@@ -899,7 +903,7 @@ const MyDegreeTab: React.FC = () => {
                   }
                 }}
               >
-                View Timeline
+                Timeline
               </Button>
             )}
           </Box>
@@ -1023,9 +1027,10 @@ const MyDegreeTab: React.FC = () => {
                     </Typography>
                     {data.courses.length > 0 && (
                       <Button 
-                        variant="outlined" 
-                        size="small" 
-                        startIcon={<InfoIcon />}
+                        variant="text"
+                        color="primary"
+                        startIcon={<Timeline />}
+                        sx={{ textTransform: 'none', fontWeight: 500, fontSize: 16, minWidth: 0, px: 1, mr: { sm: 2, xs: 0 }, textDecoration: 'underline' }}
                         onClick={() => {
                           // Check if there's an enrollment for this semester course
                           const semNumber = parseInt(semester.split(' ')[1], 10);
@@ -1039,7 +1044,7 @@ const MyDegreeTab: React.FC = () => {
                           }
                         }}
                       >
-                        View Timeline
+                        Timeline
                       </Button>
                     )}
                   </Box>
@@ -1083,11 +1088,16 @@ const MyDegreeTab: React.FC = () => {
       )}
 
       {/* Course Timeline Dialog */}
-      <CourseTimelineDialog 
+      <TimelineDialog 
         open={timelineDialogOpen}
         onClose={() => setTimelineDialogOpen(false)}
-        course={selectedCourseForTimeline}
-        courseTimeline={courseTimelineData}
+        events={courseTimelineData}
+        entityName={(() => {
+          if (selectedCourseForTimeline && selectedCourseForTimeline.enrollment_id) {
+            return `Timeline for Enrollment #${selectedCourseForTimeline.enrollment_id}`;
+          }
+          return 'Timeline for Enrollment';
+        })()}
       />
 
       {/* Confirmation Dialog */}

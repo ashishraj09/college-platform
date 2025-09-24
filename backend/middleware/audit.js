@@ -23,12 +23,18 @@ const auditMiddleware = (action, entityType, description = null) => {
   return async (req, res, next) => {
     // Store original res.json to intercept response
     const originalJson = res.json;
-    
+
     res.json = function(data) {
-      // Only log successful operations (status < 400)
       if (res.statusCode < 400 && req.user) {
         const userId = req.user.id;
-        const entityId = data?.id || req.params?.id || null;
+        // Try to extract entityId from common places
+        let entityId = null;
+        if (data?.id) entityId = data.id;
+        else if (data?.draft?.id) entityId = data.draft.id;
+        else if (data?.enrollment?.id) entityId = data.enrollment.id;
+        else if (data?.enrollments && Array.isArray(data.enrollments) && data.enrollments.length > 0 && data.enrollments[0].id) entityId = data.enrollments[0].id;
+        else if (req.params?.id) entityId = req.params.id;
+
         const ip_address = req.ip;
         const user_agent = req.get('User-Agent');
         const metadata = {
@@ -37,26 +43,23 @@ const auditMiddleware = (action, entityType, description = null) => {
           status_code: res.statusCode,
         };
 
-
         let oldValues = null;
         let newValues = null;
 
-        // Capture data for different actions
+        // For create/update, include full data if available
         if (action === 'create' && data) {
           newValues = data;
         } else if (action === 'update') {
           const original = req.originalData || {};
-          const updated = data || {};
+          const updated = data?.draft || data?.enrollment || data || {};
           oldValues = {};
           newValues = {};
-          // Only include fields that changed
           Object.keys(updated).forEach(key => {
             if (original[key] !== undefined && original[key] !== updated[key]) {
               oldValues[key] = original[key];
               newValues[key] = updated[key];
             }
           });
-          // If no changes, set to null
           if (Object.keys(newValues).length === 0) {
             oldValues = null;
             newValues = null;
@@ -65,7 +68,6 @@ const auditMiddleware = (action, entityType, description = null) => {
           oldValues = req.originalData || null;
         }
 
-        // Log the audit event asynchronously
         setImmediate(() => {
           logAuditEvent(
             userId,
@@ -81,11 +83,8 @@ const auditMiddleware = (action, entityType, description = null) => {
           );
         });
       }
-
-      // Call original res.json
       return originalJson.call(this, data);
     };
-
     next();
   };
 };

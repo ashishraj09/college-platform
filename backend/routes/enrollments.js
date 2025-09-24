@@ -155,6 +155,7 @@ router.get('/',
 // UPDATED: Get enrollment draft for current semester (doesn't create automatically)
 router.get('/draft',
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('read', 'enrollment', 'Fetched enrollment draft'),
   async (req, res) => {
     try {
       const { Enrollment } = await models.getMany('Enrollment');
@@ -189,6 +190,7 @@ router.put('/draft',
     handleValidationErrors
   ],
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('update', 'enrollment', 'Enrollment draft saved'),
   async (req, res) => {
     try {
       const { Enrollment, Course } = await models.getMany('Enrollment', 'Course');
@@ -277,7 +279,17 @@ router.put('/draft',
       const draftPlain = draft.get({ plain: true });
       draftPlain.course_codes = course_codes;
 
-      res.json({ message: 'Draft saved successfully', draft: draftPlain });
+      // Add message to Message table if provided
+      const Message = require('../models/Message');
+      if (req.body.message) {
+        await Message.create({
+          type: 'enrollment',
+          reference_id: draft.id,
+          sender_id: req.user.id,
+          message: req.body.message,
+        });
+      }
+  res.json({ message: 'Draft saved successfully', draft: draftPlain, id: draft.id });
     } catch (error) {
       console.error('Error saving enrollment draft:', error);
       res.status(500).json({ error: 'Failed to save enrollment draft' });
@@ -293,6 +305,7 @@ router.post('/draft/submit',
     handleValidationErrors
   ],
   authenticateToken,
+  require('../middleware/audit').auditMiddleware('update', 'enrollment', 'Enrollment draft submitted'),
   async (req, res) => {
     try {
       const { Enrollment, Course } = await models.getMany('Enrollment', 'Course');
@@ -381,7 +394,17 @@ router.post('/draft/submit',
         rejection_reason: null // Clear any previous rejection reason
       });
 
-      res.json({ message: 'Enrollment submitted for HOD approval' });
+      // Add message to Message table if provided
+      const Message = require('../models/Message');
+      if (req.body.message) {
+        await Message.create({
+          type: 'enrollment',
+          reference_id: draft.id,
+          sender_id: req.user.id,
+          message: req.body.message,
+        });
+      }
+  res.json({ message: 'Enrollment submitted for HOD approval', id: draft.id });
     } catch (error) {
       console.error('Error submitting enrollment:', error);
       res.status(500).json({ error: 'Failed to submit enrollment' });

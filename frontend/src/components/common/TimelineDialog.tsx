@@ -40,31 +40,42 @@ const TimelineDialog: React.FC<TimelineDialogProps> = ({ open, onClose, events, 
 			<DialogTitle>Timeline for {entityName}</DialogTitle>
 			<DialogContent>
 				<List>
-					{events.length === 0 ? (
-						<Typography variant="body2" color="text.secondary">No timeline events found.</Typography>
-					) : (
-						events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map(event => (
-							<ListItem key={event.id} alignItems="flex-start">
-								<ListItemIcon>{getIcon(event)}</ListItemIcon>
-								<ListItemText
-									primary={event.type === 'message' ? event.message : event.action}
-									secondary={
-										<>
-											<Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-												<Typography variant="caption">
-													{event.user?.name || event.user?.id || 'System'}
-												</Typography>
-												<Typography variant="caption">{new Date(event.timestamp).toLocaleString()}</Typography>
-											</Box>
-											{event.description && (
-												<Typography variant="body2" color="text.secondary">{event.description}</Typography>
-											)}
-										</>
-									}
-								/>
-							</ListItem>
-						))
-					)}
+					{(() => {
+						let allEvents: TimelineEvent[] = [];
+						if (Array.isArray(events)) {
+							allEvents = events;
+						} else if (events && typeof events === 'object') {
+							const e: any = events;
+							if (Array.isArray(e.audit)) allEvents = allEvents.concat(e.audit);
+							if (Array.isArray(e.messages)) allEvents = allEvents.concat(e.messages);
+						}
+						if (!allEvents || allEvents.length === 0) {
+							return <Typography variant="body2" color="text.secondary">No timeline events found.</Typography>;
+						}
+						return allEvents
+							.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+							.map(event => (
+								<ListItem key={event.id} alignItems="flex-start">
+									<ListItemIcon>{getIcon(event)}</ListItemIcon>
+									<ListItemText
+										primary={event.type === 'message' ? event.message : event.action}
+										secondary={
+											<>
+												<Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+													<Typography variant="caption">
+														{event.user?.name || event.user?.id || 'System'}
+													</Typography>
+													<Typography variant="caption">{new Date(event.timestamp).toLocaleString()}</Typography>
+												</Box>
+												{event.description && (
+													<Typography variant="body2" color="text.secondary">{event.description}</Typography>
+												)}
+											</>
+										}
+									/>
+								</ListItem>
+							));
+					})()}
 				</List>
 			</DialogContent>
 		</Dialog>

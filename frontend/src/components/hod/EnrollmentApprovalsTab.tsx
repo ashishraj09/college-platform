@@ -44,6 +44,10 @@ import {
 } from '@mui/icons-material';
 import { enrollmentAPI, enrollmentsAPI } from '../../services/api';
 
+import TimelineDialog, { TimelineEvent } from '../common/TimelineDialog';
+import { timelineAPI } from '../../services/api';
+import { Timeline as TimelineIcon } from '@mui/icons-material';
+
 interface Course {
   id: string;
   name: string;
@@ -119,6 +123,11 @@ const EnrollmentApprovalsTab: React.FC = () => {
   const [individualRejectionDialog, setIndividualRejectionDialog] = useState(false);
   const [individualRejectionGroup, setIndividualRejectionGroup] = useState<GroupedEnrollment | null>(null);
   const [individualRejectionReason, setIndividualRejectionReason] = useState('');
+
+  // Timeline dialog state
+  const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [timelineEntityName, setTimelineEntityName] = useState('');
 
   // Get department_code from user context
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -338,6 +347,23 @@ const EnrollmentApprovalsTab: React.FC = () => {
     }
   };
 
+  const handleOpenTimelineDialog = async (group: GroupedEnrollment) => {
+    setTimelineDialogOpen(true);
+    setTimelineEntityName(`${group.student.first_name} ${group.student.last_name}`);
+    try {
+      const events = await timelineAPI.getTimeline('enrollment', group.enrollments[0].id);
+      setTimelineEvents(events);
+    } catch (err) {
+      setTimelineEvents([]);
+    }
+  };
+
+  const handleCloseTimelineDialog = () => {
+    setTimelineDialogOpen(false);
+    setTimelineEvents([]);
+    setTimelineEntityName('');
+  };
+
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
@@ -517,6 +543,18 @@ const EnrollmentApprovalsTab: React.FC = () => {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleOpenTimelineDialog(group);
+                        }}
+                        variant="text"
+                        color="primary"
+                        startIcon={<TimelineIcon />}
+                        sx={{ textTransform: 'none', fontWeight: 500, fontSize: 16, minWidth: 0, px: 1, mr: { sm: 2, xs: 0 } }}
+                      >
+                        Timeline
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setIndividualRejectionGroup(group);
                           setIndividualRejectionDialog(true);
                         }}
@@ -685,6 +723,14 @@ const EnrollmentApprovalsTab: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Timeline Dialog */}
+      <TimelineDialog
+        open={timelineDialogOpen}
+        onClose={handleCloseTimelineDialog}
+        events={timelineEvents}
+        entityName={timelineEntityName}
+      />
     </Box>
   );
 };

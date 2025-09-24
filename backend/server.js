@@ -42,8 +42,6 @@ const courseRoutes = require('./routes/courses');
 const departmentRoutes = require('./routes/departments');
 const degreeRoutes = require('./routes/degrees');
 const enrollmentRoutes = require('./routes/enrollments');
-const enrollmentDraftRoutes = require('./routes/enrollments-draft');
-const enrollmentHodRoutes = require('./routes/enrollments-hod');
 const enrollmentNewRoutes = require('./routes/enrollment');
 
 // Request/response logger middleware
@@ -231,8 +229,6 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/degrees', degreeRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
-app.use('/api/enrollments-draft', enrollmentDraftRoutes);
-app.use('/api/enrollments-hod', enrollmentHodRoutes);
 app.use('/api/enrollment', enrollmentNewRoutes);
 const timelineRoutes = require('./routes/timeline');
 app.use('/api/timeline', timelineRoutes);
