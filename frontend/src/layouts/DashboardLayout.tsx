@@ -57,7 +57,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <CssBaseline />
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
-          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+          <Box
+            sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            onClick={() => navigate('/')}
+          >
             <img
               src="/static/college-logo.png"
               alt="College Logo"
