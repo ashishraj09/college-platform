@@ -626,25 +626,35 @@ const EnrollmentApprovalsTab: React.FC = () => {
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
                 {individualRejectionGroup.student.first_name} {individualRejectionGroup.student.last_name}
               </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Student ID: {individualRejectionGroup.student.student_id}<br />
-                Semester: {individualRejectionGroup.semester}
-              </Typography>
-              {/* List selected course name and code */}
-              {individualRejectionGroup.enrollments.length > 0 && individualRejectionGroup.enrollments[0].course_codes && (
-                <List dense sx={{ mb: 2 }}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" component="span" sx={{ mr: 1 }}>
+                  Student ID:
+                </Typography>
+                <Typography variant="body2" color="text.primary" component="span" sx={{ mr: 2 }}>
+                  {individualRejectionGroup.student.student_id}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" component="span" sx={{ mr: 1 }}>
+                  Semester:
+                </Typography>
+                <Typography variant="body2" color="text.primary" component="span">
+                  {individualRejectionGroup.semester}
+                </Typography>
+              </Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Courses:
+                </Typography>
+                <ul style={{ margin: 0, paddingLeft: '1.2em' }}>
                   {individualRejectionGroup.enrollments[0].course_codes.map((code: string) => {
                     const course = individualRejectionGroup.enrollments[0].courses?.find((c: any) => c.code === code);
                     return (
-                      <ListItem key={code} sx={{ pl: 0 }}>
-                        <ListItemText
-                          primary={course ? `${course.name} (${code})` : code}
-                        />
-                      </ListItem>
+                      <li key={code} style={{ marginBottom: '0.25em', fontSize: '1rem', color: '#212121' }}>
+                        <span style={{ color: '#212121' }}>{course ? `${course.name} (${code})` : code}</span>
+                      </li>
                     );
                   })}
-                </List>
-              )}
+                </ul>
+              </Box>
               <TextField
                 fullWidth
                 multiline
