@@ -19,21 +19,20 @@ const EnrollmentApprovalPage: React.FC = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <IconButton 
             onClick={() => navigate('/hod')}
-            sx={{ mr: 2 }}
+            sx={{ ml: { xs: 0, sm: 0, md: 0 }, mr: 4, p: 0 }}
             aria-label="Back to dashboard"
           >
-            <ArrowBackIcon />
+            <ArrowBackIcon sx={{ fontSize: 36, color: '#1565c0', fontWeight: 900 }} />
           </IconButton>
-          <Box>
-            <Typography variant="h4" component="h1">
+          <Box sx={{ textAlign: 'center', flex: 1 }}>
+            <Typography variant="h4" component="h1" align="center">
               Student Enrollment Approval
             </Typography>
-            <Typography variant="subtitle1" color="text.secondary">
+            <Typography variant="subtitle1" color="text.secondary" align="center">
               Review and approve student course enrollment requests for the current semester
             </Typography>
           </Box>
         </Box>
-
         <Paper elevation={2} sx={{ p: 0 }}>
           <EnrollmentApprovalsTab />
         </Paper>

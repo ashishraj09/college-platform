@@ -57,12 +57,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <CssBaseline />
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            College Platform - {effectiveRole === 'admin' ? 'Admin' : 
-                               effectiveRole === 'faculty' ? 'Faculty' : 
-                               effectiveRole === 'hod' ? 'HOD' : 
-                               effectiveRole === 'office' ? 'Office' : 'Student'} Dashboard
-          </Typography>
+          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+            <img
+              src="/static/college-logo.png"
+              alt="College Logo"
+              style={{ height: 40, marginRight: 14, background: 'transparent', borderRadius: 8 }}
+            />
+            <Typography variant="h6" component="div" sx={{ fontWeight: 700, textAlign: 'left', letterSpacing: 0.5 }}>
+              {process.env.REACT_APP_APP_NAME || 'College Platform'}
+            </Typography>
+          </Box>
           
           {/* Navigation Links */}
           {user?.user_type === 'faculty' && (

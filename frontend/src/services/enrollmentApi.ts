@@ -181,8 +181,7 @@ export const enrollmentAPI = {
   saveDraft: (payload: { enrollment_id: string; course_codes: string[] }) => centralEnrollmentAPI.saveDraft(payload),
   submitForApproval: (payload: { enrollment_id: string }) => centralEnrollmentAPI.submitForApproval(payload),
   getMyDegreeCourses: (params?: any) => centralEnrollmentAPI.getMyDegreeCourses(params),
-  checkActiveEnrollmentStatus: () => centralEnrollmentAPI.checkActiveEnrollmentStatus(),
-
+  
   // HOD/admin methods (delegates to enrollmentAPI)
   getPendingApprovals: (params?: any) => centralEnrollmentAPI.getPendingApprovals(params),
   approveEnrollments: (payload: { enrollment_ids: string[] }) => centralEnrollmentAPI.approveEnrollments(payload),
@@ -222,48 +221,6 @@ export const enrollmentAPI = {
     return centralEnrollmentAPI.submitForApproval ? centralEnrollmentAPI.submitForApproval({ enrollment_id: '' }) : Promise.reject(new Error('submitForApproval not available'));
   },
 
-  // Additional server-side enrollment utilities (delegate to enrollmentsAPI where appropriate)
-  createEnrollment: (payload: any) => centralEnrollmentsAPI.createEnrollment ? centralEnrollmentsAPI.createEnrollment(payload) : Promise.reject(new Error('createEnrollment not available')),
-  getUniversityCourses: async (departmentId?: string) => {
-    // Compose departments + department courses into the UniversityDepartment shape expected by UI
-    const params = departmentId ? { departmentId } : undefined;
-    const departments = await departmentsAPI.getDepartments(params ? { status: 'active' } : undefined);
-    // If a departmentId filter is provided, filter locally
-    const filtered = departmentId ? departments.filter((d: any) => d.id === departmentId) : departments;
-
-    // For each department, fetch its active degrees and courses via coursesAPI.getDepartmentCourses
-    const results: any[] = [];
-    for (const dept of filtered) {
-      const deptCourses = await coursesAPI.getDepartmentCourses({ departmentId: dept.id });
-      // The coursesAPI returns a flat list of courses; group them by degree if degree info exists
-      // We'll try to assemble degrees by degree.code if present, else return a single degree container
-      const degreesMap: Record<string, any> = {};
-      for (const course of deptCourses) {
-        const degreeCode = course.degree?.code || 'unknown';
-        if (!degreesMap[degreeCode]) {
-          degreesMap[degreeCode] = {
-            id: course.degree?.id || degreeCode,
-            name: course.degree?.name || 'General',
-            code: degreeCode,
-            duration_years: course.degree?.duration_years || 0,
-            courses: [],
-          };
-        }
-        degreesMap[degreeCode].courses.push(course);
-      }
-
-      const degrees = Object.values(degreesMap);
-      results.push({
-        id: dept.id,
-        name: dept.name,
-        code: dept.code,
-        description: dept.description,
-        status: dept.status,
-        degrees,
-      });
-    }
-    return results;
-  },
 };
 
 export default enrollmentAPI;

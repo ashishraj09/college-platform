@@ -1204,11 +1204,11 @@ router.patch('/:id/reject',
         type: 'course',
         reference_id: course.id,
         sender_id: user.id || req.body.userId,
-        message: `Course change rejected: ${reason}`,
+        message: `Course change requested: ${reason}`,
       });
 
       res.json({
-        message: 'Course rejected successfully',
+        message: 'Course change requested successfully',
         course,
       });
     } catch (error) {

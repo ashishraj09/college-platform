@@ -192,8 +192,6 @@ export const departmentsAPI = {
 // --- Enrollments API ---
 export const enrollmentsAPI = {
   getEnrollments: async (params?: any) => (await api.get('/enrollments', { params })).data,
-  getEnrollmentById: async (id: string) => (await api.get(`/enrollments/${id}`)).data,
-  createEnrollment: async (payload: any) => (await api.post('/enrollments', payload)).data,
   updateEnrollment: async (id: string, payload: any) => (await api.put(`/enrollments/${id}`, payload)).data,
   approveEnrollment: async (id: string, approverType: 'hod' | 'office') => (await api.patch(`/enrollments/${id}/approve`, { approver_type: approverType })).data,
   rejectEnrollment: async (id: string, reason: string) => (await api.patch(`/enrollments/${id}/reject`, { reason })).data,
@@ -206,11 +204,11 @@ export const enrollmentAPI = {
   // Student endpoints
   getAllEnrollments: async () => (await api.get('/enrollments')).data,
   createDraft: async (payload: { course_codes: string[], semester: number, degree_code: string, department_code: string }) => {
-    // Backend no longer exposes /enrollments/draft; fetch drafts via enrollments list
-    const { course_codes, semester, department_code } = payload as any;
-    // Send department_code to backend
-    const result = await api.post('/enrollments', { course_codes, semester, department_code });
-    return result.data;
+  // Backend no longer exposes /enrollments/draft; fetch drafts via enrollments list
+  const { course_codes, semester, department_code } = payload as any;
+  // Send department_code to backend
+  const result = await enrollmentsAPI.getEnrollments();
+  return result;
   },
   saveDraft: async (payload: { enrollment_id: string, course_codes: string[], department_code?: string }) => 
     (await api.put('/enrollments/draft', { enrollment_id: payload.enrollment_id, course_codes: payload.course_codes, department_code: payload.department_code })).data,

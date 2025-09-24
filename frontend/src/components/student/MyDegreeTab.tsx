@@ -103,7 +103,7 @@ const MyDegreeTab: React.FC = () => {
   const handleCourseSelection = (courseId: string) => {
     setSelectedCourses(prev => {
       if (prev.includes(courseId)) {
-        return prev.filter(id => id !== courseId);
+        return prev.filter(code => code !== courseId);
       } else {
         return [...prev, courseId];
       }
@@ -157,12 +157,8 @@ const MyDegreeTab: React.FC = () => {
 
     setDraftLoading(true);
     try {
-  // Map to centralized API: saveDraft expects { enrollment_id, course_codes }
-  const course_codes = selectedCourses.map(id => {
-    const course = courseCodeMap[id];
-    return course ? course.code : id;
-  });
-  await enrollmentAPI.saveDraft({ enrollment_id: currentDraft?.id || '', course_codes });
+      // Use selected course codes directly
+      await enrollmentAPI.saveDraft({ enrollment_id: currentDraft?.id || '', course_codes: selectedCourses });
       enqueueSnackbar('Enrollment draft saved successfully', { variant: 'success' });
       fetchDraft(); // Refresh the draft data
     } catch (error) {
@@ -373,20 +369,13 @@ const MyDegreeTab: React.FC = () => {
 
   const fetchDraft = useCallback(async () => {
     try {
-      // Centralized API: createDraft GETs the current draft
+      // Only fetch draft if not already loaded
+      if (currentDraft) return;
       const response = await enrollmentAPI.createDraft({ course_codes: [], semester: getCurrentSemester() } as any);
       if (response && response.draft) {
         setCurrentDraft(response.draft);
-        // Use centralized courseCodeMap to auto-load selected courses
-        const selectedIds: string[] = [];
-        for (const draftCourse of response.draft.courses || []) {
-          const courseObj = courseCodeMap[draftCourse.code];
-          if (courseObj && courseObj.semester === getCurrentSemester() && !courseObj.isEnrolled) {
-            selectedIds.push(courseObj.id);
-          }
-        }
-  // ...existing code...
-        setSelectedCourses(Array.from(new Set(selectedIds)));
+        // Use course codes directly for selection
+        setSelectedCourses(Array.from(new Set(response.draft.course_codes || [])));
       } else {
         setCurrentDraft(null);
         setSelectedCourses([]);
@@ -394,7 +383,7 @@ const MyDegreeTab: React.FC = () => {
     } catch (error) {
       console.error('Error fetching draft:', error);
     }
-  }, [degreeCourses.courses, getCurrentSemester, enqueueSnackbar]);
+  }, [currentDraft, getCurrentSemester]);
 
   const checkActiveEnrollmentStatus = useCallback(async () => {
     try {
@@ -432,7 +421,22 @@ const MyDegreeTab: React.FC = () => {
         setDraftEnrollment(response.draftEnrollment);
         
         // If there's a draft, automatically set the selected courses and initiate enrollment
-  setSelectedCourses(response.draftEnrollment.course_ids || []);
+          // Always use course codes for selection
+          if (response.draftEnrollment.course_codes && Array.isArray(response.draftEnrollment.course_codes)) {
+            setSelectedCourses(Array.from(new Set(response.draftEnrollment.course_codes)));
+          } else if (response.draftEnrollment.course_ids && Array.isArray(response.draftEnrollment.course_ids)) {
+            // Map IDs to codes using courseCodeMap
+            const codes = response.draftEnrollment.course_ids
+              .map((id: string) => {
+                // Find course by id in courseCodeMap
+                const found = Object.values(courseCodeMap).find(c => c.id === id);
+                return found ? found.code : null;
+              })
+              .filter((code: string | null) => !!code);
+            setSelectedCourses(Array.from(new Set(codes)));
+          } else {
+            setSelectedCourses([]);
+          }
         setEnrollmentInitiated(true);
         setCurrentDraft(response.draftEnrollment);
       } else {
@@ -455,21 +459,21 @@ const MyDegreeTab: React.FC = () => {
   // Add a flag to track initial loading
 
   // Initial load: fetch degree courses and enrollment status
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   useEffect(() => {
-    if (!initialLoadComplete) {
-      fetchDegreeCourses();
-      checkActiveEnrollmentStatus();
-      setInitialLoadComplete(true);
-    }
-  }, [fetchDegreeCourses, checkActiveEnrollmentStatus, initialLoadComplete]);
-
-  // When degreeCourses.courses is loaded, fetch draft and restore selections
-  useEffect(() => {
-    if (degreeCourses.courses && degreeCourses.courses.length > 0 && Object.keys(courseCodeMap).length > 0) {
-      fetchDraft();
-    }
-  }, [degreeCourses.courses, courseCodeMap, fetchDraft]);
+    // Only run once on mount
+    let isMounted = true;
+    const loadAll = async () => {
+      await fetchDegreeCourses();
+      await checkActiveEnrollmentStatus();
+      // Only fetch draft if there is a draft enrollment and no current draft loaded
+      if (isMounted && hasDraftEnrollment && !currentDraft) {
+        await fetchDraft();
+      }
+    };
+    loadAll();
+    return () => { isMounted = false; };
+  // Only run once on mount
+  }, []);
 
   if (loading) {
     return (
@@ -777,8 +781,8 @@ const MyDegreeTab: React.FC = () => {
                                 {showCheckboxes && (
                                   <ListItemIcon>
                                     <Checkbox
-                                      checked={selectedCourses.includes(course.id)}
-                                      onChange={() => canEditSelection && handleCourseSelection(course.id)}
+                                      checked={selectedCourses.includes(course.code)}
+                                      onChange={() => canEditSelection && handleCourseSelection(course.code)}
                                       disabled={!canEditSelection}
                                     />
                                   </ListItemIcon>
@@ -1071,10 +1075,10 @@ const MyDegreeTab: React.FC = () => {
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle1">Selected Courses ({selectedCourses.length}):</Typography>
             <List dense>
-              {selectedCourses.map(courseId => {
-                const course = courseCodeMap[courseId];
+              {selectedCourses.map(courseCode => {
+                const course = courseCodeMap[courseCode];
                 return course ? (
-                  <ListItem key={courseId}>
+                  <ListItem key={courseCode}>
                     <ListItemIcon>
                       <CheckIcon color="primary" />
                     </ListItemIcon>

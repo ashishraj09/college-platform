@@ -2,12 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
-  Card,
-  CardContent,
-  Chip,
-  Button,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -31,7 +25,13 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction
+  ListItemSecondaryAction,
+  Paper,
+  Card,
+  CardContent,
+  Button,
+  Dialog,
+  TablePagination
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -65,7 +65,7 @@ interface Student {
 interface PendingEnrollment {
   id: string;
   student_id: string;
-  course_ids: string[];
+  course_codes: string[];
   enrollment_status: string;
   is_submitted: boolean;
   submitted_at: string;
@@ -94,12 +94,13 @@ interface Degree {
 
 const EnrollmentApprovalsTab: React.FC = () => {
   const [pendingApprovals, setPendingApprovals] = useState<GroupedEnrollment[]>([]);
-  // Removed unused departments state
   const [degrees, setDegrees] = useState<Degree[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  // Pagination state
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, pages: 1 });
 
   // Filters
   const [selectedDegree, setSelectedDegree] = useState<string>('');
@@ -113,69 +114,87 @@ const EnrollmentApprovalsTab: React.FC = () => {
   const [approvalDialog, setApprovalDialog] = useState(false);
   const [rejectionDialog, setRejectionDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  
+
   // State for individual approval/rejection
   const [individualRejectionDialog, setIndividualRejectionDialog] = useState(false);
   const [individualRejectionGroup, setIndividualRejectionGroup] = useState<GroupedEnrollment | null>(null);
   const [individualRejectionReason, setIndividualRejectionReason] = useState('');
+
+  // Get department_code from user context
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { user } = require('../../contexts/AuthContext').useAuth();
+  const departmentCode = user?.department?.code || user?.department_code || '';
   const [approvalInProgress, setApprovalInProgress] = useState(false);
 
   const loadPendingApprovals = React.useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
-      if (selectedDegree) params.degree_id = selectedDegree;
-      if (selectedSemester) params.semester = selectedSemester;
-      if (searchTerm) params.search = searchTerm;
+  const params: any = {
+    page: pagination.page,
+    limit: pagination.limit
+  };
+  if (selectedDegree) params.degree_id = selectedDegree;
+  if (selectedSemester) params.semester = selectedSemester;
+  if (searchTerm) params.search = searchTerm;
+  if (departmentCode) params.department_code = departmentCode;
 
-  // Fetch enrollments list (backend now returns a plain array). Keep compatibility with legacy { pendingApprovals: [] }.
+      // Fetch enrollments list (backend now returns a plain array). Keep compatibility with legacy { pendingApprovals: [] }.
   const raw = await enrollmentsAPI.getEnrollments(params);
-  const data = Array.isArray(raw) ? { pendingApprovals: raw } : (raw || {});
-  console.log('Pending approvals data:', data);
+  // Use new paginated response
+  const data = raw && raw.enrollments ? raw : { enrollments: [], pagination: { total: 0, page: 1, limit: 20, pages: 1 } };
+      console.log('Pending approvals data:', data);
       
       // The data comes in a flat structure but we need to group it for display
       // Group enrollments by student and semester
       const groupedData: GroupedEnrollment[] = [];
       const groupMap: Record<string, number> = {};
       
-      if (data.pendingApprovals && data.pendingApprovals.length > 0) {
-        data.pendingApprovals.forEach((enrollment: any) => {
-          // Check if this is the new API format with enrollments array
+      if (data.enrollments && data.enrollments.length > 0) {
+        data.enrollments.forEach((enrollment: any) => {
+          // Always use enrollment.student for grouping and display
+          let studentObj = enrollment.student;
+          if (!studentObj) {
+            // Fallback for legacy/old API format
+            studentObj = {
+              id: enrollment.student_id,
+              first_name: '',
+              last_name: '',
+              student_id: enrollment.student_id,
+              email: '',
+              degree: undefined
+            };
+          }
           if (enrollment.enrollments && enrollment.enrollments.length > 0) {
             // New API format - process each enrollment in the enrollments array
             enrollment.enrollments.forEach((innerEnrollment: any) => {
-              const key = `${enrollment.student.id}-${enrollment.semester}`;
-              
+              const key = `${studentObj.id}-${enrollment.semester}`;
               if (groupMap[key] === undefined) {
                 // Create a new group
                 groupMap[key] = groupedData.length;
                 groupedData.push({
-                  student: enrollment.student,
+                  student: studentObj,
                   semester: enrollment.semester,
                   enrollments: []
                 });
               }
-              
               // Add the enrollment to the group
               groupedData[groupMap[key]].enrollments.push({
                 ...innerEnrollment,
-                student: enrollment.student
+                student: studentObj
               });
             });
           } else {
             // Old API format - direct enrollment object
-            const key = `${enrollment.student_id}-${enrollment.semester}`;
-            
+            const key = `${studentObj.id}-${enrollment.semester}`;
             // Normalize course data - find the first course in the courses array if course is missing
             if (!enrollment.course && enrollment.courses && enrollment.courses.length > 0) {
               enrollment.course = enrollment.courses[0];
             }
-            
             if (groupMap[key] === undefined) {
               // Create a new group
               groupMap[key] = groupedData.length;
               groupedData.push({
-                student: enrollment.student,
+                student: studentObj,
                 semester: enrollment.semester,
                 enrollments: [enrollment]
               });
@@ -185,27 +204,30 @@ const EnrollmentApprovalsTab: React.FC = () => {
             }
           }
         });
-      }
-      
-      console.log('Grouped data:', groupedData);
-      setPendingApprovals(groupedData);
-      
-      // Extract unique degrees from the enrollment requests to populate the dropdown
-      if (!selectedDegree && data.pendingApprovals && data.pendingApprovals.length > 0) {
-        const uniqueDegrees = new Map<string, Degree>();
-        
-        data.pendingApprovals.forEach((enrollment: any) => {
-          const student = enrollment.student || (enrollment.enrollments && enrollment.enrollments[0]?.student);
-          if (student?.degree && !uniqueDegrees.has(student.degree.id)) {
-            uniqueDegrees.set(student.degree.id, {
-              id: student.degree.id,
-              name: student.degree.name,
-              code: student.degree.code
-            });
-          }
-        });
-        
-        setDegrees(Array.from(uniqueDegrees.values()));
+        // Filter by degree after grouping if selectedDegree is set
+        const filteredGroupedData = selectedDegree
+          ? groupedData.filter(group => group.student.degree && group.student.degree.id === selectedDegree)
+          : groupedData;
+        setPendingApprovals(filteredGroupedData);
+        setPagination(data.pagination || { total: 0, page: 1, limit: 20, pages: 1 });
+        // Extract unique degrees from the enrollment requests to populate the dropdown
+        if (!selectedDegree && data.enrollments && data.enrollments.length > 0) {
+          const uniqueDegrees = new Map<string, Degree>();
+          data.enrollments.forEach((enrollment: any) => {
+            const student = enrollment.student || (enrollment.enrollments && enrollment.enrollments[0]?.student);
+            if (student?.degree && !uniqueDegrees.has(student.degree.id)) {
+              uniqueDegrees.set(student.degree.id, {
+                id: student.degree.id,
+                name: student.degree.name,
+                code: student.degree.code
+              });
+            }
+          });
+          setDegrees(Array.from(uniqueDegrees.values()));
+        }
+      } else {
+        setPendingApprovals([]);
+        setPagination(data.pagination || { total: 0, page: 1, limit: 20, pages: 1 });
       }
     } catch (err) {
       setError('Failed to load pending approvals');
@@ -218,7 +240,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
   useEffect(() => {
     // Just load pending approvals - degrees will be extracted from the response
     loadPendingApprovals();
-  }, [loadPendingApprovals]);
+  }, [loadPendingApprovals, pagination.page, pagination.limit, selectedDegree, selectedSemester, searchTerm]);
 
   const toggleGroupExpansion = (groupKey: string) => {
     setExpandedGroups(prev => ({
@@ -325,46 +347,43 @@ const EnrollmentApprovalsTab: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        Student Enrollment Approvals
+    <Box sx={{ px: { xs: 1, sm: 2, md: 3 }, py: { xs: 2, sm: 3 }, pb: 1, maxWidth: '100%', width: '100%' }}>
+
+    {error && (
+      <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+        {error}
+      </Alert>
+    )}
+
+    {success && (
+      <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 2 }}>
+        {success}
+      </Alert>
+    )}
+
+    {/* Filters */}
+    <Paper sx={{ p: 2, mb: 3 }}>
+      <Typography variant="subtitle1" gutterBottom>
+        Filters
       </Typography>
-
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {success && (
-        <Alert severity="success" onClose={() => setSuccess(null)} sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
-
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="subtitle1" gutterBottom>
-          Filters
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Box sx={{ minWidth: 200 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Filter by Degree</InputLabel>
-              <Select
-                value={selectedDegree}
-                label="Filter by Degree"
-                onChange={(e) => setSelectedDegree(e.target.value)}
-              >
-                <MenuItem value="">All Degrees</MenuItem>
-                {degrees.map((degree) => (
-                  <MenuItem key={degree.id} value={degree.id}>
-                    {degree.name} ({degree.code})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Box sx={{ minWidth: 200 }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Filter by Degree</InputLabel>
+            <Select
+              value={selectedDegree}
+              label="Filter by Degree"
+              onChange={(e) => setSelectedDegree(e.target.value)}
+            >
+              <MenuItem value="">All Degrees</MenuItem>
+              {degrees.map((degree) => (
+                <MenuItem key={degree.id} value={degree.id}>
+                  {degree.name} ({degree.code})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
           <Box sx={{ minWidth: 150 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Filter by Semester</InputLabel>
@@ -415,7 +434,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
               startIcon={<RejectIcon />}
               onClick={() => setRejectionDialog(true)}
             >
-              Return to Draft
+              Request Changes for Selected
             </Button>
           </Box>
         </Paper>
@@ -433,7 +452,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
           </Typography>
         </Paper>
       ) : (
-        <Box>
+  <Box>
           {pendingApprovals.map((group) => {
             const groupKey = `${group.student.id}-${group.semester}`;
             const isExpanded = expandedGroups[groupKey];
@@ -443,111 +462,87 @@ const EnrollmentApprovalsTab: React.FC = () => {
             return (
               <Card key={groupKey} sx={{ mb: 2 }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', md: 'row' },
+                    alignItems: { xs: 'stretch', md: 'center' },
+                    justifyContent: 'space-between',
+                    gap: { xs: 2, md: 3 },
+                    width: '100%'
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
                       <Checkbox
                         checked={isGroupSelected}
                         indeterminate={!isGroupSelected && isPartiallySelected}
                         onChange={(e) => handleGroupSelection(group, e.target.checked)}
+                        sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }}
                       />
-                      <Box>
-                        <Typography variant="h6">
-                          {group.student.first_name} {group.student.last_name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Student ID: {group.student.student_id} | 
-                          Degree: {group.student.degree?.name} ({group.student.degree?.code})
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Semester: {group.semester}
-                        </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'flex-start', width: '100%', gap: { xs: 2, sm: 4 } }}>
+                        {/* Student Name Column */}
+                        <Box sx={{ minWidth: 120, display: 'flex', alignItems: 'center', mb: { xs: 1, sm: 0 } }}>
+                          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            {group.student.first_name} {group.student.last_name}
+                          </Typography>
+                        </Box>
+                        {/* Student Details Column */}
+                        <Box sx={{ minWidth: 180, textAlign: 'left', mb: { xs: 1, sm: 0 } }}>
+                          <Typography variant="body1" sx={{ mb: 0.5, textAlign: 'left' }}>
+                            <span style={{ color: '#6c757d' }}>Student ID:</span> <span style={{ color: '#212121' }}>{group.student.student_id}</span>
+                          </Typography>
+                          <Typography variant="body1" sx={{ mb: 0.5, textAlign: 'left' }}>
+                            <span style={{ color: '#6c757d' }}>Degree:</span> <span style={{ color: '#212121' }}>{group.student.degree?.name} ({group.student.degree?.code})</span>
+                          </Typography>
+                          <Typography variant="body1" sx={{ mb: 0.5, textAlign: 'left' }}>
+                            <span style={{ color: '#6c757d' }}>Semester:</span> <span style={{ color: '#212121' }}>{group.semester}</span>
+                          </Typography>
+                        </Box>
+                        <Box sx={{ minWidth: 160, textAlign: 'left', mb: { xs: 1, sm: 0 } }}>
+                          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500, mb: 0.5, textAlign: 'left' }}>
+                            Selected Courses ({group.enrollments[0].course_codes.length}):
+                          </Typography>
+                          <ul style={{ margin: 0, paddingLeft: '1.2em' }}>
+                            {group.enrollments[0].course_codes.map((code: string) => {
+                              const course = group.enrollments[0].courses?.find((c: any) => c.code === code);
+                              return (
+                                <li key={code} style={{ marginBottom: '0.25em', fontSize: '1rem', color: '#212121' }}>
+                                  {course ? `${course.name} (${code})` : code}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </Box>
                       </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Chip 
-                        label={`${group.enrollments.length} courses`} 
-                        size="small" 
-                        color="primary" 
-                        variant="outlined" 
-                      />
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'flex-end', mt: { xs: 2, md: 0 } }}>
                       <Button
-                        size="small"
-                        variant="contained"
-                        color="success"
                         onClick={(e) => {
-                          e.stopPropagation(); // Prevent expansion toggling
-                          handleIndividualApprove(group);
-                        }}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="error"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent expansion toggling
+                          e.stopPropagation();
                           setIndividualRejectionGroup(group);
                           setIndividualRejectionDialog(true);
                         }}
+                        variant="outlined"
+                        color="error"
+                        startIcon={<RejectIcon />}
+                        sx={{ mb: { xs: 1, sm: 0 }, mr: { sm: 2, xs: 0 } }}
                       >
-                        Return to Draft
+                        Request Change
                       </Button>
-                      <IconButton
-                        onClick={() => toggleGroupExpansion(groupKey)}
-                        size="small"
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleIndividualApprove(group);
+                        }}
+                        variant="contained"
+                        color="success"
+                        startIcon={<ApproveIcon />}
                       >
-                        {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                      </IconButton>
+                        Approve
+                      </Button>
                     </Box>
                   </Box>
 
-                  <Collapse in={isExpanded}>
-                    <Box sx={{ mt: 2 }}>
-                      <TableContainer>
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Course Code</TableCell>
-                              <TableCell>Course Name</TableCell>
-                              <TableCell>Credits</TableCell>
-                              <TableCell>Requested</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {group.enrollments.map((enrollment) => {
-                              // Handle both single course and multiple courses formats
-                              if (enrollment.courses && enrollment.courses.length > 0) {
-                                // Multiple courses format
-                                return enrollment.courses.map((course: any) => (
-                                  <TableRow key={`${enrollment.id}-${course.id}`}>
-                                    <TableCell>{course.code}</TableCell>
-                                    <TableCell>{course.name}</TableCell>
-                                    <TableCell>{course.credits}</TableCell>
-                                    <TableCell>
-                                      {new Date(enrollment.createdAt).toLocaleDateString()}
-                                    </TableCell>
-                                  </TableRow>
-                                ));
-                              } else {
-                                // Single course format
-                                return (
-                                  <TableRow key={enrollment.id}>
-                                    <TableCell>{enrollment.course?.version_code || enrollment.course?.code || 'N/A'}</TableCell>
-                                    <TableCell>{enrollment.course?.name || 'N/A'}</TableCell>
-                                    <TableCell>{enrollment.course?.credits || 'N/A'}</TableCell>
-                                    <TableCell>
-                                      {new Date(enrollment.createdAt).toLocaleDateString()}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              }
-                            })}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  </Collapse>
+                  {/* Show course details table directly below info, no dropdown */}
+                  {/* Removed course details table */}
                 </CardContent>
               </Card>
             );
@@ -556,6 +551,22 @@ const EnrollmentApprovalsTab: React.FC = () => {
       )}
 
       {/* Approval Dialog */}
+      {/* Pagination Controls */}
+      {pagination.total > 0 && (
+        <Box sx={{ mt: 2, mb: 1, justifyContent: 'flex-end', width: '100%' }}>
+          <Paper sx={{ minWidth: 320 }}>
+            <TablePagination
+              component="div"
+              count={pagination.total}
+              page={pagination.page - 1}
+              onPageChange={(_event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => setPagination(prev => ({ ...prev, page: newPage + 1 }))}
+              rowsPerPage={pagination.limit}
+              onRowsPerPageChange={(event: React.ChangeEvent<HTMLInputElement>) => setPagination(prev => ({ ...prev, page: 1, limit: parseInt(event.target.value, 10) }))}
+              rowsPerPageOptions={[10, 20, 50]}
+            />
+          </Paper>
+        </Box>
+      )}
       <Dialog open={approvalDialog} onClose={() => setApprovalDialog(false)}>
         <DialogTitle>Approve Enrollments</DialogTitle>
         <DialogContent>
@@ -564,8 +575,8 @@ const EnrollmentApprovalsTab: React.FC = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setApprovalDialog(false)}>Cancel</Button>
-          <Button onClick={handleApprove} variant="contained" color="success">
+          <Button onClick={() => setApprovalDialog(false)} sx={{ borderRadius: 999, minWidth: 120, fontWeight: 600, fontSize: 18, py: 1.5, px: 3, mx: 1 }}>Cancel</Button>
+          <Button onClick={handleApprove} variant="contained" color="success" startIcon={<ApproveIcon />} sx={{ borderRadius: 999, minWidth: 160, fontWeight: 700, fontSize: 22, py: 2, px: 4, mx: 1, boxShadow: 2 }}>
             Approve
           </Button>
         </DialogActions>
@@ -573,56 +584,72 @@ const EnrollmentApprovalsTab: React.FC = () => {
 
       {/* Rejection Dialog */}
       <Dialog open={rejectionDialog} onClose={() => setRejectionDialog(false)}>
-        <DialogTitle>Return Enrollments to Draft</DialogTitle>
+  <DialogTitle>Request Change for Enrollments</DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
-            Please provide a reason for returning {selectedEnrollments.length} selected enrollment(s) to draft status:
+            Please provide a reason for requesting change for {selectedEnrollments.length} selected enrollment(s):
           </Typography>
           <TextField
             fullWidth
             multiline
             rows={3}
-            label="Rejection Reason"
+            label="Change Request Reason"
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
             sx={{ mt: 2 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRejectionDialog(false)}>Cancel</Button>
+          <Button onClick={() => setRejectionDialog(false)} sx={{ borderRadius: 999, minWidth: 120, fontWeight: 600, fontSize: 18, py: 1.5, px: 3, mx: 1 }}>Cancel</Button>
           <Button 
             onClick={handleReject} 
             variant="contained" 
             color="error"
+            startIcon={<RejectIcon />}
             disabled={!rejectionReason.trim()}
+            sx={{ borderRadius: 999, minWidth: 160, fontWeight: 700, fontSize: 22, py: 2, px: 4, mx: 1, boxShadow: 2 }}
           >
-            Return to Draft
+            Request Change
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Individual Rejection Dialog */}
       <Dialog open={individualRejectionDialog} onClose={() => setIndividualRejectionDialog(false)}>
-        <DialogTitle>Return Enrollment to Draft</DialogTitle>
+  <DialogTitle>Request Change for Enrollment</DialogTitle>
         <DialogContent>
           {individualRejectionGroup && (
             <>
               <Typography gutterBottom>
-                Please provide a reason for returning this enrollment to draft status:
+                Please provide a reason for requesting change for this enrollment:
               </Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
                 {individualRejectionGroup.student.first_name} {individualRejectionGroup.student.last_name}
               </Typography>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Student ID: {individualRejectionGroup.student.student_id}<br />
-                Semester: {individualRejectionGroup.semester}<br />
-                Courses: {individualRejectionGroup.enrollments.length}
+                Semester: {individualRejectionGroup.semester}
               </Typography>
+              {/* List selected course name and code */}
+              {individualRejectionGroup.enrollments.length > 0 && individualRejectionGroup.enrollments[0].course_codes && (
+                <List dense sx={{ mb: 2 }}>
+                  {individualRejectionGroup.enrollments[0].course_codes.map((code: string) => {
+                    const course = individualRejectionGroup.enrollments[0].courses?.find((c: any) => c.code === code);
+                    return (
+                      <ListItem key={code} sx={{ pl: 0 }}>
+                        <ListItemText
+                          primary={course ? `${course.name} (${code})` : code}
+                        />
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              )}
               <TextField
                 fullWidth
                 multiline
                 rows={3}
-                label="Rejection Reason"
+                label="Change Request Reason"
                 value={individualRejectionReason}
                 onChange={(e) => setIndividualRejectionReason(e.target.value)}
                 sx={{ mt: 2 }}
@@ -638,7 +665,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
             color="error"
             disabled={!individualRejectionReason.trim()}
           >
-            Return to Draft
+            Request Change
           </Button>
         </DialogActions>
       </Dialog>
