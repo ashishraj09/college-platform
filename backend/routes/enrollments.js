@@ -9,51 +9,115 @@ const { isEnrollmentOpen } = require('../utils/enrollment');
 
 // Base route for all enrollments with flexible filtering
 router.get('/',
+
   authenticateToken,
   async (req, res) => {
     try {
-      const { status, semester, student_id } = req.query;
       const Enrollment = await models.Enrollment();
       const Course = await models.Course();
       const User = await models.User();
-      // Build where clause
-      let whereClause = {};
-      // If status is provided, filter by status
-      if (status) {
-        if (Array.isArray(status)) {
-          whereClause.enrollment_status = { [Op.in]: status };
+      const Degree = await models.Degree();
+      const Department = await models.Department();
+
+      // Helper: Build filter for each user type
+      function buildFilter(user, query) {
+        const { status, semester, student_id, department_code } = query;
+        let filter = {};
+        if (user.user_type === 'admin') {
+          if (student_id) filter.student_id = student_id;
+          filter.semester = semester || user.current_semester;
+          if (status) filter.enrollment_status = Array.isArray(status) ? { [Op.in]: status } : status;
+        } else if (user.is_head_of_department) {
+          filter.enrollment_status = status || 'pending_hod_approval';
+          if (semester) filter.semester = semester;
         } else {
-          whereClause.enrollment_status = status;
+          filter.student_id = user.id;
+          filter.semester = semester || user.current_semester;
+          if (status) filter.enrollment_status = Array.isArray(status) ? { [Op.in]: status } : status;
         }
+        return filter;
       }
-      // Student view: only their enrollments
-      if (!req.user.is_head_of_department) {
-        whereClause.student_id = req.user.id;
-      }
-      // Admin can filter by student_id
-      if (req.user.user_type === 'admin' && student_id) {
-        whereClause.student_id = student_id;
-      }
-      // Add semester filter: For HOD, only filter by semester if explicitly provided
-      if (req.user.is_head_of_department) {
-        if (semester) {
-          whereClause.semester = semester;
+
+      // Helper: Filter enrollments for HOD by department
+      async function filterHODDepartment(enrollments, user, query) {
+        let deptCode = query.department_code;
+        if (!deptCode && user.department_id) {
+          const dept = await Department.findOne({ where: { id: user.department_id } });
+          if (dept) deptCode = dept.code;
         }
-        // If semester is not provided, do NOT filter by semester for HODs
-      } else {
-        // For students and admins, default to user's current semester if not provided
-        if (semester) {
-          whereClause.semester = semester;
+        if (deptCode) {
+          return enrollments.filter(e => e.department_code === deptCode);
         } else {
-          whereClause.semester = req.user.current_semester;
+          const students = await User.findAll({ where: { department_id: user.department_id } });
+          const studentIds = students.map(s => s.id);
+          return enrollments.filter(e => studentIds.includes(e.student_id));
         }
       }
+
+      // Helper: Search filter for HOD
+      async function filterHODSearch(enrollments, query) {
+        const search = query.search;
+        if (!search) return enrollments;
+        const studentIdSet = new Set(enrollments.map(e => e.student_id));
+        const searchStudents = await User.findAll({
+          where: {
+            id: { [Op.in]: Array.from(studentIdSet) },
+            [Op.or]: [
+              { first_name: { [Op.iLike]: `%${search}%` } },
+              { last_name: { [Op.iLike]: `%${search}%` } },
+              { student_id: { [Op.iLike]: `%${search}%` } }
+            ]
+          }
+        });
+        const matchedIds = new Set(searchStudents.map(s => s.id));
+        return enrollments.filter(e => matchedIds.has(e.student_id));
+      }
+
+      // Helper: Attach course and student info
+      async function shapeEnrollment(enrollment, userType) {
+        const courseCodes = enrollment.course_codes || [];
+        const courses = await Course.findAll({
+          where: { code: { [Op.in]: courseCodes } },
+          attributes: ['id', 'name', 'code']
+        });
+        let shaped = {
+          ...enrollment.get({ plain: true }),
+          courses: courses.map(course => ({ id: course.id, name: course.name, code: course.code }))
+        };
+        if (userType === 'hod') {
+          const student = await User.findOne({
+            where: { id: enrollment.student_id },
+            attributes: ['id', 'first_name', 'last_name', 'student_id', 'degree_id']
+          });
+          let degree = null;
+          if (student && student.degree_id) {
+            degree = await Degree.findOne({ where: { id: student.degree_id }, attributes: ['id', 'name', 'code'] });
+          }
+          shaped.student = {
+            id: student.id,
+            first_name: student.first_name,
+            last_name: student.last_name,
+            student_id: student.student_id,
+            degree: degree ? { id: degree.id, name: degree.name, code: degree.code } : undefined
+          };
+        }
+        return shaped;
+      }
+
+      // Main logic
+      const filter = buildFilter(req.user, req.query);
       let enrollments = await Enrollment.findAll({
-        where: whereClause,
+        where: filter,
         order: [['created_at', 'DESC']]
       });
 
-      // Pagination: only for HOD/admin views
+      // HOD department and search filters
+      if (req.user.is_head_of_department) {
+        enrollments = await filterHODDepartment(enrollments, req.user, req.query);
+        enrollments = await filterHODSearch(enrollments, req.query);
+      }
+
+      // Pagination for HOD/admin
       let page = parseInt(req.query.page, 10) || 1;
       let limit = parseInt(req.query.limit, 10) || 20;
       let total = enrollments.length;
@@ -61,100 +125,26 @@ router.get('/',
       if (req.user.is_head_of_department || req.user.user_type === 'admin') {
         enrollments = enrollments.slice((page - 1) * limit, page * limit);
       }
-      // HOD view: filter enrollments to only those in their department
-      if (req.user.is_head_of_department) {
-        // Accept department_code from query param, fallback to user's department
-        const department_code = req.query.department_code || null;
-        let deptCodeToUse = department_code;
-        if (!deptCodeToUse && req.user.department_id) {
-          const Department = await models.Department();
-          const dept = await Department.findOne({ where: { id: req.user.department_id } });
-          if (dept) deptCodeToUse = dept.code;
-        }
-        console.log('[HOD DEBUG] Filtering enrollments for department_code:', deptCodeToUse);
-        const beforeCount = enrollments.length;
-        if (deptCodeToUse) {
-          enrollments = enrollments.filter(e => e.department_code === deptCodeToUse);
-        } else {
-          // Fallback: filter by department_id via student lookup
-          const students = await User.findAll({ where: { department_id: req.user.department_id } });
-          const studentIds = students.map(s => s.id);
-          enrollments = enrollments.filter(e => studentIds.includes(e.student_id));
-        }
-        console.log('[HOD DEBUG] After department filter:', enrollments.map(e => ({ id: e.id, department_code: e.department_code, status: e.enrollment_status })));
 
-        // Add search filter if provided
-        const search = req.query.search;
-        if (search) {
-          const studentIdSet = new Set(enrollments.map(e => e.student_id));
-          const searchStudents = await User.findAll({
-            where: {
-              id: { [Op.in]: Array.from(studentIdSet) },
-              [Op.or]: [
-                { first_name: { [Op.iLike]: `%${search}%` } },
-                { last_name: { [Op.iLike]: `%${search}%` } },
-                { student_id: { [Op.iLike]: `%${search}%` } }
-              ]
-            }
-          });
-          const matchedIds = new Set(searchStudents.map(s => s.id));
-          enrollments = enrollments.filter(e => matchedIds.has(e.student_id));
-          console.log('[HOD DEBUG] After search filter:', enrollments.map(e => ({ id: e.id, student_id: e.student_id })));
+      // Shape enrollments
+      let shapedEnrollments = [];
+      if (req.user.is_head_of_department || req.user.user_type === 'admin') {
+        for (const enrollment of enrollments) {
+          shapedEnrollments.push(await shapeEnrollment(enrollment, 'hod'));
         }
-        // Log final enrollments for HOD
-        console.log('[HOD DEBUG] Final enrollments for HOD:', enrollments.map(e => ({ id: e.id, department_code: e.department_code, status: e.enrollment_status })));
-      }
-      // Process enrollments to include course details and student info for HOD
-      const enrollmentsWithCourses = [];
-      for (const enrollment of enrollments) {
-        // Get course details for all course_codes in the enrollment
-        const courseCodes = enrollment.course_codes || [];
-        const courses = await Course.findAll({
-          where: {
-            code: {
-              [Op.in]: courseCodes
-            }
-          },
-          attributes: ['id', 'name', 'code']
+        res.json({
+          enrollments: shapedEnrollments,
+          pagination: { total, page, limit, pages }
         });
-        let student = null;
-        let degree = null;
-        if (req.user.is_head_of_department) {
-          // Attach student details for HOD view, include degree code for filtering
-          student = await User.findOne({
-            where: { id: enrollment.student_id },
-            attributes: ['id', 'first_name', 'last_name', 'student_id', 'degree_id']
-          });
-          if (student && student.degree_id) {
-            const Degree = await models.Degree();
-            degree = await Degree.findOne({ where: { id: student.degree_id }, attributes: ['id', 'name', 'code'] });
-          }
+      } else {
+        // For students, do not include 'courses' in response
+        for (const enrollment of enrollments) {
+          const plain = enrollment.get({ plain: true });
+          delete plain.courses;
+          shapedEnrollments.push(plain);
         }
-        enrollmentsWithCourses.push({
-          ...enrollment.get({ plain: true }),
-          courses: courses.map(course => ({
-            id: course.id,
-            name: course.name,
-            code: course.code
-          })),
-          ...(student ? { student: {
-            id: student.id,
-            first_name: student.first_name,
-            last_name: student.last_name,
-            student_id: student.student_id,
-            degree: degree ? { id: degree.id, name: degree.name, code: degree.code } : undefined
-          }} : {})
-        });
+        res.json(shapedEnrollments);
       }
-      res.json({
-        enrollments: enrollmentsWithCourses,
-        pagination: {
-          total,
-          page,
-          limit,
-          pages
-        }
-      });
     } catch (error) {
       console.error('Error fetching enrollments:', error);
       res.status(500).json({ error: 'Failed to fetch enrollments' });
@@ -399,156 +389,5 @@ router.post('/draft/submit',
   }
 );
 
-// Get courses available for the student's degree
-router.get('/my-degree-courses',
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const { academic_year, semester } = req.query;
-      
-      if (!req.user.degree_id) {
-        return res.status(400).json({ error: 'User does not have an assigned degree' });
-      }
-
-      // Load needed models
-      const { Degree, Department, Course } = await models.getMany('Degree', 'Department', 'Course');
-
-      // Get degree information
-      const degree = await Degree.findByPk(req.user.degree_id, {
-        include: [
-          {
-            model: Department,
-            as: 'department',
-            attributes: ['id', 'name', 'code']
-          }
-        ]
-      });
-
-      if (!degree) {
-        return res.status(404).json({ error: 'Degree not found' });
-      }
-
-      const whereClause = {
-        degree_id: req.user.degree_id,
-        status: 'active'
-      };
-
-      if (academic_year) whereClause.academic_year = academic_year;
-      if (semester) whereClause.semester = semester;
-
-      const courses = await Course.findAll({
-        where: whereClause,
-        include: [
-          {
-            model: Department,
-            as: 'department',
-            attributes: ['id', 'name', 'code']
-          }
-        ],
-        order: [['code', 'ASC']]
-      });
-
-      const currentYear = new Date().getFullYear();
-      const academicYear = `${currentYear}-${currentYear + 1}`;
-      
-      // Get semester-specific enrollment dates from degree configuration
-      const semesterStr = req.user.current_semester.toString();
-      const semesterConfig = degree.courses_per_semester?.[semesterStr];
-      
-      // Format the response to match the expected DegreeCourses structure
-      const response = {
-        degree: {
-          id: degree.id,
-          name: degree.name,
-          code: degree.code,
-          duration_years: degree.duration_years,
-          courses_per_semester: degree.courses_per_semester,
-          department: degree.department
-        },
-        student: {
-          current_semester: req.user.current_semester,
-          enrolled_year: req.user.enrolled_year
-        },
-        courses: courses,
-        enrollment_start_at: semesterConfig?.enrollment_start || null,
-        enrollment_end_at: semesterConfig?.enrollment_end || null
-      };
-
-      res.json(response);
-    } catch (error) {
-      console.error('Error fetching degree courses:', error);
-      res.status(500).json({ error: 'Failed to fetch degree courses' });
-    }
-  }
-);
-
-// Get user's enrollments with optional status filter
-router.get('/my-enrollments',
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const { status, academic_year, semester } = req.query;
-      const currentYear = new Date().getFullYear();
-      const currentAcademicYear = `${currentYear}-${currentYear + 1}`;
-      
-      // Build where clause
-      const whereClause = {
-        student_id: req.user.id,
-        academic_year: academic_year || currentAcademicYear,
-        semester: semester || req.user.current_semester
-      };
-      
-      // Add status filter if provided (can be a single status or an array)
-      if (status) {
-        if (Array.isArray(status)) {
-          whereClause.enrollment_status = { [Op.in]: status };
-        } else {
-          whereClause.enrollment_status = status;
-        }
-      }
-      
-      const { Enrollment, Course } = await models.getMany('Enrollment', 'Course');
-
-      const enrollments = await Enrollment.findAll({
-        where: whereClause,
-        order: [['created_at', 'DESC']]
-      });
-
-      // Process enrollments to include course details
-      const enrollmentsWithCourses = [];
-      for (const enrollment of enrollments) {
-        // Get course details for all course_ids in the enrollment
-        const courseIds = enrollment.course_ids || [];
-        const courses = await Course.findAll({
-          where: {
-            id: {
-              [Op.in]: courseIds
-            }
-          },
-          attributes: ['id', 'name', 'code']
-        });
-
-        // Create a new object with enrollment and course details
-        enrollmentsWithCourses.push({
-          ...enrollment.get({ plain: true }),
-          courses: courses.map(course => ({
-            id: course.id,
-            name: course.name,
-            code: course.code
-          }))
-        });
-      }
-
-      res.json({
-        enrollments: enrollmentsWithCourses,
-        count: enrollmentsWithCourses.length,
-        hasActiveEnrollment: enrollmentsWithCourses.length > 0
-      });
-    } catch (error) {
-      console.error('Error fetching enrollments:', error);
-      res.status(500).json({ error: 'Failed to fetch enrollments' });
-    }
-  }
-);
 
 module.exports = router;

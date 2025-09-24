@@ -283,7 +283,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
         enrollment_ids: selectedEnrollments,
         rejection_reason: rejectionReason
       });
-      setSuccess('Enrollments returned to draft status successfully');
+      setSuccess('Enrollments change request submitted successfully');
       setSelectedEnrollments([]);
       setRejectionDialog(false);
       setRejectionReason('');
@@ -567,16 +567,20 @@ const EnrollmentApprovalsTab: React.FC = () => {
           </Paper>
         </Box>
       )}
-      <Dialog open={approvalDialog} onClose={() => setApprovalDialog(false)}>
-        <DialogTitle>Approve Enrollments</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to approve {selectedEnrollments.length} selected enrollment(s)?
+      <Dialog open={approvalDialog} onClose={() => setApprovalDialog(false)}
+        PaperProps={{ sx: { borderRadius: 3, minWidth: 400, p: 2 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, fontSize: 22, pb: 1 }}>Approve Enrollments</DialogTitle>
+        <DialogContent sx={{ pb: 2 }}>
+          <Typography sx={{ fontSize: 18, mb: 2 }}>
+            Are you sure you want to approve <b>{selectedEnrollments.length}</b> selected enrollment(s)?
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setApprovalDialog(false)} sx={{ borderRadius: 999, minWidth: 120, fontWeight: 600, fontSize: 18, py: 1.5, px: 3, mx: 1 }}>Cancel</Button>
-          <Button onClick={handleApprove} variant="contained" color="success" startIcon={<ApproveIcon />} sx={{ borderRadius: 999, minWidth: 160, fontWeight: 700, fontSize: 22, py: 2, px: 4, mx: 1, boxShadow: 2 }}>
+        <DialogActions sx={{ px: 2, pb: 2, justifyContent: 'flex-end' }}>
+          <Button onClick={() => setApprovalDialog(false)} variant="outlined" color="inherit" sx={{ borderRadius: 1, minWidth: 120, fontWeight: 500, fontSize: 16, py: 1, px: 3, mx: 1 }}>
+            Cancel
+          </Button>
+          <Button onClick={handleApprove} variant="contained" color="success" startIcon={<ApproveIcon />} sx={{ borderRadius: 1, minWidth: 120, fontWeight: 600, fontSize: 16, py: 1, px: 3, mx: 1, boxShadow: 1 }}>
             Approve
           </Button>
         </DialogActions>
@@ -600,14 +604,16 @@ const EnrollmentApprovalsTab: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRejectionDialog(false)} sx={{ borderRadius: 999, minWidth: 120, fontWeight: 600, fontSize: 18, py: 1.5, px: 3, mx: 1 }}>Cancel</Button>
+          <Button onClick={() => setRejectionDialog(false)} variant="outlined" color="inherit" sx={{ borderRadius: 1, minWidth: 120, fontWeight: 500, fontSize: 16, py: 1, px: 3, mx: 1 }}>
+            Cancel
+          </Button>
           <Button 
             onClick={handleReject} 
             variant="contained" 
             color="error"
             startIcon={<RejectIcon />}
             disabled={!rejectionReason.trim()}
-            sx={{ borderRadius: 999, minWidth: 160, fontWeight: 700, fontSize: 22, py: 2, px: 4, mx: 1, boxShadow: 2 }}
+            sx={{ borderRadius: 1, minWidth: 120, fontWeight: 600, fontSize: 16, py: 1, px: 3, mx: 1, boxShadow: 1 }}
           >
             Request Change
           </Button>

@@ -224,9 +224,7 @@ router.get('/pending-approvals',
 router.post('/approve',
   authenticateToken,
   [
-    body('enrollment_ids').isArray({ min: 1 }).withMessage('At least one enrollment must be selected'),
-    body('department_code').isString().withMessage('Department code is required'),
-    body('degree_code').isString().withMessage('Degree code is required')
+    body('enrollment_ids').isArray({ min: 1 }).withMessage('enrollment_ids must be a non-empty array')
   ],
   handleValidationErrors,
   async (req, res) => {
@@ -235,36 +233,22 @@ router.post('/approve',
       if (!req.user.is_head_of_department) {
         return res.status(403).json({ error: 'Only department heads can approve enrollments' });
       }
-      
-  const { enrollment_ids, department_code, degree_code } = req.body;
-      
-      // Fetch all enrollments to approve, filtered by department_code and degree_code
+      const { enrollment_ids } = req.body;
       const enrollments = await Enrollment.findAll({
-        where: { 
+        where: {
           id: { [Op.in]: enrollment_ids },
-          enrollment_status: 'pending_hod_approval',
-          department_code,
-          degree_code
+          enrollment_status: 'pending_hod_approval'
         },
         include: [{ model: User, as: 'student' }]
       });
-      
-      // Check if all enrollments belong to the HOD's department
-      const validEnrollments = enrollments.filter(enrollment => 
-        enrollment.student.department_id === req.user.department_id
-      );
-      
-      if (validEnrollments.length !== enrollments.length) {
-        return res.status(403).json({ 
-          error: 'You can only approve enrollments for students in your department',
-          approved: validEnrollments.length,
-          requested: enrollments.length
-        });
+      // Filter enrollments to only those in HOD's department
+      const validEnrollments = enrollments.filter(e => e.student.department_id === req.user.department_id);
+      if (validEnrollments.length === 0) {
+        return res.status(404).json({ error: 'No valid enrollments found for approval' });
       }
-      
-      // Update all enrollments
+      // Approve all valid enrollments
       const updatedEnrollments = await Promise.all(
-        validEnrollments.map(enrollment => 
+        validEnrollments.map(enrollment =>
           enrollment.update({
             enrollment_status: 'approved',
             hod_approved_by: req.user.id,
@@ -272,7 +256,6 @@ router.post('/approve',
           })
         )
       );
-      
       res.json({
         message: `${updatedEnrollments.length} enrollment(s) approved successfully`,
         enrollments: updatedEnrollments

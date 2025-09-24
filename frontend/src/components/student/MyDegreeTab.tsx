@@ -158,9 +158,18 @@ const MyDegreeTab: React.FC = () => {
     setDraftLoading(true);
     try {
       // Use selected course codes directly
-      await enrollmentAPI.saveDraft({ enrollment_id: currentDraft?.id || '', course_codes: selectedCourses });
+      const response = await enrollmentAPI.saveDraft({ enrollment_id: currentDraft?.id || '', course_codes: selectedCourses });
       enqueueSnackbar('Enrollment draft saved successfully', { variant: 'success' });
-      fetchDraft(); // Refresh the draft data
+      // Immediately update selectedCourses and currentDraft from response
+      if (response && response.draft) {
+        setCurrentDraft(response.draft);
+        if (Array.isArray(response.draft.course_codes)) {
+          setSelectedCourses(Array.from(new Set(response.draft.course_codes)));
+        } else {
+          setSelectedCourses([]);
+        }
+      }
+      // Do NOT call fetchDraft here, as it will overwrite the selection with possibly stale data
     } catch (error) {
       console.error('Error saving draft:', error);
       enqueueSnackbar('Failed to save draft', { variant: 'error' });
@@ -877,8 +886,16 @@ const MyDegreeTab: React.FC = () => {
                 onClick={() => {
                   // Get the first approved enrollment's first course to show the timeline
                   const approvedEnrollment = activeEnrollments.find(e => e.enrollment_status === 'approved');
-                  if (approvedEnrollment && approvedEnrollment.courses && approvedEnrollment.courses.length > 0) {
-                    handleShowTimeline(approvedEnrollment.courses[0], approvedEnrollment.id);
+                  let courseToShow = null;
+                  if (approvedEnrollment) {
+                    // If enrollment.courses is missing or incomplete, combine with degreeCourses.courses
+                    let courses = Array.isArray(approvedEnrollment.courses) && approvedEnrollment.courses.length > 0
+                      ? approvedEnrollment.courses
+                      : (approvedEnrollment.course_codes || []).map((code: string) => degreeCourses.courses.find((c: any) => c.code === code)).filter(Boolean);
+                    if (courses.length > 0) {
+                      courseToShow = courses[0];
+                      handleShowTimeline(courseToShow, approvedEnrollment.id);
+                    }
                   }
                 }}
               >
@@ -893,18 +910,29 @@ const MyDegreeTab: React.FC = () => {
               <List>
                 {activeEnrollments
                   .filter(enrollment => enrollment.enrollment_status === 'approved')
-                  .flatMap(enrollment => enrollment.courses || [])
-                  .map((course, index) => (
+                  .flatMap(enrollment => {
+                    // If enrollment.courses is missing or incomplete, combine with degreeCourses.courses using course_codes
+                    if (Array.isArray(enrollment.courses) && enrollment.courses.length > 0) {
+                      return enrollment.courses;
+                    }
+                    if (Array.isArray(enrollment.course_codes) && enrollment.course_codes.length > 0) {
+                      return enrollment.course_codes
+                        .map((code: string) => degreeCourses.courses.find((c: any) => c.code === code))
+                        .filter(Boolean);
+                    }
+                    return [];
+                  })
+                  .map((course, index, arr) => (
                     <ListItem 
                       key={course.id}
-                      divider={index < activeEnrollments.filter(e => e.enrollment_status === 'approved').flatMap(e => e.courses || []).length - 1}
+                      divider={index < arr.length - 1}
                     >
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="body1" component="div">
                           {course.name} ({course.code})
                         </Typography>
                         <Typography variant="body2" color="textSecondary" component="div">
-                          {course.credits || 0} credits • Semester {getCurrentSemester()}
+                          {course.credits || 0} credits • Semester {course.semester}
                         </Typography>
                         <Typography variant="body2" color="textSecondary" component="div">
                           Status: active
