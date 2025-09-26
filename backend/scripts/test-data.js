@@ -190,19 +190,17 @@ async function seedTestData() {
       };
       
       // Get the department code from the degree's department
-  const deptCode = departments.find(d => d.id === degree.department_id).code;
+      const deptCode = departments.find(d => d.id === degree.department_id).code;
       const courses = coursesByDepartment[deptCode];
-      
+      // Use department code to access faculty list (not department_id)
+      const facultyList = facultyByDept[deptCode];
       for (let k = 0; k < courses.length; k++) {
         const course = courses[k];
         // Distribute courses among faculty members more evenly
-        const facultyList = facultyByDept[degree.department_id];
-        
         // Use faculty index based on a combination of course index and semester
         // This ensures different faculty members get assigned different courses
         const facultyIndex = (k + semester) % facultyList.length;
         const assignedFaculty = facultyList[facultyIndex];
-        
         await Course.create({
           id: uuidv4(),
           name: `${course.name} ${semester === 2 ? 'II' : 'I'}`,
@@ -239,6 +237,7 @@ async function seedTestData() {
         email_verified: true,
         enrolled_year: 2025,
         current_semester: 1,
+        // Removed degree_id and department_id fields
       });
     }
   }

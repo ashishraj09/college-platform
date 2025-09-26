@@ -1,13 +1,26 @@
+
+/**
+ * Enrollment Model
+ * ----------------
+ * Represents student enrollments in courses for a given academic year and semester.
+ * - Tracks approval workflow and status
+ * - Linked to User by student_id, hod_approved_by, office_approved_by
+ * - Indexed for efficient querying
+
+ */
+
 const { DataTypes } = require('sequelize');
 const { sequelize, defineModel } = require('../config/database');
 
 const Enrollment = defineModel('Enrollment', {
+  // Primary key
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
   student_id: {
+  // Foreign key to User (student)
     type: DataTypes.UUID,
     allowNull: false,
     references: {
@@ -16,20 +29,24 @@ const Enrollment = defineModel('Enrollment', {
     },
   },
   course_codes: {
+  // Array of enrolled course codes
     type: DataTypes.JSON,
     allowNull: false,
     defaultValue: [],
     comment: 'Array of course codes for enrollment'
   },
   enrollment_status: {
+  // Current status of the enrollment
     type: DataTypes.ENUM('draft', 'pending_hod_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
     defaultValue: 'draft',
   },
   submitted_at: {
+  // When enrollment was submitted
     type: DataTypes.DATE,
     allowNull: true,
   },
   hod_approved_by: {
+  // User who HOD-approved
     type: DataTypes.UUID,
     allowNull: true,
     references: {
@@ -38,10 +55,12 @@ const Enrollment = defineModel('Enrollment', {
     },
   },
   hod_approved_at: {
+  // When HOD approved
     type: DataTypes.DATE,
     allowNull: true,
   },
   office_approved_by: {
+  // User who office-approved
     type: DataTypes.UUID,
     allowNull: true,
     references: {
@@ -50,10 +69,12 @@ const Enrollment = defineModel('Enrollment', {
     },
   },
   office_approved_at: {
+  // When office approved
     type: DataTypes.DATE,
     allowNull: true,
   },
   academic_year: {
+  // Academic year (YYYY-YYYY)
     type: DataTypes.STRING(9),
     allowNull: false,
     validate: {
@@ -61,6 +82,7 @@ const Enrollment = defineModel('Enrollment', {
     },
   },
   semester: {
+  // Semester number
     type: DataTypes.INTEGER,
     allowNull: false,
     validate: {
@@ -69,6 +91,7 @@ const Enrollment = defineModel('Enrollment', {
     },
   },
   department_code: {
+  // Department code for filtering
     type: DataTypes.STRING,
     allowNull: true,
     comment: 'Department code for HOD filtering'
@@ -77,6 +100,7 @@ const Enrollment = defineModel('Enrollment', {
 }, {
   tableName: 'enrollments',
   timestamps: true,
+  // Indexes for efficient enrollment queries
   indexes: [
     {
       unique: true,

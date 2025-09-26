@@ -1,4 +1,13 @@
-// Import models
+
+/**
+ * Models Index
+ * ------------
+ * Centralizes all model imports and association initialization.
+ * - Imports all models
+ * - Initializes associations for serverless and traditional environments
+ * - Exports models and association initializer
+ */
+
 const User = require('./User');
 const Department = require('./Department');
 const Degree = require('./Degree');
@@ -7,14 +16,14 @@ const Enrollment = require('./Enrollment');
 const AuditLog = require('./AuditLog');
 const Message = require('./Message');
 
-// Always import the associations module
+
+// Import and initialize associations
 const { initializeAssociations } = require('./associations');
 
-// In development, immediately initialize associations synchronously
-// This ensures they're ready before any routes are accessed
+
+// Association initialization logic
 if (process.env.NODE_ENV !== 'production') {
-  console.log('Development environment - initializing associations immediately');
-  // Run the initialization function synchronously in development
+  // Development: initialize associations immediately
   try {
     initializeAssociations();
     console.log('Model associations initialized successfully in development mode');
@@ -22,11 +31,12 @@ if (process.env.NODE_ENV !== 'production') {
     console.error('Failed to initialize associations in development mode:', error);
   }
 } else {
-  // In production, we'll set up associations asynchronously when needed
+  // Production: associations initialized on first request
   console.log('Production environment detected - associations will be initialized on first request');
 }
 
-// Export all models
+
+// Export all models and association initializer
 module.exports = {
   User,
   Department,

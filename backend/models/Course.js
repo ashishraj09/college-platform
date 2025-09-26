@@ -1,13 +1,26 @@
+
+/**
+ * Course Model
+ * ------------
+ * Represents academic courses offered by departments and degrees.
+ * - Linked to Department and Degree by ID
+ * - Tracks creation, approval, and versioning
+ * - Indexed for efficient querying
+
+ */
+
 const { DataTypes } = require('sequelize');
 const { sequelize, defineModel } = require('../config/database');
 
 const Course = defineModel('Course', {
+  // Primary key
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
   name: {
+  // Course name
     type: DataTypes.STRING(150),
     allowNull: false,
     validate: {
@@ -16,6 +29,7 @@ const Course = defineModel('Course', {
     },
   },
   code: {
+  // Unique course code (uppercase)
     type: DataTypes.STRING(15),
     allowNull: false,
     validate: {
@@ -25,6 +39,7 @@ const Course = defineModel('Course', {
     },
   },
   overview: {
+  // Course overview/description
     type: DataTypes.TEXT,
     allowNull: false,
     validate: {
@@ -33,6 +48,7 @@ const Course = defineModel('Course', {
     },
   },
   study_details: {
+  // JSON: study plan, syllabus, etc.
     type: DataTypes.JSON,
     allowNull: false,
     validate: {
@@ -40,6 +56,7 @@ const Course = defineModel('Course', {
     },
   },
   faculty_details: {
+  // JSON: faculty info, assignments, etc.
     type: DataTypes.JSON,
     allowNull: false,
     validate: {
@@ -47,6 +64,7 @@ const Course = defineModel('Course', {
     },
   },
   credits: {
+  // Number of credits
     type: DataTypes.INTEGER,
     allowNull: false,
     validate: {
@@ -55,6 +73,7 @@ const Course = defineModel('Course', {
     },
   },
   semester: {
+  // Semester offered
     type: DataTypes.INTEGER,
     allowNull: false,
     validate: {
@@ -63,11 +82,13 @@ const Course = defineModel('Course', {
     },
   },
   prerequisites: {
+  // List of prerequisite courses
     type: DataTypes.JSON,
     allowNull: true,
     defaultValue: [],
   },
   max_students: {
+  // Maximum allowed students
     type: DataTypes.INTEGER,
     allowNull: true,
     validate: {
@@ -76,6 +97,7 @@ const Course = defineModel('Course', {
     },
   },
   department_id: {
+  // Foreign key to Department
     type: DataTypes.UUID,
     allowNull: false,
     references: {
@@ -84,6 +106,7 @@ const Course = defineModel('Course', {
     },
   },
   degree_id: {
+  // Foreign key to Degree
     type: DataTypes.UUID,
     allowNull: false,
     references: {
@@ -92,6 +115,7 @@ const Course = defineModel('Course', {
     },
   },
   created_by: {
+  // User who created the course
     type: DataTypes.UUID,
     allowNull: false,
     references: {
@@ -100,6 +124,7 @@ const Course = defineModel('Course', {
     },
   },
   updated_by: {
+  // User who last updated the course
     type: DataTypes.UUID,
     allowNull: true,
     references: {
@@ -108,6 +133,7 @@ const Course = defineModel('Course', {
     },
   },
   approved_by: {
+  // User who approved the course
     type: DataTypes.UUID,
     allowNull: true,
     references: {
@@ -116,22 +142,27 @@ const Course = defineModel('Course', {
     },
   },
   approved_at: {
+  // When course was approved
     type: DataTypes.DATE,
     allowNull: true,
   },
   submitted_at: {
+  // When course was submitted
     type: DataTypes.DATE,
     allowNull: true,
   },
   status: {
+  // Current status of the course
     type: DataTypes.ENUM('draft', 'submitted', 'pending_approval', 'approved', 'pending_activation', 'active', 'disabled', 'archived'),
     defaultValue: 'draft',
   },
   version: {
+  // Version number
     type: DataTypes.INTEGER,
     defaultValue: 1,
   },
   parent_course_id: {
+  // For versioning: parent course
     type: DataTypes.UUID,
     allowNull: true,
     references: {
@@ -140,15 +171,18 @@ const Course = defineModel('Course', {
     },
   },
   is_latest_version: {
+  // Is this the latest version?
     type: DataTypes.BOOLEAN,
     defaultValue: true,
   },
   is_elective: {
+  // Is this course an elective?
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
   // Virtual field to get the base course code without version suffix
   version_code: {
+  // Virtual: base course code without version suffix
     type: DataTypes.VIRTUAL,
     get() {
       if (!this.code) {
@@ -162,6 +196,7 @@ const Course = defineModel('Course', {
 }, {
   tableName: 'courses',
   timestamps: true,
+  // Indexes for efficient course queries
   indexes: [
     {
       unique: true,

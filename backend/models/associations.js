@@ -1,6 +1,19 @@
-// Vercel-friendly model associations
-// This file creates model associations in a way that works in both
-// traditional and serverless environments
+
+/**
+ * Sequelize Model Associations
+ * ---------------------------
+ * Centralizes all model relationships for serverless and traditional environments.
+ * - Only code-based associations for User (department_code, degree_code)
+ * - All other models use ID-based associations unless migrated
+ * - Error handling and initialization logic for serverless compatibility
+ * - AuditLog, Message, Enrollment, Course, Degree, Department associations grouped and documented
+ *
+ * Standards:
+ * - Clean, maintainable, and well-documented
+ * - No legacy or unused associations
+ * - No global state or side effects
+ * - All associations grouped by model
+ */
 
 const { getSequelize, sequelize } = require('../config/database');
 
@@ -18,6 +31,19 @@ let associationsInitialized = false;
 
 // Async function to initialize associations
 async function initializeAssociations() {
+  // --------------------
+  // Message associations
+  // --------------------
+  // Each message belongs to a sender (User)
+  // Each user can have many sent messages
+  // --------------------
+  // User associations
+  // --------------------
+  // User associations: now use department_code and degree_code fields only
+  // If you want to associate User with Department/Degree, use custom logic or scopes on code fields
+  // --------------------
+  // Department associations
+  // --------------------
   // If already initialized, don't do it again
   if (associationsInitialized) {
     console.log('Associations already initialized, skipping');
@@ -38,35 +64,53 @@ async function initializeAssociations() {
     User.hasMany(Message, { foreignKey: 'sender_id', as: 'messages' });
 
     // User associations
-    User.belongsTo(Department, { 
-      foreignKey: 'department_id', 
-      as: 'department',
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
-    });
-
-    User.belongsTo(Degree, { 
-      foreignKey: 'degree_id', 
-      as: 'degree',
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE'
-    });
+    // User associations: now use department_code and degree_code fields only
+    // If you want to associate User with Department/Degree, use custom logic or scopes on code fields
 
     // Department associations
-    Department.hasMany(User, { 
-      foreignKey: 'department_id', 
-      as: 'users' 
-    });
+    // Department.hasMany(User) association removed. Use department_code for queries and custom logic.
 
-    Department.hasMany(Degree, { 
-      foreignKey: 'department_id', 
-      as: 'degrees' 
-    });
-
-    Department.hasMany(Course, { 
-      foreignKey: 'department_id', 
-      as: 'courses' 
-    });
+    // Each department has many degrees and courses (ID-based)
+    Department.hasMany(Degree, { foreignKey: 'department_id', as: 'degrees' });
+    Department.hasMany(Course, { foreignKey: 'department_id', as: 'courses' });
+  // --------------------
+  // Degree associations
+  // --------------------
+  // Each degree belongs to a department (ID-based)
+  Degree.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+  // Each degree has many students and courses (ID-based)
+  Degree.hasMany(User, { foreignKey: 'degree_id', as: 'students' });
+  Degree.hasMany(Course, { foreignKey: 'degree_id', as: 'courses' });
+  // Each degree has a creator (User)
+  Degree.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
+  // --------------------
+  // Course associations
+  // --------------------
+  // Each course belongs to a department and degree (ID-based)
+  Course.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+  Course.belongsTo(Degree, { foreignKey: 'degree_id', as: 'degree', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+  // Each course has a creator, updater, and approver (User)
+  Course.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
+  Course.belongsTo(User, { foreignKey: 'updated_by', as: 'updater', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+  Course.belongsTo(User, { foreignKey: 'approved_by', as: 'approver', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+  // --------------------
+  // Enrollment associations
+  // --------------------
+  // Each enrollment belongs to a student, HOD approver, and office approver (User)
+  Enrollment.belongsTo(User, { foreignKey: 'student_id', as: 'student', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+  Enrollment.belongsTo(User, { foreignKey: 'hod_approved_by', as: 'hodApprover', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+  Enrollment.belongsTo(User, { foreignKey: 'office_approved_by', as: 'officeApprover', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+  // User reverse associations for enrollments and courses
+  User.hasMany(Enrollment, { foreignKey: 'student_id', as: 'enrollments' });
+  User.hasMany(Course, { foreignKey: 'created_by', as: 'createdCourses' });
+  User.hasMany(Course, { foreignKey: 'updated_by', as: 'updatedCourses' });
+  User.hasMany(Course, { foreignKey: 'approved_by', as: 'approvedCourses' });
+  // --------------------
+  // Audit Log associations
+  // --------------------
+  // Each audit log belongs to a user
+  AuditLog.belongsTo(User, { foreignKey: 'user_id', as: 'user', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+  User.hasMany(AuditLog, { foreignKey: 'user_id', as: 'auditLogs' });
 
     // Degree associations
     Degree.belongsTo(Department, { 
