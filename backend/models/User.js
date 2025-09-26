@@ -150,21 +150,41 @@ const User = defineModel('User', {
   validate: {
     studentIdRequired() {
       if (this.user_type === 'student' && !this.student_id) {
+        console.error('[User.validate.studentIdRequired] Validation failed:', {
+          user_type: this.user_type,
+          student_id: this.student_id,
+          user: this.toJSON ? this.toJSON() : this
+        });
         throw new Error('Student ID is required for student users');
       }
     },
     employeeIdRequired() {
       if (['faculty', 'office', 'admin'].includes(this.user_type) && !this.employee_id) {
+        console.error('[User.validate.employeeIdRequired] Validation failed:', {
+          user_type: this.user_type,
+          employee_id: this.employee_id,
+          user: this.toJSON ? this.toJSON() : this
+        });
         throw new Error('Employee ID is required for non-student users');
       }
     },
     degreeRequired() {
       if (this.user_type === 'student' && !this.degree_code) {
+        console.error('[User.validate.degreeRequired] Validation failed:', {
+          user_type: this.user_type,
+          degree_code: this.degree_code,
+          user: this.toJSON ? this.toJSON() : this
+        });
         throw new Error('Degree code is required for student users');
       }
     },
     departmentRequired() {
       if (['student', 'faculty'].includes(this.user_type) && !this.department_code) {
+        console.error('[User.validate.departmentRequired] Validation failed:', {
+          user_type: this.user_type,
+          department_code: this.department_code,
+          user: this.toJSON ? this.toJSON() : this
+        });
         throw new Error('Department code is required for students and faculty');
       }
     },

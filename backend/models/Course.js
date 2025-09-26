@@ -96,55 +96,31 @@ const Course = defineModel('Course', {
       max: 500,
     },
   },
-  department_id: {
-  // Foreign key to Department (DB primary key)
-    type: DataTypes.UUID,
-    allowNull: false,
-    references: {
-      model: 'departments',
-      key: 'id',
-    },
-    comment: 'Department ID for DB integrity. Use department_code for linking/querying.'
-  },
   department_code: {
-  // Foreign key to Department (code-based)
+  // Code-based association to Department (no DB constraint)
     type: DataTypes.STRING(10),
     allowNull: false,
-    references: {
-      model: 'departments',
-      key: 'code',
-    },
     validate: {
       notEmpty: true,
       len: [2, 10],
       isUppercase: true,
     },
-    comment: 'Department code for code-based association.'
-  },
-  degree_id: {
-  // Foreign key to Degree (DB primary key)
-    type: DataTypes.UUID,
-    allowNull: false,
-    references: {
-      model: 'degrees',
-      key: 'id',
-    },
-    comment: 'Degree ID for DB integrity. Use degree_code for linking/querying.'
+    comment: 'Department code for code-based association.',
+    references: null,
+    onDelete: null,
   },
   degree_code: {
-  // Foreign key to Degree (code-based)
+  // Code-based association to Degree (no DB constraint)
     type: DataTypes.STRING(10),
     allowNull: false,
-    references: {
-      model: 'degrees',
-      key: 'code',
-    },
     validate: {
       notEmpty: true,
       len: [2, 10],
       isUppercase: true,
     },
-    comment: 'Degree code for code-based association.'
+    comment: 'Degree code for code-based association.',
+    references: null,
+    onDelete: null,
   },
   created_by: {
   // User who created the course
@@ -231,15 +207,8 @@ const Course = defineModel('Course', {
   // Indexes for efficient course queries
   indexes: [
     {
-      unique: true,
       fields: ['code', 'version'],
-      name: 'unique_code_version'
-    },
-    {
-      fields: ['department_id'],
-    },
-    {
-      fields: ['degree_id'],
+      name: 'code_version_idx'
     },
     {
       fields: ['created_by'],

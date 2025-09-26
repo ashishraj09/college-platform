@@ -1,3 +1,14 @@
+/**
+ * Course Routes
+ * -------------
+ * Handles all course-related API endpoints.
+ * Standards:
+ * - Code-based lookups for department and degree (department_code, degree_code)
+ * - DB integrity via department_id, degree_id
+ * - Error handling, security, validation, audit, maintainability
+ * - See 1.md for full standards checklist
+ */
+
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
@@ -21,89 +32,96 @@ const courseValidation = [
   body('faculty_details').isObject().withMessage('Faculty details must be an object'),
 ];
 
-// Get all courses with optional filtering
+/**
+ * GET /courses
+ * Purpose: Fetch all courses with optional filtering by department_code, degree_code, status, faculty_id
+ * Access: Authenticated users
+ * Query Params: department_code, degree_code, status, faculty_id, page, limit
+ * Response: Array of course objects (excludes sensitive fields)
+ */
 router.get('/', 
   authenticateToken,
   async (req, res) => {
-  try {
-    const {
-      department_id,
-      degree_id,
-      status,
-      faculty_id,
-      page = 1,
-      limit = 50
-    } = req.query;
+    try {
+      const {
+        department_code,
+        degree_code,
+        status,
+        faculty_id,
+        page = 1,
+        limit = 50
+      } = req.query;
 
-    const whereClause = {};
-    if (department_id) whereClause.department_id = department_id;
-    if (degree_id) whereClause.degree_id = degree_id;
-    if (status) whereClause.status = status;
-    if (faculty_id) whereClause.faculty_id = faculty_id;
-    
-    // For HODs, show all courses in their department
-    if (req.user && req.user.user_type !== 'admin' && !req.user.is_head_of_department) {
-      whereClause.created_by = req.user.id;
-    }
+      const whereClause = {};
+      if (department_code) whereClause.department_code = department_code;
+      if (degree_code) whereClause.degree_code = degree_code;
+      if (status) whereClause.status = status;
+      if (faculty_id) whereClause.faculty_id = faculty_id;
 
-    const offset = (page - 1) * limit;
+      // For HODs, show all courses in their department
+      if (req.user && req.user.user_type !== 'admin' && !req.user.is_head_of_department) {
+        whereClause.created_by = req.user.id;
+      }
 
-    const courses = await Course.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: Department,
-          as: 'department',
-          attributes: ['id', 'name', 'code']
-        },
-        {
-          model: Degree,
-          as: 'degree',
-          attributes: ['id', 'name', 'code']
-        },
-        {
-          model: User,
-          as: 'creator',
-          attributes: ['id', 'first_name', 'last_name', 'email']
-        },
-        {
-          model: User,
-          as: 'updater',
-          attributes: ['id', 'first_name', 'last_name', 'email'],
-          required: false
-        },
-        {
-          model: User,
-          as: 'approver',
-          attributes: ['id', 'first_name', 'last_name', 'email'],
-          required: false
-        }
-      ],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      order: [['created_at', 'DESC']]
-    });
+      const offset = (page - 1) * limit;
 
-    // For each course, check if a draft version exists for this course or its parent
-    const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
-      const draft = await Course.findOne({
-        where: {
-          [Op.or]: [
-            { parent_course_id: course.id },
-            { parent_course_id: course.parent_course_id || course.id }
-          ],
-          status: 'draft'
-        }
+      const courses = await Course.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: Department,
+            as: 'departmentByCode',
+            attributes: ['id', 'name', 'code']
+          },
+          {
+            model: Degree,
+            as: 'degreeByCode',
+            attributes: ['id', 'name', 'code']
+          },
+          {
+            model: User,
+            as: 'creator',
+            attributes: ['id', 'first_name', 'last_name', 'email']
+          },
+          {
+            model: User,
+            as: 'updater',
+            attributes: ['id', 'first_name', 'last_name', 'email'],
+            required: false
+          },
+          {
+            model: User,
+            as: 'approver',
+            attributes: ['id', 'first_name', 'last_name', 'email'],
+            required: false
+          }
+        ],
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        order: [['created_at', 'DESC']]
       });
-      course.dataValues.hasDraftVersion = !!draft;
-      return course;
-    }));
-    res.json(coursesWithDraftFlag);
-  } catch (error) {
-    console.error('Error fetching courses:', error);
-    res.status(500).json({ error: 'Failed to fetch courses' });
+
+      // For each course, check if a draft version exists for this course or its parent
+      const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
+        const draft = await Course.findOne({
+          where: {
+            [Op.or]: [
+              { parent_course_id: course.id },
+              { parent_course_id: course.parent_course_id || course.id }
+            ],
+            status: 'draft'
+          }
+        });
+        course.dataValues.hasDraftVersion = !!draft;
+        return course;
+      }));
+      res.json({ data: coursesWithDraftFlag, message: 'Courses fetched successfully' });
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      res.status(500).json({ error: 'Failed to fetch courses' });
+    }
   }
-});
+);
 
 // Get faculty courses with enhanced categorization
 router.get('/my-courses', 

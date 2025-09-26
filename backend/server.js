@@ -1,3 +1,19 @@
+
+/**
+ * College Platform API Server
+ * --------------------------
+ * Enterprise-grade Express backend for course management system.
+ * - Unified startup for serverless and traditional modes
+ * - Industry-standard middleware and error handling
+ * - Secure, maintainable, and scalable
+ *
+ * Author: [Your Name/Team]
+ * Date: 2025
+ */
+
+// --------------------
+// Module Imports
+// --------------------
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
@@ -5,37 +21,55 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Load environment configuration
+// --------------------
+// Environment Setup
+// --------------------
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
 dotenv.config({ path: path.join(__dirname, envFile) });
 
-// Create Express app
+// --------------------
+// Express App Setup
+// --------------------
 const app = express();
 app.use(cookieParser());
-// Disable ETag to prevent 304 Not Modified responses
-app.set('etag', false);
-// Trust proxy - required for rate limiting behind proxies like Vercel
-app.set('trust proxy', true);
+app.set('etag', false); // Disable ETag to prevent 304 Not Modified responses
+app.set('trust proxy', true); // Trust proxy for rate limiting behind proxies
 
-// Import database with appropriate connection method
+// --------------------
+// Database & Models
+// --------------------
 const { sequelize, getSequelize } = require('./config/database');
-// Load models before routes to ensure models are defined
 const models = require('./models');
+const { initializeAssociations } = require('./models/associations');
 
-// Determine run mode: 'serverless' or 'traditional'
-const runMode = process.env.RUN_MODE ? process.env.RUN_MODE : 'traditional';
-
-if (runMode === 'serverless') {
-  console.log('Serverless mode detected - associations will be initialized through middleware');
-} else {
-  console.log('Traditional mode - associations initialized during startup');
-  const { initializeAssociations } = require('./models/associations');
-  initializeAssociations();
+// --------------------
+// Startup Initialization
+// --------------------
+const runMode = process.env.RUN_MODE === 'serverless' ? 'serverless' : 'traditional';
+let associationsInitialized = false;
+async function startupInitialization() {
+  if (!associationsInitialized) {
+    try {
+      console.log(`[Startup] Initializing model associations for mode: ${runMode}`);
+      await initializeAssociations();
+      associationsInitialized = true;
+      console.log('[Startup] Model associations initialized successfully');
+    } catch (error) {
+      console.error('[Startup] Failed to initialize model associations:', error);
+    }
+  } else {
+    console.log('[Startup] Associations already initialized, skipping');
+  }
 }
+startupInitialization();
 
+// --------------------
+// Route Imports
+// --------------------
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const courseRoutes = require('./routes/courses');
@@ -43,8 +77,11 @@ const departmentRoutes = require('./routes/departments');
 const degreeRoutes = require('./routes/degrees');
 const enrollmentRoutes = require('./routes/enrollments');
 const enrollmentNewRoutes = require('./routes/enrollment');
+const timelineRoutes = require('./routes/timeline');
 
-// Request/response logger middleware
+// --------------------
+// Request/Response Logging
+// --------------------
 app.use((req, res, next) => {
   const start = Date.now();
   console.log(`\n--- Incoming Request ---`);
@@ -65,35 +102,33 @@ app.use((req, res, next) => {
   next();
 });
 
-// Security middleware
-app.use(helmet());
 
-// Rate limiting
+// --------------------
+// Security Middleware
+// --------------------
+app.use(helmet()); // Sets secure HTTP headers
+
+// --------------------
+// Rate Limiting
+// --------------------
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000, // 15 minutes
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for development
   skip: process.env.NODE_ENV === 'development' ? () => true : undefined, // Skip in development
-  // Use the X-Forwarded-For header to identify clients behind proxies
-  keyGenerator: (req) => {
-    // Get IP from X-Forwarded-For header if available (for proxies like Vercel)
-    return req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-  },
+  keyGenerator: ipKeyGenerator, // IPv6 support
 });
-
-// Only apply rate limiting to API routes, and be more lenient in development  
 if (process.env.NODE_ENV !== 'development') {
   app.use('/api/', limiter);
 }
 
-// CORS configuration
+// --------------------
+// CORS Configuration
+// --------------------
 const corsOptions = {
-  origin: [
-    process.env.FRONTEND_URL
-  ],
+  origin: [process.env.FRONTEND_URL],
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -101,23 +136,31 @@ const corsOptions = {
   preflightContinue: false,
 };
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle preflight requests
 
-// Handle preflight requests for all routes
-app.options('*', cors(corsOptions));
-
-// Body parsing middleware
+// --------------------
+// Body Parsing
+// --------------------
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Compression middleware
+// --------------------
+// Compression
+// --------------------
 app.use(compression());
 
-// Logging middleware
+// --------------------
+// Logging Middleware
+// --------------------
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
+
+// --------------------
+// API Endpoints
+// --------------------
 
 // Root endpoint - provides basic API information
 app.get('/', (req, res) => {
@@ -217,12 +260,9 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// API routes
-const ensureAssociations = require('./middleware/ensureAssociations');
-
-// Apply the associations middleware to all API routes
-app.use('/api', ensureAssociations);
-
+// --------------------
+// API Routes
+// --------------------
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/courses', courseRoutes);
@@ -230,45 +270,55 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/degrees', degreeRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/enrollment', enrollmentNewRoutes);
-const timelineRoutes = require('./routes/timeline');
 app.use('/api/timeline', timelineRoutes);
 
-// Error handling middleware
+// --------------------
+// Error Handling
+// --------------------
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  
+
   if (err.name === 'ValidationError') {
     return res.status(400).json({
       error: 'Validation Error',
       details: err.errors,
+      stack: err.stack
     });
   }
-  
+
   if (err.name === 'SequelizeValidationError') {
     return res.status(400).json({
       error: 'Database Validation Error',
       details: err.errors.map(e => ({ field: e.path, message: e.message })),
+      stack: err.stack
     });
   }
-  
+
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
       error: 'Invalid token',
+      stack: err.stack
     });
   }
-  
+
   res.status(err.status || 500).json({
     error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+    stack: err.stack
   });
 });
 
-// 404 handler
+// --------------------
+// 404 Handler
+// --------------------
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Route not found',
   });
 });
 
+// --------------------
+// Server Startup Logic
+// --------------------
 const PORT = process.env.PORT || 5000;
 
 // Database connection and server startup

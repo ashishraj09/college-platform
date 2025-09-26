@@ -34,15 +34,11 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     try {
-      // Make sure associations are initialized before querying with includes
-      if (process.env.NODE_ENV === 'production') {
-        const { initializeAssociations } = require('../models/associations');
-        await initializeAssociations();
-      }
+      // Associations are initialized once at startup; do not re-initialize here
       
       const user = await User.findByPk(decoded.userId, {
         include: [
-          { model: require('../models').Department, as: 'department' },
+          { model: require('../models').Department, as: 'departmentByCode' },
           { model: require('../models').Degree, as: 'degree' },
         ],
       });
@@ -70,9 +66,17 @@ const authenticateToken = async (req, res, next) => {
       next();
     } catch (error) {
       console.error('Authentication error (database):', error.message);
+      console.error('Full error object:', error);
+      if (error && error.stack) {
+        console.error('Stack trace:', error.stack);
+      }
       return res.status(500).json({
         error: 'Internal server error during authentication',
-        message: process.env.NODE_ENV === 'production' ? undefined : error.message
+        message: process.env.NODE_ENV === 'production' ? undefined : error.message,
+        stack: error.stack || null,
+        debug: {
+          userId: decoded && decoded.userId,
+        }
       });
     }
   } catch (error) {

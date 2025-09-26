@@ -76,13 +76,9 @@ const Degree = defineModel('Degree', {
     comment: 'JSON object storing number of courses per semester. Format: {"1": 6, "2": 7, "3": 5, ...}',
   },
   department_code: {
-  // Foreign key to Department (code-based)
+  // Code-based association to Department (no DB constraint)
     type: DataTypes.STRING(10),
     allowNull: false,
-    references: {
-      model: 'departments',
-      key: 'code',
-    },
     validate: {
       notEmpty: true,
       len: [2, 10],
@@ -206,11 +202,7 @@ const Degree = defineModel('Degree', {
   // Indexes for efficient degree queries
   indexes: [
     {
-  // unique: true, // removed to allow duplicate codes for versioning
       fields: ['code'],
-    },
-    {
-      fields: ['department_id'],
     },
     {
       fields: ['status'],

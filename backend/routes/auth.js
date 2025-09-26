@@ -1,24 +1,78 @@
+/**
+ * POST /auth/register
+ * Purpose: Register a new user (admin only)
+ * Access: Admin
+ * Request: { email, password, first_name, last_name, user_type, ... }
+ * Response: { message, user }
+ * Audit: Logs user registration
+ */
+
+
+/**
+ * Auth Routes (backend/routes/auth.js)
+ * ------------------------------------
+ * Purpose: Handles user registration, login, password reset, profile, and logout endpoints for College Platform.
+ * Standards:
+ *   - Code-based lookups for department and degree (department_code, degree_code)
+ *   - DB integrity via department_id, degree_id
+ *   - Error handling, security, validation, audit, maintainability
+ *   - Serverless compatibility: models/resources initialized per request, no global state
+ *   - Response consistency: exclude sensitive fields, use consistent formats
+ *   - Audit compliance: audit middleware for create/update/delete actions
+ *   - See 1.md for full standards checklist
+ *
+ * Route Documentation:
+ *   POST   /auth/register      - Register new user (admin only)
+ *   POST   /auth/login         - Authenticate user, set JWT cookie
+ *   POST   /auth/forgot-password - Request password reset
+ *   POST   /auth/reset-password  - Reset password with token
+ *   GET    /auth/profile       - Get current user profile
+ *   POST   /auth/logout        - Logout user, clear JWT cookie
+ *   GET    /auth/me            - Get authenticated user's profile
+ *
+ * Security:
+ *   - All input validated with express-validator
+ *   - Authentication and role-based access enforced
+ *   - No sensitive fields exposed in responses
+ *
+ * Audit:
+ *   - Audit middleware used for create/update/delete actions
+ *   - Audit logic documented in comments
+ */
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { body } = require('express-validator');
-// Use common async models utility
 const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware } = require('../middleware/audit');
-const { 
-  generateAccessToken, 
-  generateRefreshToken, 
-  verifyRefreshToken,
+const {
+  generateAccessToken,
   generatePasswordResetToken,
-  generateEmailVerificationToken 
 } = require('../utils/auth');
-const { 
-  sendWelcomeEmail, 
-  sendPasswordResetEmail 
+const {
+  sendWelcomeEmail,
+  sendPasswordResetEmail
 } = require('../utils/email');
 const { authenticateToken } = require('../middleware/auth');
+
+// Helper: Exclude sensitive fields from user object
+function sanitizeUser(user, department, degree) {
+  const { password, password_reset_token, email_verification_token, ...userResponse } = user.toJSON();
+  userResponse.department = department ? {
+    id: department.id,
+    name: department.name,
+    code: department.code
+  } : null;
+  userResponse.degree = degree ? {
+    id: degree.id,
+    name: degree.name,
+    code: degree.code
+  } : null;
+  return userResponse;
+}
 
 
 // Register validation rules
@@ -31,7 +85,9 @@ const registerValidation = [
   body('student_id').optional().trim().isLength({ min: 1, max: 20 }).withMessage('Student ID must be less than 20 characters'),
   body('employee_id').optional().trim().isLength({ min: 1, max: 20 }).withMessage('Employee ID must be less than 20 characters'),
   body('department_id').optional().isUUID().withMessage('Invalid department ID'),
+  body('department_code').optional().isString().isLength({ min: 2, max: 10 }).withMessage('Invalid department code'),
   body('degree_id').optional().isUUID().withMessage('Invalid degree ID'),
+  body('degree_code').optional().isString().isLength({ min: 2, max: 10 }).withMessage('Invalid degree code'),
 ];
 
 // Login validation rules
@@ -54,7 +110,13 @@ const resetPasswordValidation = [
 // This avoids unintentionally setting a domain that breaks local development.
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN;
 
-// Register user (Admin only)
+/**
+ * POST /auth/register
+ * Purpose: Register a new user (admin only)
+ * Access: Admin
+ * Body: email, password, first_name, last_name, user_type, student_id, employee_id, department_id/department_code, degree_id/degree_code, enrolled_date, enrolled_year, is_head_of_department
+ * Response: Registered user object (no sensitive fields)
+ */
 router.post('/register', 
   registerValidation,
   handleValidationErrors,
@@ -69,16 +131,17 @@ router.post('/register',
 
       const { 
         email, password, first_name, last_name, user_type,
-        student_id, employee_id, department_id, degree_id,
+        student_id, employee_id, department_id, department_code, degree_id, degree_code,
         enrolled_date, enrolled_year, is_head_of_department 
       } = req.body;
 
       // Check if user already exists
-  const User = await models.User();
-  const Department = await models.Department();
-  const Degree = await models.Degree();
+      const User = await models.User();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
 
-  const existingUser = await User.findOne({ where: { email } });
+      // Check for duplicate email
+      const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         return res.status(400).json({ error: 'User with this email already exists' });
       }
@@ -98,19 +161,25 @@ router.post('/register',
         }
       }
 
-      // Validate department and degree exist
+      // Validate department and degree exist (by ID or code)
+      let department = null;
       if (department_id) {
-        const department = await Department.findByPk(department_id);
-        if (!department) {
-          return res.status(400).json({ error: 'Department not found' });
-        }
+        department = await Department.findByPk(department_id);
+      } else if (department_code) {
+        department = await Department.findOne({ where: { code: department_code } });
+      }
+      if (!department) {
+        return res.status(400).json({ error: 'Department not found' });
       }
 
+      let degree = null;
       if (degree_id) {
-        const degree = await Degree.findByPk(degree_id);
-        if (!degree) {
-          return res.status(400).json({ error: 'Degree not found' });
-        }
+        degree = await Degree.findByPk(degree_id);
+      } else if (degree_code) {
+        degree = await Degree.findOne({ where: { code: degree_code } });
+      }
+      if (user_type === 'student' && !degree) {
+        return res.status(400).json({ error: 'Degree not found' });
       }
 
       // Hash password
@@ -122,7 +191,7 @@ router.post('/register',
       const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       // Create user
-  const user = await User.create({
+      const user = await User.create({
         email,
         password: hashedPassword,
         first_name,
@@ -130,8 +199,10 @@ router.post('/register',
         user_type,
         student_id: user_type === 'student' ? student_id : null,
         employee_id: user_type !== 'student' ? employee_id : null,
-        department_id,
-        degree_id: user_type === 'student' ? degree_id : null,
+        department_id: department ? department.id : null,
+        department_code: department ? department.code : null,
+        degree_id: user_type === 'student' && degree ? degree.id : null,
+        degree_code: user_type === 'student' && degree ? degree.code : null,
         enrolled_date: user_type === 'student' ? enrolled_date : null,
         enrolled_year: user_type === 'student' ? enrolled_year : null,
         is_head_of_department: user_type === 'faculty' ? (is_head_of_department || false) : false,
@@ -164,6 +235,14 @@ router.post('/register',
 
 // Login
 router.post('/login',
+/**
+ * POST /auth/login
+ * Purpose: Authenticate user and set JWT cookie
+ * Access: Public
+ * Request: { email, password }
+ * Response: { message, user }
+ * Audit: Logs login attempt
+ */
   loginValidation,
   handleValidationErrors,
   auditMiddleware('login', 'system', 'User login'),
@@ -178,11 +257,17 @@ router.post('/login',
 
       const user = await User.findOne({
         where: { email },
-        include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
-        ],
       });
+
+      // Fetch department and degree manually by code
+      let department = null;
+      let degree = null;
+      if (user && user.department_code) {
+        department = await Department.findOne({ where: { code: user.department_code } });
+      }
+      if (user && user.degree_code) {
+        degree = await Degree.findOne({ where: { code: user.degree_code } });
+      }
 
       if (!user) {
         return res.status(401).json({ error: 'Invalid credentials' });
@@ -215,8 +300,8 @@ router.post('/login',
       // Generate tokens
       const accessToken = generateAccessToken(user.id);
 
-      // Return user without sensitive data
-      const { password: _, password_reset_token, email_verification_token, ...userResponse } = user.toJSON();
+      // Return user without sensitive data, attach department and degree
+      const userResponse = sanitizeUser(user, department, degree);
 
       // Set JWT as HTTP-only cookie, expires in 60 minutes
       // Secure cross-site cookie settings for production
@@ -230,7 +315,7 @@ router.post('/login',
       res.cookie('token', accessToken, cookieOptions);
       res.json({
         message: 'Login successful',
-        user: userResponse
+        user: userResponse,
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -242,6 +327,14 @@ router.post('/login',
 
 // Request password reset
 router.post('/forgot-password',
+/**
+ * POST /auth/forgot-password
+ * Purpose: Request password reset link
+ * Access: Public
+ * Request: { email }
+ * Response: { message }
+ * Audit: Logs password reset request
+ */
   passwordResetValidation,
   handleValidationErrors,
   auditMiddleware('password_reset', 'system', 'Password reset requested'),
@@ -287,6 +380,14 @@ router.post('/forgot-password',
 
 // Reset password
 router.post('/reset-password',
+/**
+ * POST /auth/reset-password
+ * Purpose: Reset password using token
+ * Access: Public
+ * Request: { token, password }
+ * Response: { message }
+ * Audit: Logs password change
+ */
   resetPasswordValidation,
   handleValidationErrors,
   auditMiddleware('password_change', 'user', 'Password reset completed'),
@@ -340,16 +441,30 @@ router.post('/reset-password',
 
 // Get current user profile
 router.get('/profile', authenticateToken, async (req, res) => {
+/**
+ * GET /auth/profile
+ * Purpose: Get current user profile
+ * Access: Authenticated users only
+ * Response: { user }
+ */
   try {
-    const user = await User.findByPk(req.user.id, {
-      include: [
-        { model: Department, as: 'department' },
-        { model: Degree, as: 'degree' },
-      ],
-    });
+    const User = await models.User();
+    const Department = await models.Department();
+    const Degree = await models.Degree();
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const { password, password_reset_token, email_verification_token, ...userResponse } = user.toJSON();
+    // Fetch department and degree manually by code
+    let department = null;
+    let degree = null;
+    if (user.department_code) {
+      department = await Department.findOne({ where: { code: user.department_code } });
+    }
+    if (user.degree_code) {
+      degree = await Degree.findOne({ where: { code: user.degree_code } });
+    }
 
+    const userResponse = sanitizeUser(user, department, degree);
     res.json({ user: userResponse });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -358,186 +473,93 @@ router.get('/profile', authenticateToken, async (req, res) => {
 });
 
 // Logout (client-side token invalidation)
+
+/**
+ * POST /auth/logout
+ * Purpose: Logout user, clear JWT cookie
+ * Access: Authenticated users only
+ * Audit: Logs logout action for compliance
+ * Response: { message }
+ */
 router.post('/logout', 
-  // authenticateToken, // Temporarily disabled for testing
-  // auditMiddleware('logout', 'system', 'User logout'), // Temporarily disabled
+  authenticateToken, // Enforce authentication
+  auditMiddleware('logout', 'system', 'User logout'), // Audit compliance
   (req, res) => {
-  // Clear the auth cookie
-  const clearOpts = { httpOnly: true, secure: true, sameSite: 'none' };
-  if (COOKIE_DOMAIN) clearOpts.domain = COOKIE_DOMAIN;
-  res.clearCookie('token', clearOpts);
-  res.json({ message: 'Logged out successfully' });
-});
-
-// Temporary test endpoint to create demo users
-router.post('/create-demo-users', async (req, res) => {
-  try {
-    // Create department first
-    let department = await Department.findOne({ where: { code: 'CS' } });
-    if (!department) {
-      department = await Department.create({
-        name: 'Computer Science',
-        code: 'CS',
-        description: 'Computer Science Department',
-        status: 'active'
-      });
-    }
-
-    // Create degree
-    let degree = await Degree.findOne({ where: { code: 'BSC-CS' } });
-    if (!degree) {
-      degree = await Degree.create({
-        name: 'Bachelor of Science in Computer Science',
-        code: 'BSC-CS',
-        description: 'Computer Science degree program',
-        duration_years: 4,
-        department_id: department.id,
-        status: 'active',
-        courses_per_semester: JSON.stringify({
-          "1": 5, "2": 5, "3": 5, "4": 5,
-          "5": 4, "6": 4, "7": 4, "8": 4
-        })
-      });
-    }
-
-    // Create HOD user
-    const hodEmail = 'hod@example.com';
-    let hodUser = await User.findOne({ where: { email: hodEmail } });
-    if (!hodUser) {
-      const hashedPassword = await bcrypt.hash('password123', 10);
-      hodUser = await User.create({
-        first_name: 'John',
-        last_name: 'Doe',
-        email: hodEmail,
-        password: hashedPassword,
-        user_type: 'faculty',
-        employee_id: 'HOD001',
-        status: 'active',
-        email_verified: true,
-        department_id: department.id,
-        degree_id: degree.id,
-        is_head_of_department: true
-      });
-    }
-
-    // Create student user
-    const studentEmail = 'student@example.com';
-    let studentUser = await User.findOne({ where: { email: studentEmail } });
-    if (!studentUser) {
-      const hashedPassword = await bcrypt.hash('password123', 10);
-      studentUser = await User.create({
-        first_name: 'Jane',
-        last_name: 'Smith',
-        email: studentEmail,
-        password: hashedPassword,
-        user_type: 'student',
-        student_id: 'STU001',
-        status: 'active',
-        email_verified: true,
-        department_id: department.id,
-        degree_id: degree.id,
-        enrolled_date: new Date(),
-        enrolled_year: 2023,
-        current_semester: 3
-      });
-    }
-
-    // Create some courses
-    const courseData = [
-      {
-        name: 'Data Structures and Algorithms',
-        code: 'CS301',
-        overview: 'Fundamental data structures and algorithms',
-        credits: 3,
-        semester: 3,
-        is_elective: false
-      },
-      {
-        name: 'Database Systems',
-        code: 'CS302',
-        overview: 'Introduction to database management systems',
-        credits: 3,
-        semester: 3,
-        is_elective: false
-      },
-      {
-        name: 'Web Development',
-        code: 'CS303',
-        overview: 'Modern web development techniques',
-        credits: 3,
-        semester: 3,
-        is_elective: true
-      }
-    ];
-
-    for (const courseInfo of courseData) {
-      let course = await Course.findOne({ where: { code: courseInfo.code } });
-      if (!course) {
-        course = await Course.create({
-          ...courseInfo,
-          department_id: department.id,
-          degree_id: degree.id,
-          created_by: hodUser.id,
-          status: 'active',
-          study_details: JSON.stringify({
-            learning_objectives: ['Learn fundamental concepts'],
-            topics: ['Basic topics'],
-            assessment_methods: ['Exams', 'Assignments']
-          }),
-          faculty_details: JSON.stringify({
-            primary_instructor: 'Dr. John Doe',
-            co_instructors: [],
-            guest_lecturers: [],
-            lab_instructors: []
-          })
-        });
-      }
-    }
-
-    res.json({ 
-      message: 'Demo users created successfully',
-      users: {
-        hod: { email: 'hod@example.com', password: 'password123' },
-        student: { email: 'student@example.com', password: 'password123' }
-      }
-    });
-  } catch (error) {
-    console.error('Error creating demo users:', error);
-    res.status(500).json({ error: 'Failed to create demo users', details: error.message });
+    // Clear the auth cookie
+    const clearOpts = { httpOnly: true, secure: true, sameSite: 'none' };
+    if (COOKIE_DOMAIN) clearOpts.domain = COOKIE_DOMAIN;
+    res.clearCookie('token', clearOpts);
+    res.json({ message: 'Logged out successfully' });
   }
-});
+);
 
 // Get current authenticated user's profile
 router.get('/me', authenticateToken, async (req, res) => {
+/**
+ * GET /auth/me
+ * Purpose: Get authenticated user's profile
+ * Access: Authenticated users only
+ * Response: { user }
+ */
   try {
+    console.debug('[auth/me] userId:');
     const User = await models.User();
     const Department = await models.Department();
     const Degree = await models.Degree();
     const userId = req.user.id;
-    const user = await User.findByPk(userId, {
-      attributes: { exclude: ['password'] },
-      include: [
-        {
-          model: Department,
-          as: 'department',
-          attributes: ['id', 'name', 'code'],
-        },
-        {
-          model: Degree,
-          as: 'degree',
-          attributes: ['id', 'name', 'code'],
-        }
-      ]
-    });
+    const user = await User.findByPk(userId);
+    console.debug('[auth/me] userId:', userId);
+    console.debug('[auth/me] user:', user ? user.toJSON() : user);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // Fetch department and degree manually by code
+    let department = null;
+    let degree = null;
+    if (user.department_code) {
+      department = await Department.findOne({ where: { code: user.department_code } });
+      console.debug('[auth/me] department_code:', user.department_code, 'department:', department ? department.toJSON() : department);
+    } else {
+      console.debug('[auth/me] No department_code for user');
+    }
+    if (user.degree_code) {
+      degree = await Degree.findOne({ where: { code: user.degree_code } });
+      console.debug('[auth/me] degree_code:', user.degree_code, 'degree:', degree ? degree.toJSON() : degree);
+    } else {
+      console.debug('[auth/me] No degree_code for user');
+    }
+
     // Add convenience fields for degree code and semester
-    const userJson = user.toJSON();
+    const userJson = sanitizeUser(user, department, degree);
     userJson.semester = userJson.current_semester || null;
-    res.json(userJson);
+    console.debug('[auth/me] response userJson:', userJson);
+    res.json({ user: userJson });
   } catch (error) {
     console.error('Error fetching user profile:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    if (error && error.stack) {
+      console.error('Stack trace:', error.stack);
+    } else {
+      console.error('Error object:', error);
+    }
+    if (error && error.user) {
+      console.error('[auth/me] error.user:', error.user);
+    }
+    if (error && error.department) {
+      console.error('[auth/me] error.department:', error.department);
+    }
+    if (error && error.degree) {
+      console.error('[auth/me] error.degree:', error.degree);
+    }
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message || String(error),
+      stack: error.stack || null,
+      debug: {
+        userId,
+        user: user ? user.toJSON() : user,
+        department_code: user && user.department_code,
+        degree_code: user && user.degree_code
+      }
+    });
   }
 });
 

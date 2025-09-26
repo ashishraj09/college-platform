@@ -68,11 +68,13 @@ async function seedTestData() {
   for (const dept of departments) {
   facultyByDept[dept.code] = [];
     for (let f = 0; f < 3; f++) {
+      const first_name = faker.person.firstName();
+      const last_name = faker.person.lastName();
       const faculty = await User.create({
         id: uuidv4(),
-        first_name: faker.person.firstName(),
-        last_name: faker.person.lastName(),
-        email: fakeEmail(),
+        first_name,
+        last_name,
+        email: `${first_name.toLowerCase()}.${last_name.toLowerCase()}@myskytower.com`,
         password: await hashPassword('password123'),
         user_type: 'faculty',
         employee_id: `EMP${dept.code}${f + 1}`,
@@ -136,7 +138,7 @@ async function seedTestData() {
     for (let j = 0; j < degreeTypes.length; j++) {
       const degreeType = degreeTypes[j];
       // Pick a non-HOD faculty (index 1 or 2)
-  const nonHodFaculty = facultyByDept[dept.code][1] || facultyByDept[dept.code][2];
+      const nonHodFaculty = facultyByDept[dept.code][1] || facultyByDept[dept.code][2];
       const degree = await Degree.create({
         id: uuidv4(),
         name: `MSc in ${degreeType.name}`,
@@ -144,6 +146,7 @@ async function seedTestData() {
         description: `Master of Science in ${degreeType.name}`,
         duration_years: 2,
         department_id: dept.id,
+        department_code: dept.code,
         status: 'active',
         courses_per_semester: { '1': 4, '2': 4 },
         created_by: nonHodFaculty.id,
@@ -209,7 +212,9 @@ async function seedTestData() {
           credits: 4,
           semester,
           department_id: degree.department_id,
+          department_code: degree.department_code,
           degree_id: degree.id,
+          degree_code: degree.code,
           status: 'active',
           study_details: {},
           faculty_details: {},
@@ -223,11 +228,13 @@ async function seedTestData() {
   for (const dept of departments) {
     for (let s = 0; s < 10; s++) {
       const degreeObj = degrees.find(d => d.department_id === dept.id);
+      const first_name = faker.person.firstName();
+      const last_name = faker.person.lastName();
       await User.create({
         id: uuidv4(),
-        first_name: faker.person.firstName(),
-        last_name: faker.person.lastName(),
-        email: fakeEmail(),
+        first_name,
+        last_name,
+        email: `${first_name.toLowerCase()}.${last_name.toLowerCase()}@myskytower.com`,
         password: await hashPassword('password123'),
         user_type: 'student',
         student_id: `STU${dept.code}${s + 1}`,
@@ -237,7 +244,6 @@ async function seedTestData() {
         email_verified: true,
         enrolled_year: 2025,
         current_semester: 1,
-        // Removed degree_id and department_id fields
       });
     }
   }

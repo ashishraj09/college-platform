@@ -21,19 +21,7 @@ const Message = require('./Message');
 const { initializeAssociations } = require('./associations');
 
 
-// Association initialization logic
-if (process.env.NODE_ENV !== 'production') {
-  // Development: initialize associations immediately
-  try {
-    initializeAssociations();
-    console.log('Model associations initialized successfully in development mode');
-  } catch (error) {
-    console.error('Failed to initialize associations in development mode:', error);
-  }
-} else {
-  // Production: associations initialized on first request
-  console.log('Production environment detected - associations will be initialized on first request');
-}
+// Associations are now initialized ONCE at startup in server.js
 
 
 // Export all models and association initializer

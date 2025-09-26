@@ -88,7 +88,7 @@ router.get('/',
         include: [
           {
             model: Department,
-            as: 'department',
+            as: 'departmentByCode',
             attributes: ['code', 'name']
           }
         ],
@@ -149,6 +149,7 @@ router.get('/:id',
         include: [
           { model: Department, as: 'department', attributes: ['code', 'name'] },
           { model: Degree, as: 'degree', attributes: ['code', 'name'] },
+          { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
         ],
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
       });
@@ -228,6 +229,7 @@ router.put('/:id',
         include: [
           { model: Department, as: 'department', attributes: ['code', 'name'] },
           { model: Degree, as: 'degree', attributes: ['code', 'name'] },
+          { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
         ],
       });
       // Exclude sensitive fields
@@ -311,6 +313,7 @@ router.get('/department/:departmentId',
         include: [
           { model: Department, as: 'department', attributes: ['code', 'name'] },
           { model: Degree, as: 'degree', attributes: ['code', 'name'] },
+          { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
         ],
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
         order: [['user_type'], ['last_name'], ['first_name']],

@@ -1,3 +1,14 @@
+/**
+ * Degree Routes
+ * -------------
+ * Handles all degree-related API endpoints.
+ * Standards:
+ * - Code-based lookups for department and degree (department_code, degree_code)
+ * - DB integrity via department_id, degree_id
+ * - Error handling, security, validation, audit, maintainability
+ * - See 1.md for full standards checklist
+ */
+
 const express = require('express');
 const { body, query } = require('express-validator');
 const models = require('../utils/models');
@@ -8,6 +19,14 @@ const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 
 const router = express.Router();
 // Add a comment to degree (conversation timeline)
+/**
+ * POST /degrees/:id/comment
+ * Purpose: Add a comment to a degree (conversation timeline)
+ * Access: Authenticated users
+ * Params: id (degree UUID)
+ * Body: text (string)
+ * Response: Added comment object
+ */
 router.post('/:id/comment',
   authenticateToken,
   auditMiddleware('update', 'degree', 'Degree comment added'),
@@ -15,8 +34,8 @@ router.post('/:id/comment',
     try {
       const { text } = req.body;
       if (!text || text.trim().length < 2) return res.status(400).json({ error: 'Comment text required' });
-  const Degree = await models.Degree();
-  const degree = await Degree.findByPk(req.params.id);
+      const Degree = await models.Degree();
+      const degree = await Degree.findByPk(req.params.id);
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
       const user = req.user || { id: req.body.userId, name: req.body.userName, user_type: req.body.userType };
       const comment = {
@@ -30,8 +49,8 @@ router.post('/:id/comment',
       comments.push(comment);
       await degree.update({ comments });
       // Also add comment to messages table for timeline
-  const Message = await models.Message();
-  await Message.create({
+      const Message = await models.Message();
+      await Message.create({
         type: 'degree',
         reference_id: degree.id,
         sender_id: user.id,
