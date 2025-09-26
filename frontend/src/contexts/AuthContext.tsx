@@ -13,7 +13,7 @@ interface AuthContextType {
   effectiveRole: string;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -59,9 +59,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Try to get user profile on initial load
     authAPI.getProfile()
       .then(profile => {
-        console.log('AuthContext: profile from authAPI.getProfile():', profile);
-        if (profile && profile.id) {
-          dispatch(setUser(profile));
+        // Some APIs return { user: {...} }, others just {...}
+        const userObj = profile.user ? profile.user : profile;
+        if (userObj && userObj.id) {
+          dispatch(setUser(userObj));
         } else {
           // If profile has no ID, treat as not authenticated
           dispatch(logout());

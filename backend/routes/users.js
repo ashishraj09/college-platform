@@ -147,9 +147,8 @@ router.get('/:id',
       // Find user by primary key
       const user = await User.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department', attributes: ['code', 'name'] },
-          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
           { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
         ],
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
       });
@@ -227,9 +226,8 @@ router.put('/:id',
       // Reload with associations
       await user.reload({
         include: [
-          { model: Department, as: 'department', attributes: ['code', 'name'] },
-          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
           { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
         ],
       });
       // Exclude sensitive fields

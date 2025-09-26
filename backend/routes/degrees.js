@@ -376,7 +376,7 @@ router.get('/',
       include: [
         {
           model: Department,
-          as: 'department',
+          as: 'departmentByCode',
           attributes: ['id', 'name', 'code']
         }
       ],
@@ -555,7 +555,7 @@ router.post('/',
       // Fetch degree with associations
       const createdDegree = await Degree.findByPk(degree.id, {
         include: [
-          { model: Department, as: 'department' },
+          { model: Department, as: 'departmentByCode' },
         ],
       });
 
@@ -728,7 +728,7 @@ router.put('/:id',
 
       const updatedDegree = await Degree.findByPk(degree.id, {
         include: [
-          { model: Department, as: 'department' },
+          { model: Department, as: 'departmentByCode' },
         ],
       });
 
@@ -898,7 +898,7 @@ router.patch('/:id/publish',
     try {
       const degree = await Degree.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department' },
+          { model: Department, as: 'departmentByCode' },
           { model: User, as: 'creator' },
         ],
       });

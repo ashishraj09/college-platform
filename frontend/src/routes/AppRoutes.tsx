@@ -12,7 +12,6 @@ import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import CreateUser from '../pages/admin/CreateUser';
-import TestPage from '../pages/TestPage';
 import FacultyDashboard from '../pages/faculty/FacultyDashboard';
 import CourseDetailsView from '../pages/faculty/CourseDetailsView';
 // import DegreesPage from '../pages/faculty/DegreesPage';
@@ -76,12 +75,7 @@ const AppRoutes: React.FC = () => {
     <Routes>
       {/* Create Degree Page (all users) */}
       <Route path="/degrees/create" element={<CreateDegreePage />} />
-      {/* Test Route */}
-      <Route 
-        path="/test" 
-        element={<TestPage />} 
-      />
-      
+      {/* Test Route removed: TestPage does not exist */}
       {/* Public Routes */}
       <Route 
         path="/login" 

@@ -18,7 +18,7 @@ import {
   Dashboard as DashboardIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/router';
 import { getUserEffectiveRole } from '../store/slices/authSlice';
 
 interface DashboardLayoutProps {
@@ -28,7 +28,7 @@ interface DashboardLayoutProps {
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const effectiveRole = getUserEffectiveRole(user);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -42,11 +42,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/login');
+  router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);
       // Even if logout fails, redirect to login
-      navigate('/login');
+  router.push('/login');
     } finally {
       handleClose();
     }
@@ -59,7 +59,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         <Toolbar>
           <Box
             sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            onClick={() => navigate('/')}
+            onClick={() => router.push('/')}
           >
             <img
               src="/static/college-logo.png"
@@ -77,7 +77,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <Button
                 color="inherit"
                 startIcon={<DashboardIcon />}
-                onClick={() => navigate('/faculty')}
+                onClick={() => router.push('/faculty')}
               >
                 Dashboard
               </Button>
@@ -97,14 +97,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <Button
                 color="inherit"
                 startIcon={<DashboardIcon />}
-                onClick={() => navigate('/student')}
+                onClick={() => router.push('/student')}
               >
                 My Degree
               </Button>
               <Button
                 color="inherit"
                 startIcon={<SchoolIcon />}
-                onClick={() => navigate('/student/degrees')}
+                onClick={() => router.push('/student/degrees')}
               >
                 Degrees
               </Button>

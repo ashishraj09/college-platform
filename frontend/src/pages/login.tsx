@@ -15,12 +15,11 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '../../hooks/redux';
-import { setUser } from '../../store/slices/authSlice';
-import { authAPI } from '../../services/api';
+import { useRouter } from 'next/router';
+import { useAppDispatch } from '../hooks/redux';
+import { setUser } from '../store/slices/authSlice';
+import { authAPI } from '../services/api';
 
-// Validation schema
 const loginSchema = yup.object().shape({
   email: yup
     .string()
@@ -41,7 +40,7 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
   const dispatch = useAppDispatch();
 
   const {
@@ -59,16 +58,18 @@ const LoginPage: React.FC = () => {
   const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
     setError(null);
-
     try {
       const response = await authAPI.login(data);
-      
-      // After login, fetch user profile and store
+      if (response.error) {
+        setError(response.error);
+        setLoading(false);
+        return;
+      }
       const profile = await authAPI.getProfile();
       dispatch(setUser(profile));
-      // Navigate to dashboard based on user type and HOD status
-      const dashboardRoute = getDashboardRoute(profile.user_type, profile.is_head_of_department);
-      navigate(dashboardRoute, { replace: true });
+  const userObj = profile.user ? profile.user : profile;
+  const dashboardRoute = getDashboardRoute(userObj.user_type, userObj.is_head_of_department);
+  router.push(dashboardRoute);
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || 'Login failed';
       setError(errorMessage);
@@ -77,13 +78,10 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const getDashboardRoute = (userType: string, isHOD: boolean = false): string => {
-    // If user is a faculty member and a head of department, send to HOD dashboard
-    if (userType === 'faculty' && isHOD) {
+  const getDashboardRoute = (userType: string, isHOD: any = false): string => {
+    if (userType === 'faculty' && (isHOD === true || isHOD === 'true' || isHOD === 1)) {
       return '/hod';
     }
-    
-    // Otherwise use regular user type routing
     switch (userType) {
       case 'admin':
         return '/admin';
@@ -129,13 +127,11 @@ const LoginPage: React.FC = () => {
                 Sign in to your account
               </Typography>
             </Box>
-
             {error && (
               <Alert severity="error" sx={{ mb: 3 }}>
                 {error}
               </Alert>
             )}
-
             <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
               <Controller
                 name="email"
@@ -154,7 +150,6 @@ const LoginPage: React.FC = () => {
                   />
                 )}
               />
-
               <Controller
                 name="password"
                 control={control}
@@ -184,7 +179,6 @@ const LoginPage: React.FC = () => {
                   />
                 )}
               />
-
               <Button
                 type="submit"
                 fullWidth
@@ -219,12 +213,11 @@ const LoginPage: React.FC = () => {
                   </>
                 ) : 'Sign In'}
               </Button>
-
               <Box textAlign="center">
                 <Button
                   variant="text"
                   size="small"
-                  onClick={() => navigate('/forgot-password')}
+                  onClick={() => router.push('/forgot-password')}
                 >
                   Forgot your password?
                 </Button>
@@ -237,4 +230,7 @@ const LoginPage: React.FC = () => {
   );
 };
 
+// Ensure login page is not wrapped in DashboardLayout
+// @ts-expect-error: Next.js custom property
+LoginPage.getLayout = (page: React.ReactNode) => page;
 export default LoginPage;

@@ -41,9 +41,9 @@ import {
   LockReset as PasswordResetIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import CreateDepartmentDialog from '../../components/admin/CreateDepartmentDialog';
-import { useNavigate } from 'react-router-dom';
-import { usersAPI, departmentsAPI } from '../../services/api';
+import CreateDepartmentDialog from './admin/DepartmentDialog';
+import { useRouter } from 'next/router';
+import { usersAPI, departmentsAPI } from '../services/api';
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -83,6 +83,7 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [passwordResetLoading, setPasswordResetLoading] = useState<Record<string, boolean>>({});
   const [userActionLoading, setUserActionLoading] = useState<Record<string, boolean>>({});
+  const [departmentActionLoading, setDepartmentActionLoading] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredData, setFilteredData] = useState<any[]>([]);
   
@@ -109,6 +110,7 @@ const AdminDashboard: React.FC = () => {
     content: '',
     action: '', // Add action type to determine button text and color
     onConfirm: () => {},
+    userId: undefined as string | undefined,
   });
   
   // Add pagination state for each user type
@@ -120,10 +122,10 @@ const AdminDashboard: React.FC = () => {
   const [pageLoading, setPageLoading] = useState(false);
 
   const { enqueueSnackbar } = useSnackbar();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleEditUser = (user: any) => {
-    navigate(`/admin/edit-user/${user.id}`);
+  router.push(`/admin/user/${user.id}`);
   };
 
   const handlePasswordReset = (user: any) => {
@@ -133,6 +135,7 @@ const AdminDashboard: React.FC = () => {
       content: `Are you sure you want to reset the password for ${user.first_name} ${user.last_name}? A new temporary password will be sent to their email address.`,
       action: 'reset',
       onConfirm: () => confirmPasswordReset(user.id),
+      userId: user.id,
     });
   };
 
@@ -193,10 +196,12 @@ const AdminDashboard: React.FC = () => {
       content: `Are you sure you want to ${action} the department "${department.name}"?`,
       action: action,
       onConfirm: () => confirmToggleDepartmentStatus(department.id, action),
+      userId: department.id,
     });
   };
 
   const confirmToggleDepartmentStatus = async (departmentId: string, action: string) => {
+    setDepartmentActionLoading(prev => ({ ...prev, [departmentId]: true }));
     try {
       const newStatus = action === 'activate' ? 'active' : 'inactive';
       await departmentsAPI.updateDepartment(departmentId, { status: newStatus });
@@ -206,6 +211,7 @@ const AdminDashboard: React.FC = () => {
       console.error(`Error ${action}ing department:`, error);
       enqueueSnackbar(`Failed to ${action} department`, { variant: 'error' });
     } finally {
+      setDepartmentActionLoading(prev => ({ ...prev, [departmentId]: false }));
       setConfirmDialog({ ...confirmDialog, open: false });
     }
   };
@@ -218,6 +224,7 @@ const AdminDashboard: React.FC = () => {
       content: `Are you sure you want to ${action} the user "${user.first_name} ${user.last_name}"?`,
       action: action,
       onConfirm: () => confirmToggleUserStatus(user.id, action),
+      userId: user.id,
     });
   };
 
@@ -549,13 +556,18 @@ const AdminDashboard: React.FC = () => {
         </Card>
       ) : (
         <>
-          <Box mb={3}>
-            <Typography variant="h4" gutterBottom>
+          <Box mb={3} display="flex" flexDirection="column" alignItems="center">
+            <Typography variant="h4" gutterBottom align="center">
               Admin Dashboard
             </Typography>
-            <Typography variant="body1" color="textSecondary">
+            <Typography variant="body1" color="textSecondary" align="center">
               Manage users, departments, and system administration
             </Typography>
+            <Box mt={2} display="flex" justifyContent="flex-end" width="100%">
+              <Button variant="contained" color="primary" onClick={() => router.push('/admin/user/create')}>
+                Create User
+              </Button>
+            </Box>
           </Box>
           {/* Stats Cards */}
           <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }} gap={3} sx={{ mb: 3 }}>
@@ -858,6 +870,12 @@ const AdminDashboard: React.FC = () => {
               />
             </TabPanel>
             <TabPanel value={tabValue} index={3}>
+              {/* Create Department Button above search */}
+              <Box mb={2}>
+                <Button variant="contained" color="success" onClick={() => setCreateDepartmentOpen(true)}>
+                  Create Department
+                </Button>
+              </Box>
               {pageLoading && (
                 <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 200 }}>
                   <CircularProgress color="primary" />
@@ -1016,6 +1034,10 @@ const AdminDashboard: React.FC = () => {
               <Button 
                 onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}
                 color="primary"
+                disabled={Boolean(
+                  (confirmDialog.action === 'reset' && confirmDialog.userId && passwordResetLoading[confirmDialog.userId]) ||
+                  (confirmDialog.action === 'deactivate' && confirmDialog.userId && (userActionLoading[confirmDialog.userId] || departmentActionLoading[confirmDialog.userId]))
+                )}
               >
                 Cancel
               </Button>
@@ -1023,8 +1045,14 @@ const AdminDashboard: React.FC = () => {
                 onClick={confirmDialog.onConfirm}
                 color={confirmDialog.action === 'activate' ? 'success' : confirmDialog.action === 'reset' ? 'primary' : 'warning'}
                 variant="contained"
+                disabled={Boolean(
+                  (confirmDialog.action === 'reset' && confirmDialog.userId && passwordResetLoading[confirmDialog.userId]) ||
+                  (confirmDialog.action === 'deactivate' && confirmDialog.userId && (userActionLoading[confirmDialog.userId] || departmentActionLoading[confirmDialog.userId]))
+                )}
               >
-                {confirmDialog.action === 'activate' ? 'Activate' : confirmDialog.action === 'reset' ? 'Reset Password' : 'Deactivate'}
+                {confirmDialog.action === 'activate' && 'Activate'}
+                {confirmDialog.action === 'reset' && (confirmDialog.userId && passwordResetLoading[confirmDialog.userId] ? 'Resetting...' : 'Reset Password')}
+                {confirmDialog.action === 'deactivate' && (confirmDialog.userId && (userActionLoading[confirmDialog.userId] || departmentActionLoading[confirmDialog.userId]) ? 'Deactivating...' : 'Deactivate')}
               </Button>
             </DialogActions>
           </Dialog>

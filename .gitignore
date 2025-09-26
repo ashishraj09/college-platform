@@ -85,3 +85,5 @@ temp/
 # Documentation builds
 docs/build/
 docs/.docusaurus/
+
+.next/

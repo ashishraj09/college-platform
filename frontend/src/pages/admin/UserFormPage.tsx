@@ -17,7 +17,7 @@ import {
   Divider,
 } from '@mui/material';
 import { Checkbox, FormControlLabel } from '@mui/material';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useRouter } from 'next/router';
 import { useSnackbar } from 'notistack';
 import { ArrowBack, Person, School, Settings } from '@mui/icons-material';
 import { authAPI, departmentsAPI, degreesAPI, usersAPI } from '../../services/api';
@@ -41,8 +41,8 @@ interface FormErrors {
 }
 
 const CreateUser: React.FC = () => {
-  const navigate = useNavigate();
-  const { userId } = useParams<{ userId: string }>();
+  const router = useRouter();
+  const { id: userId } = router.query;
   const { enqueueSnackbar } = useSnackbar();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -75,15 +75,15 @@ const CreateUser: React.FC = () => {
         const response = await usersAPI.getUserById(id);
         // API may return { user } or the user object directly
         const userData = response?.user || response?.data?.user || response?.data || response;
-        
+
         setFormData({
           first_name: userData.first_name || '',
           last_name: userData.last_name || '',
           email: userData.email || '',
           user_type: userData.user_type || 'student',
           status: userData.status || 'pending',
-          department_id: userData.department_id || '',
-          degree_id: userData.degree_id || '',
+          department_id: userData.departmentByCode?.code || userData.department_id || '',
+          degree_id: userData.degree?.code || userData.degree_id || '',
           student_id: userData.student_id || '',
           employee_id: userData.employee_id || '',
           is_head_of_department: !!userData.is_head_of_department,
@@ -96,7 +96,7 @@ const CreateUser: React.FC = () => {
       }
     };
     
-    if (isEditMode && userId) {
+    if (isEditMode && typeof userId === 'string') {
       fetchUserData(userId);
     }
   }, [userId, isEditMode, enqueueSnackbar]); // Added all dependencies
@@ -122,10 +122,12 @@ const CreateUser: React.FC = () => {
       else if (Array.isArray(response?.data)) list = response.data;
       else if (Array.isArray(response?.degrees)) list = response.degrees;
       else if (Array.isArray(response?.all)) list = response.all;
-      else list = response;
-      setDegrees(list || []);
+      // If none of the above, fallback to empty array
+      if (!Array.isArray(list)) list = [];
+      setDegrees(list);
     } catch (error) {
       console.error('Error fetching degrees:', error);
+      setDegrees([]);
     }
   };
 
@@ -215,7 +217,7 @@ const CreateUser: React.FC = () => {
         userData.is_head_of_department = !!formData.is_head_of_department;
       }
 
-      if (isEditMode && userId) {
+      if (isEditMode && typeof userId === 'string') {
         await usersAPI.updateUser(userId, userData);
         enqueueSnackbar('User updated successfully!', { variant: 'success' });
       } else {
@@ -229,7 +231,7 @@ const CreateUser: React.FC = () => {
         enqueueSnackbar('User created successfully! An account activation link has been sent to their email.', { variant: 'success' });
       }
       
-      navigate('/admin');
+  router.push('/admin');
     } catch (error: any) {
       enqueueSnackbar(
         error.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} user`,
@@ -331,7 +333,7 @@ const CreateUser: React.FC = () => {
                   onChange={(e) => handleInputChange('department_id', e.target.value)}
                 >
                   {departments.map((dept) => (
-                    <MenuItem key={dept.id} value={dept.id}>
+                    <MenuItem key={dept.code} value={dept.code}>
                       {dept.name}
                     </MenuItem>
                   ))}
@@ -348,17 +350,17 @@ const CreateUser: React.FC = () => {
               <>
                 <FormControl fullWidth error={!!errors.degree_id}>
                   <InputLabel>Degree</InputLabel>
-                  <Select
-                    value={formData.degree_id}
-                    label="Degree"
-                    onChange={(e) => handleInputChange('degree_id', e.target.value)}
-                  >
-                    {degrees.map((degree) => (
-                      <MenuItem key={degree.id} value={degree.id}>
-                        {degree.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                    <Select
+                      value={formData.degree_id}
+                      label="Degree"
+                      onChange={(e) => handleInputChange('degree_id', e.target.value)}
+                    >
+                      {(Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_id) : []).map((degree) => (
+                        <MenuItem key={degree.code} value={degree.code}>
+                          {degree.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
                   {errors.degree_id && (
                     <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1 }}>
                       {errors.degree_id}
@@ -448,7 +450,7 @@ const CreateUser: React.FC = () => {
       <Box display="flex" alignItems="center" mb={3}>
         <Button
           startIcon={<ArrowBack />}
-          onClick={() => navigate('/admin')}
+          onClick={() => router.push('/admin')}
           sx={{ mr: 2 }}
         >
           Back to Dashboard
