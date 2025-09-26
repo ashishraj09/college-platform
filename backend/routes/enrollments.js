@@ -28,11 +28,14 @@ router.get('/',
           filter.semester = semester || user.current_semester;
           if (status) filter.enrollment_status = Array.isArray(status) ? { [Op.in]: status } : status;
         } else if (user.is_head_of_department) {
-          filter.enrollment_status = status || 'pending_hod_approval';
+          if (status) {
+            filter.enrollment_status = Array.isArray(status) ? { [Op.in]: status } : status;
+          }
           if (semester) filter.semester = semester;
         } else {
           filter.student_id = user.id;
-          filter.semester = semester || user.current_semester;
+          // Only filter by semester if explicitly provided
+          if (semester) filter.semester = semester;
           if (status) filter.enrollment_status = Array.isArray(status) ? { [Op.in]: status } : status;
         }
         return filter;
@@ -76,14 +79,23 @@ router.get('/',
       // Helper: Attach course and student info
       async function shapeEnrollment(enrollment, userType) {
         const courseCodes = enrollment.course_codes || [];
-        const courses = await Course.findAll({
+        const coursesRaw = await Course.findAll({
           where: { code: { [Op.in]: courseCodes } },
-          attributes: ['id', 'name', 'code']
+          attributes: ['id', 'name', 'code', 'credits']
         });
+        // Map to unique course per code (first match)
+        const codeToCourse = {};
+        for (const course of coursesRaw) {
+          if (!codeToCourse[course.code]) {
+            codeToCourse[course.code] = course;
+          }
+        }
+        const courses = courseCodes.map(code => codeToCourse[code]).filter(Boolean);
         let shaped = {
           ...enrollment.get({ plain: true }),
-          courses: courses.map(course => ({ id: course.id, name: course.name, code: course.code }))
+          courses: courses.map(course => ({ id: course.id, name: course.name, code: course.code, credits: course.credits }))
         };
+        // For students, do NOT include any other course arrays
         if (userType === 'hod') {
           const student = await User.findOne({
             where: { id: enrollment.student_id },
@@ -100,6 +112,11 @@ router.get('/',
             student_id: student.student_id,
             degree: degree ? { id: degree.id, name: degree.name, code: degree.code } : undefined
           };
+        }
+        // Remove any other course arrays for students (future-proof)
+        if (userType === 'student') {
+          delete shaped.all_courses;
+          delete shaped.semester_courses;
         }
         return shaped;
       }
@@ -137,11 +154,9 @@ router.get('/',
           pagination: { total, page, limit, pages }
         });
       } else {
-        // For students, do not include 'courses' in response
+        // For students, always include 'courses' in response
         for (const enrollment of enrollments) {
-          const plain = enrollment.get({ plain: true });
-          delete plain.courses;
-          shapedEnrollments.push(plain);
+          shapedEnrollments.push(await shapeEnrollment(enrollment, 'student'));
         }
         res.json(shapedEnrollments);
       }
@@ -244,11 +259,13 @@ router.put('/draft',
           const dept = await Department.findOne({ where: { id: req.user.department_id } });
           if (dept) department_code = dept.code;
         }
+        // Ensure course_codes are codes
+        const course_codes_clean = Array.from(new Set(course_codes));
         draft = await Enrollment.create({
           student_id: req.user.id,
           academic_year: academicYear,
           semester: req.user.current_semester,
-          course_codes: course_codes,
+          course_codes: course_codes_clean,
           enrollment_status: 'draft',
           department_code
         });
@@ -350,13 +367,14 @@ router.post('/draft/submit',
       // If no draft, but course_codes are provided, create a draft
       if (!draft && req.body.course_codes) {
         // Validate course_codes
+        const course_codes_clean = Array.from(new Set(req.body.course_codes));
         const courses = await Course.findAll({
           where: {
-            code: { [Op.in]: req.body.course_codes }
+            code: { [Op.in]: course_codes_clean }
           }
         });
-        if (courses.length !== req.body.course_codes.length) {
-          return res.status(400).json({ error: 'One or more course codes are invalid', found: courses.map(c => c.code), requested: req.body.course_codes });
+        if (courses.length !== course_codes_clean.length) {
+          return res.status(400).json({ error: 'One or more course codes are invalid', found: courses.map(c => c.code), requested: course_codes_clean });
         }
         // Get department code from user
         let department_code = null;
@@ -369,7 +387,7 @@ router.post('/draft/submit',
           student_id: req.user.id,
           academic_year: academicYear,
           semester: req.user.current_semester,
-          course_codes: req.body.course_codes,
+          course_codes: course_codes_clean,
           enrollment_status: 'draft',
           department_code
         });
@@ -390,8 +408,7 @@ router.post('/draft/submit',
       // Update enrollment record to pending_hod_approval status
       await draft.update({
         enrollment_status: 'pending_hod_approval',
-        submitted_at: new Date(),
-        rejection_reason: null // Clear any previous rejection reason
+        submitted_at: new Date()
       });
 
       // Add message to Message table if provided
@@ -404,7 +421,76 @@ router.post('/draft/submit',
           message: req.body.message,
         });
       }
-  res.json({ message: 'Enrollment submitted for HOD approval', id: draft.id });
+
+      // Send email to HOD for approval and confirmation to student
+      try {
+        const { sendEnrollmentApprovalEmail, sendEnrollmentStatusEmail } = require('../utils/email');
+        const Department = await models.Department();
+        const Degree = await models.Degree();
+        const User = await models.User();
+        let hodUser = null;
+        let department = null;
+        let degree = null;
+        // Always use department_code from enrollment record for HOD lookup
+        let deptCode = draft.department_code || null;
+        if (deptCode) {
+          department = await Department.findOne({ where: { code: deptCode } });
+          if (department) {
+            hodUser = await User.findOne({ where: { department_id: department.id, is_head_of_department: true } });
+          }
+        }
+        // Attach student and course info for emails
+        const student = await User.findOne({ where: { id: draft.student_id } });
+        if (student && student.degree_id) {
+          degree = await Degree.findOne({ where: { code: student.degree_code } });
+        }
+        // Deduplicate course codes before querying
+  const courseCodes = Array.from(new Set(draft.course_codes || []));
+  const Course = await models.Course();
+  const courses = await Course.findAll({ where: { code: { [Op.in]: courseCodes } } });
+  const courseList = courses.map(c => `${c.name} (${c.code})`);
+        // Send to HOD
+        if (hodUser && hodUser.email) {
+          await sendEnrollmentApprovalEmail({
+            ...draft.get({ plain: true }),
+            student,
+            degree,
+            department,
+            courseList
+          }, hodUser, true);
+        } else {
+          console.warn('No HOD user found or HOD user missing email for department:', department ? department.code : null);
+        }
+        // Send confirmation to student
+        // Prepare deduplicated course details for email
+        const coursesDeduped = [];
+        const seenCodes = new Set();
+        for (const c of courses) {
+          if (!seenCodes.has(c.code)) {
+            coursesDeduped.push({ name: c.name, code: c.code, credits: c.credits });
+            seenCodes.add(c.code);
+          }
+        }
+        // Ensure department and degree name/code are passed
+        const departmentName = department ? department.name : '';
+        const departmentCode = department ? department.code : '';
+        const degreeName = degree ? degree.name : '';
+        const degreeCode = degree ? degree.code : '';
+        await sendEnrollmentStatusEmail({
+          student,
+          enrollment: draft,
+          courses: coursesDeduped,
+          degree: { name: degreeName, code: degreeCode },
+          department: { name: departmentName, code: departmentCode },
+          status: draft.enrollment_status === 'change_requested' ? 'Change Requested' : draft.enrollment_status,
+          hod: hodUser || {},
+          rejection_reason: draft.rejection_reason || '',
+        });
+      } catch (emailErr) {
+        console.error('Failed to send enrollment approval/confirmation email:', emailErr);
+      }
+
+      res.json({ message: 'Enrollment submitted for HOD approval', id: draft.id });
     } catch (error) {
       console.error('Error submitting enrollment:', error);
       res.status(500).json({ error: 'Failed to submit enrollment' });

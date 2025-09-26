@@ -106,7 +106,6 @@ export interface EnrollmentData {
   enrollment_status: string;
   semester: number;
   submitted_at: string;
-  is_submitted?: boolean;
   course_ids: string[];
   courses: Array<{ id: string; name: string; code: string }>;
 }

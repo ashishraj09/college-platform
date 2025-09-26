@@ -95,26 +95,35 @@ async function ensureDatabaseSchema() {
     console.log('🧪 Verifying models with test queries...');
     
     try {
-      // Test User model
+      // Test User model and verify department_code and degree_code fields
       const userCount = await models.User.count();
-      console.log(`✅ User model verified. (${userCount} users in database)`);
-      
+      const userSample = await models.User.findOne();
+      if (userSample) {
+        if ('department_id' in userSample || 'degree_id' in userSample) {
+          throw new Error('User model still has old department_id or degree_id fields');
+        }
+        if (!('department_code' in userSample) || !('degree_code' in userSample)) {
+          throw new Error('User model missing department_code or degree_code fields');
+        }
+      }
+      console.log(`✅ User model verified. (${userCount} users in database, department_code and degree_code present)`);
+
       // Test Department model
       const departmentCount = await models.Department.count();
       console.log(`✅ Department model verified. (${departmentCount} departments in database)`);
-      
+
       // Test Course model
       const courseCount = await models.Course.count();
       console.log(`✅ Course model verified. (${courseCount} courses in database)`);
-      
+
       // Test Degree model
       const degreeCount = await models.Degree.count();
       console.log(`✅ Degree model verified. (${degreeCount} degrees in database)`);
-      
+
       // Test Message model
       const messageCount = await models.Message.count();
       console.log(`✅ Message model verified. (${messageCount} messages in database)`);
-      
+
       console.log('🎉 All database models verified successfully!');
     } catch (modelError) {
       console.error(`❌ Error verifying models: ${modelError.message}`);

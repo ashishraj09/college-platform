@@ -7,100 +7,6 @@ const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { isEnrollmentOpen } = require('../utils/enrollment');
 
-// Create a new enrollment as draft
-router.post('/create',
-  [
-    body('course_codes').isArray().withMessage('Course codes must be an array'),
-    body('course_codes.*').isString().withMessage('Invalid course code'),
-    body('academic_year').isString().withMessage('Academic year is required'),
-    body('semester').isInt({ min: 1 }).withMessage('Semester must be a positive integer'),
-    body('department_code').isString().withMessage('Department code is required'),
-    body('degree_code').isString().withMessage('Degree code is required')
-  ],
-  authenticateToken,
-  require('../middleware/audit').auditMiddleware('create', 'enrollment', 'Created enrollment draft'),
-  handleValidationErrors,
-  async (req, res) => {
-    try {
-  const { user_id, course_codes, academic_year, semester, department_code, degree_code } = req.body;
-      
-      // Ensure the user can only enroll for themselves
-      if (req.user.user_type !== 'admin' && user_id !== req.user.id) {
-        return res.status(403).json({ error: 'You can only create enrollments for yourself' });
-      }
-
-      // Get the student's degree and department
-      const student = await User.findByPk(user_id || req.user.id, {
-        include: [
-          { model: Degree, as: 'degree', where: { code: degree_code } },
-          { model: Department, as: 'department', where: { code: department_code } }
-        ]
-      });
-
-      if (!student) {
-        return res.status(404).json({ error: 'Student not found' });
-      }
-
-      if (!student.degree) {
-        return res.status(400).json({ error: 'Student is not enrolled in the specified degree program' });
-      }
-
-      if (!student.department) {
-        return res.status(400).json({ error: 'Student is not enrolled in the specified department' });
-      }
-
-      // Check if enrollment period is open
-      const isOpen = isEnrollmentOpen(student.degree, student.current_semester);
-      if (!isOpen.open) {
-        return res.status(400).json({ error: isOpen.message });
-      }
-
-      // Get course IDs from course codes
-      const courses = await Course.findAll({
-        where: { 
-          code: { [Op.in]: course_codes },
-          degree_id: student.degree_id,
-          department_id: student.department_id
-        }
-      });
-
-      if (courses.length !== course_codes.length) {
-        return res.status(400).json({ 
-          error: 'One or more course codes are invalid for this degree program',
-          found: courses.map(c => c.code),
-          requested: course_codes
-        });
-      }
-
-      // Create the enrollment
-      const enrollment = await Enrollment.create({
-        student_id: user_id || req.user.id,
-        course_codes: courses.map(c => c.code),
-        academic_year,
-        semester,
-        department_code,
-        degree_code,
-        enrollment_status: 'draft'
-      });
-
-      // Add message to Message table if provided
-      const Message = require('../models/Message');
-      if (req.body.message) {
-        await Message.create({
-          type: 'enrollment',
-          reference_id: enrollment.id,
-          sender_id: req.user.id,
-          message: req.body.message,
-        });
-      }
-      res.status(201).json(enrollment);
-    } catch (error) {
-      console.error('Error creating enrollment:', error);
-      res.status(500).json({ error: 'Failed to create enrollment' });
-    }
-  }
-);
-
 // Get user's draft enrollments
 router.get('/drafts',
   authenticateToken,
@@ -152,15 +58,31 @@ router.post('/approve',
       if (validEnrollments.length === 0) {
         return res.status(404).json({ error: 'No valid enrollments found for approval' });
       }
-      // Approve all valid enrollments
+      // Approve all valid enrollments and notify students
+      const { sendEnrollmentStatusEmail } = require('../utils/email');
       const updatedEnrollments = await Promise.all(
-        validEnrollments.map(enrollment =>
-          enrollment.update({
+        validEnrollments.map(async enrollment => {
+          const updated = await enrollment.update({
             enrollment_status: 'approved',
             hod_approved_by: req.user.id,
             hod_approved_at: new Date()
-          })
-        )
+          });
+          // Fetch course details
+          const courses = await Course.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
+          // Send email to student
+          try {
+            await sendEnrollmentStatusEmail({
+              student: enrollment.student,
+              enrollment: updated,
+              courses,
+              status: 'approved',
+              hod: req.user
+            });
+          } catch (err) {
+            console.error('Failed to send approval email to student:', err);
+          }
+          return updated;
+        })
       );
       // Add message to Message table if provided
       const Message = require('../models/Message');
@@ -225,29 +147,43 @@ router.post('/reject',
         });
       }
       
-      // Update all enrollments
+      // Update all enrollments and notify students
+      const { sendEnrollmentStatusEmail } = require('../utils/email');
       const updatedEnrollments = await Promise.all(
-        validEnrollments.map(enrollment => 
-          enrollment.update({
+        validEnrollments.map(async enrollment => {
+          const updated = await enrollment.update({
             enrollment_status: 'draft',
             hod_approved_by: req.user.id,
-            hod_approved_at: new Date(),
-            hod_comments: rejection_reason
-          })
-        )
+            hod_approved_at: new Date()
+          });
+          // Fetch course details
+          const courses = await Course.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
+          // Send email to student
+          try {
+            await sendEnrollmentStatusEmail({
+              student: enrollment.student,
+              enrollment: updated,
+              courses,
+              status: 'change_requested',
+              hod: req.user,
+              rejection_reason
+            });
+          } catch (err) {
+            console.error('Failed to send rejection email to student:', err);
+          }
+          return updated;
+        })
       );
       
-      // Add message to Message table if provided
+      // Always add rejection reason to Message table
       const Message = require('../models/Message');
-      if (req.body.message) {
-        for (const enrollment of updatedEnrollments) {
-          await Message.create({
-            type: 'enrollment',
-            reference_id: enrollment.id,
-            sender_id: req.user.id,
-            message: req.body.message,
-          });
-        }
+      for (const enrollment of updatedEnrollments) {
+        await Message.create({
+          type: 'enrollment',
+          reference_id: enrollment.id,
+          sender_id: req.user.id,
+          message: req.body.message ? req.body.message : `Change requested: ${rejection_reason}`,
+        });
       }
       res.json({
         message: `${updatedEnrollments.length} enrollment(s) rejected successfully`,

@@ -1,0 +1,31 @@
+{{#> email-base}}
+  {{#*inline "HEADER_TITLE"}}Course Enrollment Status{{/inline}}
+  {{#*inline "HEADER_SUBTITLE"}}{{APP_NAME}}{{/inline}}
+  {{#*inline "EMAIL_BODY"}}
+    <div class="info">
+      <h2>Hello {{STUDENT_NAME}},</h2>
+      <p>Your course enrollment status has been updated. Please review the details below:</p>
+      <div class="details">
+        <strong>Department:</strong> {{DEPARTMENT}}<br>
+        <strong>Degree:</strong> {{DEGREE}}<br>
+        <strong>Courses Selected:</strong>
+        <ul>
+          {{#each COURSES}}
+            <li>{{COURSE_NAME}} ({{COURSE_CODE}})</li>
+          {{/each}}
+        </ul>
+      </div>
+      <center>
+        <a href="{{STATUS_URL}}" class="button">View Enrollment Status</a>
+      </center>
+      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+      <p><a href="{{STATUS_URL}}">{{STATUS_URL}}</a></p>
+    </div>
+  {{/inline}}
+  {{#*inline "YEAR"}}{{YEAR}}{{/inline}}
+{{/email-base}}
+			<p>&copy; 2025 {{APP_NAME}}. All rights reserved.</p>
+		</div>
+	</div>
+</body>
+</html>

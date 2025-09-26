@@ -71,7 +71,6 @@ interface PendingEnrollment {
   student_id: string;
   course_codes: string[];
   enrollment_status: string;
-  is_submitted: boolean;
   submitted_at: string;
   academic_year: string;
   semester: number;

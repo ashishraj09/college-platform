@@ -59,21 +59,13 @@ const User = defineModel('User', {
     type: DataTypes.ENUM('active', 'inactive', 'pending', 'suspended'),
     defaultValue: 'pending',
   },
-  degree_id: {
-    type: DataTypes.UUID,
+  degree_code: {
+    type: DataTypes.STRING(32),
     allowNull: true,
-    references: {
-      model: 'degrees',
-      key: 'id',
-    },
   },
-  department_id: {
-    type: DataTypes.UUID,
+  department_code: {
+    type: DataTypes.STRING(32),
     allowNull: true,
-    references: {
-      model: 'departments',
-      key: 'id',
-    },
   },
   enrolled_date: {
     type: DataTypes.DATE,
@@ -149,10 +141,10 @@ const User = defineModel('User', {
       fields: ['user_type'],
     },
     {
-      fields: ['department_id'],
+      fields: ['department_code'],
     },
     {
-      fields: ['degree_id'],
+      fields: ['degree_code'],
     },
   ],
   validate: {
@@ -167,13 +159,13 @@ const User = defineModel('User', {
       }
     },
     degreeRequired() {
-      if (this.user_type === 'student' && !this.degree_id) {
-        throw new Error('Degree is required for student users');
+      if (this.user_type === 'student' && !this.degree_code) {
+        throw new Error('Degree code is required for student users');
       }
     },
     departmentRequired() {
-      if (['student', 'faculty'].includes(this.user_type) && !this.department_id) {
-        throw new Error('Department is required for students and faculty');
+      if (['student', 'faculty'].includes(this.user_type) && !this.department_code) {
+        throw new Error('Department code is required for students and faculty');
       }
     },
   },

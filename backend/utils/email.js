@@ -1,9 +1,41 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs').promises;
+const Handlebars = require('handlebars');
+
+// Register 'block' helper if not already registered
+// Register 'eq' helper for template comparisons
+if (!Handlebars.helpers.eq) {
+  Handlebars.registerHelper('eq', function(a, b) {
+    return a === b;
+  });
+}
+if (!Handlebars.helpers.block) {
+  Handlebars.registerHelper('block', function(name, options) {
+    // If block content exists, render it
+    if (options.data && options.data.blocks && options.data.blocks[name]) {
+      return options.data.blocks[name];
+    }
+    // Otherwise, fallback to default content
+    return options.fn ? options.fn(this) : '';
+  });
+}
+
+// Load email template
+async function loadTemplate(templateName) {
+  const templatePath = path.join(__dirname, '../templates/emails', `${templateName}.html`);
+  return await fs.readFile(templatePath, 'utf-8');
+}
+
+// Render template with Handlebars
+async function renderTemplate(templateName, variables) {
+  const template = await loadTemplate(templateName);
+  const compiled = Handlebars.compile(template, { allowCallsToHelperMissing: true, noEscape: true });
+  return compiled({ ...variables });
+}
 
 // Create transporter
-const createTransporter = () => {
+function createTransporter() {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT),
@@ -13,100 +45,59 @@ const createTransporter = () => {
       pass: process.env.SMTP_PASS,
     },
   });
-};
-
-// Load email template
-const loadTemplate = async (templateName) => {
-  try {
-    const templatePath = path.join(__dirname, '../templates/emails', `${templateName}.html`);
-    return await fs.readFile(templatePath, 'utf-8');
-  } catch (error) {
-    console.error(`Failed to load email template ${templateName}:`, error);
-    return null;
-  }
-};
-
-// Replace template variables
-const replaceTemplateVariables = (template, variables) => {
-  let result = template;
-  Object.keys(variables).forEach(key => {
-    const regex = new RegExp(`{{${key}}}`, 'g');
-    result = result.replace(regex, variables[key] || '');
-  });
-  return result;
-};
+}
 
 // Send email
-const sendEmail = async ({ to, subject, html, text }) => {
-  try {
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
-      to,
-      subject,
-      html,
-      text,
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', result.messageId);
-    return result;
-  } catch (error) {
-    console.error('Failed to send email:', error);
-    throw error;
-  }
-};
+async function sendEmail({ to, subject, html, text }) {
+  const transporter = createTransporter();
+  const mailOptions = {
+    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
+    to,
+    subject,
+    html,
+    text,
+  };
+  const result = await transporter.sendMail(mailOptions);
+  console.log('Email sent successfully:', result.messageId);
+  return result;
+}
 
 // Send template-based email
-const sendTemplateEmail = async (templateName, to, subject, variables = {}) => {
-  try {
-    const template = await loadTemplate(templateName);
-    if (!template) {
-      throw new Error(`Template ${templateName} not found`);
-    }
-
-    const html = replaceTemplateVariables(template, {
-      ...variables,
-      FRONTEND_URL: process.env.FRONTEND_URL,
-      BACKEND_URL: process.env.BACKEND_URL,
-      APP_NAME: process.env.FROM_NAME,
-    });
-
-    return await sendEmail({ to, subject, html });
-  } catch (error) {
-    console.error('Failed to send template email:', error);
-    throw error;
-  }
-};
+async function sendTemplateEmail(templateName, to, subject, variables = {}) {
+  const html = await renderTemplate(templateName, {
+    ...variables,
+    FRONTEND_URL: process.env.FRONTEND_URL,
+    BACKEND_URL: process.env.BACKEND_URL,
+    APP_NAME: process.env.FROM_NAME,
+    YEAR: new Date().getFullYear(),
+  });
+  return await sendEmail({ to, subject, html });
+}
 
 // Specific email functions
-const sendWelcomeEmail = async (user, resetToken) => {
+async function sendWelcomeEmail(user, resetToken) {
   const subject = 'Welcome to College Platform - Activate Your Account';
   const activationUrl = `${process.env.FRONTEND_URL}/activate?token=${resetToken}`;
-  
   return await sendTemplateEmail('welcome', user.email, subject, {
     FIRST_NAME: user.first_name,
     LAST_NAME: user.last_name,
     USER_TYPE: user.user_type.charAt(0).toUpperCase() + user.user_type.slice(1),
     ACTIVATION_URL: activationUrl,
   });
-};
+}
 
-const sendPasswordResetEmail = async (user, resetToken) => {
+async function sendPasswordResetEmail(user, resetToken) {
   const subject = 'Reset Your Password - College Platform';
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-  
   return await sendTemplateEmail('password-reset', user.email, subject, {
     FIRST_NAME: user.first_name,
     RESET_URL: resetUrl,
   });
-};
+}
 
-const sendCourseApprovalEmail = async (course, hod) => {
+async function sendCourseApprovalEmail(course, hod) {
   const subject = `Course Approval Required: ${course.name}`;
   const courseUrl = `${process.env.FRONTEND_URL}/courses/${course.id}/review`;
-  
   return await sendTemplateEmail('course-approval', hod.email, subject, {
     HOD_NAME: `${hod.first_name} ${hod.last_name}`,
     COURSE_NAME: course.name,
@@ -114,32 +105,31 @@ const sendCourseApprovalEmail = async (course, hod) => {
     FACULTY_NAME: `${course.creator.first_name} ${course.creator.last_name}`,
     COURSE_URL: courseUrl,
   });
-};
+}
 
-const sendEnrollmentApprovalEmail = async (enrollment, approver, isHOD = true) => {
-  const studentName = `${enrollment.student.first_name} ${enrollment.student.last_name}`;
-  const courseName = enrollment.course.name;
+async function sendEnrollmentApprovalEmail(enrollment, approver, isHOD = true) {
+  const studentName = enrollment.student ? `${enrollment.student.first_name} ${enrollment.student.last_name}` : '';
   const approverType = isHOD ? 'HOD' : 'Office';
-  
   const subject = `Student Enrollment ${approverType} Approval Required: ${studentName}`;
   const enrollmentUrl = `${process.env.FRONTEND_URL}/enrollments/${enrollment.id}/review`;
-  
   return await sendTemplateEmail('enrollment-approval', approver.email, subject, {
     APPROVER_NAME: `${approver.first_name} ${approver.last_name}`,
     STUDENT_NAME: studentName,
-    STUDENT_ID: enrollment.student.student_id,
-    COURSE_NAME: courseName,
-    COURSE_CODE: enrollment.course.code,
+    STUDENT_ID: enrollment.student ? enrollment.student.student_id : '',
+    DEGREE_NAME: enrollment.degree ? enrollment.degree.name : '',
+    DEGREE_CODE: enrollment.degree ? enrollment.degree.code : '',
+    DEPARTMENT_NAME: enrollment.department ? enrollment.department.name : '',
+    DEPARTMENT_CODE: enrollment.department ? enrollment.department.code : '',
+    COURSE_LIST: enrollment.courseList || [],
     ACADEMIC_YEAR: enrollment.academic_year,
     SEMESTER: enrollment.semester,
     ENROLLMENT_URL: enrollmentUrl,
     APPROVER_TYPE: approverType,
   });
-};
+}
 
-const sendEnrollmentConfirmationEmail = async (enrollment) => {
+async function sendEnrollmentConfirmationEmail(enrollment) {
   const subject = 'Enrollment Confirmation - College Platform';
-  
   return await sendTemplateEmail('enrollment-confirmation', enrollment.student.email, subject, {
     STUDENT_NAME: `${enrollment.student.first_name} ${enrollment.student.last_name}`,
     COURSE_NAME: enrollment.course.name,
@@ -147,7 +137,36 @@ const sendEnrollmentConfirmationEmail = async (enrollment) => {
     ACADEMIC_YEAR: enrollment.academic_year,
     SEMESTER: enrollment.semester,
   });
-};
+}
+
+async function sendEnrollmentStatusEmail({ student, enrollment, courses, status, hod, rejection_reason }) {
+  let subject, templateName;
+  let statusFormatted = status;
+  if (statusFormatted === 'Submitted') {
+    subject = 'Enrollment Submitted for Approval';
+  } else if (statusFormatted === 'Approved') {
+    subject = 'Your Enrollment Has Been Approved';
+  } else if (statusFormatted === 'Change Requested') {
+    subject = 'Change Requested';
+  } else {
+    subject = `Enrollment Status: ${statusFormatted}`;
+  }
+  templateName = 'enrollment-status';
+  return await sendTemplateEmail(templateName, student.email, subject, {
+    STUDENT_NAME: `${student.first_name} ${student.last_name}`,
+    ENROLLMENT_ID: enrollment.id,
+    DEGREE_NAME: degree && degree.name ? degree.name : '',
+    DEGREE_CODE: degree && degree.code ? degree.code : '',
+    DEPARTMENT_NAME: department && department.name ? department.name : '',
+    DEPARTMENT_CODE: department && department.code ? department.code : '',
+    ACADEMIC_YEAR: enrollment.academic_year,
+    SEMESTER: enrollment.semester,
+    COURSES: courses,
+    STATUS: statusFormatted,
+    HOD_NAME: `${hod.first_name} ${hod.last_name}`,
+    REJECTION_REASON: rejection_reason || '',
+  });
+}
 
 module.exports = {
   sendEmail,
@@ -157,4 +176,5 @@ module.exports = {
   sendCourseApprovalEmail,
   sendEnrollmentApprovalEmail,
   sendEnrollmentConfirmationEmail,
+  sendEnrollmentStatusEmail,
 };

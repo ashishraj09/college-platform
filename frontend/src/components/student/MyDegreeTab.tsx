@@ -1,24 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Button, 
-  Card, 
-  CardContent, 
-  List, 
-  ListItem, 
+import {
+  Box,
+  Typography,
+  Button,
+  List,
+  ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
-  Tabs, 
-  Tab, 
-  Paper, 
-  Checkbox, 
-  FormControlLabel, 
-  Grid, 
-  Chip, 
-  Divider, 
-  Alert, 
+  Tabs,
+  Tab,
+  Paper,
+  Checkbox,
+  Chip,
+  Divider,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -29,14 +24,10 @@ import {
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
-import { enrollmentAPI } from '../../services/api';
-import { coursesAPI, timelineAPI } from '../../services/api';
+import { enrollmentAPI, timelineAPI } from '../../services/api';
 import type { CourseWithEnrollmentStatus } from '../../services/api';
 import CourseCard from '../common/CourseCard';
 import TimelineDialog from '../common/TimelineDialog';
-import { formatEnrollmentStatus } from '../../utils/formatters';
-
-// Icons
 import SchoolIcon from '@mui/icons-material/School';
 import HistoryIcon from '@mui/icons-material/History';
 import CheckIcon from '@mui/icons-material/Check';
@@ -44,12 +35,9 @@ import InfoIcon from '@mui/icons-material/Info';
 import Timeline from '@mui/icons-material/Timeline';
 import EditIcon from '@mui/icons-material/Edit';
 import WarningIcon from '@mui/icons-material/Warning';
-import EventIcon from '@mui/icons-material/Event';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import HourglassFullIcon from '@mui/icons-material/HourglassFull';
 import EnrollIcon from '@mui/icons-material/LibraryAdd';
-import ArticleIcon from '@mui/icons-material/Article';
 
+// Data structure for grouping courses by semester
 interface SemesterData {
   [key: string]: {
     courses: CourseWithEnrollmentStatus[];
@@ -57,50 +45,52 @@ interface SemesterData {
   };
 }
 
+// Main student degree/enrollment tab component
 const MyDegreeTab: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [degreeCourses, setDegreeCourses] = useState<any>({ courses: [], degree: {}, student: {} });
-  // Centralized course code map for fast lookup
-  const [courseCodeMap, setCourseCodeMap] = useState<Record<string, CourseWithEnrollmentStatus>>({});
-  const [currentSemesterCourses, setCurrentSemesterCourses] = useState<CourseWithEnrollmentStatus[]>([]);
-  const [pastSemesterCourses, setPastSemesterCourses] = useState<SemesterData>({});
-  const [enrollmentInitiated, setEnrollmentInitiated] = useState(false);
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
-  const [currentDraft, setCurrentDraft] = useState<any>(null);
-  const [draftLoading, setDraftLoading] = useState(false);
-  const [hasActiveEnrollment, setHasActiveEnrollment] = useState(false);
-  const [activeEnrollments, setActiveEnrollments] = useState<any[]>([]);
-  const [hasDraftEnrollment, setHasDraftEnrollment] = useState(false);
-  const [draftEnrollment, setDraftEnrollment] = useState<any>(null);
-  const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
-  const [selectedCourseForTimeline, setSelectedCourseForTimeline] = useState<any>(null);
-  const [courseTimelineData, setCourseTimelineData] = useState<any[]>([]);
-  const [confirmationOpen, setConfirmationOpen] = useState(false);
-  const [courseRequirements, setCourseRequirements] = useState<{ [key: string]: number }>({});
+  // UI and data state
+  const [activeTab, setActiveTab] = useState(0); // Tab selection
+  const [loading, setLoading] = useState(true); // Loading spinner
+  const [degreeCourses, setDegreeCourses] = useState<any>({ courses: [], degree: {}, student: {} }); // Degree/course data
+  const [courseCodeMap, setCourseCodeMap] = useState<Record<string, CourseWithEnrollmentStatus>>({}); // Fast lookup for course codes
+  const [currentSemesterCourses, setCurrentSemesterCourses] = useState<CourseWithEnrollmentStatus[]>([]); // Courses for current semester
+  const [enrollmentInitiated, setEnrollmentInitiated] = useState(false); // Enrollment workflow started
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]); // Selected course codes
+  const [currentDraft, setCurrentDraft] = useState<any>(null); // Current draft enrollment
+  const [draftLoading, setDraftLoading] = useState(false); // Draft save/submit loading
+  const [hasActiveEnrollment, setHasActiveEnrollment] = useState(false); // Pending enrollment exists
+  const [activeEnrollments, setActiveEnrollments] = useState<any[]>([]); // All active enrollments
+  const [hasDraftEnrollment, setHasDraftEnrollment] = useState(false); // Draft enrollment exists
+  const [draftEnrollment, setDraftEnrollment] = useState<any>(null); // Draft enrollment object
+  const [timelineDialogOpen, setTimelineDialogOpen] = useState(false); // Timeline dialog open
+  const [selectedCourseForTimeline, setSelectedCourseForTimeline] = useState<any>(null); // Timeline dialog course
+  const [courseTimelineData, setCourseTimelineData] = useState<any[]>([]); // Timeline events
+  const [confirmationOpen, setConfirmationOpen] = useState(false); // Enrollment confirmation dialog
+  const [courseRequirements, setCourseRequirements] = useState<{ [key: string]: number }>({}); // Courses required per semester
 
+  // Get current semester for the logged-in user
   const getCurrentSemester = useCallback(() => {
     return user?.current_semester || 1;
   }, [user?.current_semester]);
 
+  // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
+  // Check if enrollment window is currently open
   const isEnrollmentWindowOpen = () => {
     if (!degreeCourses.enrollment_start_at || !degreeCourses.enrollment_end_at) {
       return false;
     }
-
     const now = new Date();
     const startDate = new Date(degreeCourses.enrollment_start_at);
     const endDate = new Date(degreeCourses.enrollment_end_at);
-    
     return now >= startDate && now <= endDate;
   };
 
+  // Toggle course selection for enrollment
   const handleCourseSelection = (courseId: string) => {
     setSelectedCourses(prev => {
       if (prev.includes(courseId)) {
@@ -111,9 +101,9 @@ const MyDegreeTab: React.FC = () => {
     });
   };
 
+  // Show timeline dialog for a course/enrollment
   const handleShowTimeline = async (course: any, enrollmentId?: string) => {
     setSelectedCourseForTimeline(course);
-    
     try {
       let timelineData;
       if (enrollmentId) {
@@ -122,10 +112,10 @@ const MyDegreeTab: React.FC = () => {
       let events = [];
       if (timelineData) {
         if (timelineData.timeline) {
-          // New format: already unified
+          // Unified format
           events = timelineData.timeline;
         } else {
-          // Old format: separate audit/messages arrays
+          // Legacy format: audit/messages arrays
           const audit = timelineData.audit || [];
           const messages = timelineData.messages || [];
           events = [
@@ -144,26 +134,24 @@ const MyDegreeTab: React.FC = () => {
     }
   };
 
+  // Add a previously rejected course back to selection
   const handleEditEnrollment = async (course: any) => {
-    // Add the previously rejected course to the selection
     if (!selectedCourses.includes(course.id)) {
       setSelectedCourses(prev => [...prev, course.id]);
       enqueueSnackbar(`Added ${course.name} to your selection`, { variant: 'success' });
     }
   };
 
+  // Save enrollment draft
   const handleSaveDraft = async () => {
     if (selectedCourses.length === 0) {
       enqueueSnackbar('Please select at least one course', { variant: 'warning' });
       return;
     }
-
     setDraftLoading(true);
     try {
-      // Use selected course codes directly
       const response = await enrollmentAPI.saveDraft({ enrollment_id: currentDraft?.id || '', course_codes: selectedCourses });
       enqueueSnackbar('Enrollment draft saved successfully', { variant: 'success' });
-      // Immediately update selectedCourses and currentDraft from response
       if (response && response.draft) {
         setCurrentDraft(response.draft);
         if (Array.isArray(response.draft.course_codes)) {
@@ -172,7 +160,6 @@ const MyDegreeTab: React.FC = () => {
           setSelectedCourses([]);
         }
       }
-      // Do NOT call fetchDraft here, as it will overwrite the selection with possibly stale data
     } catch (error) {
       console.error('Error saving draft:', error);
       enqueueSnackbar('Failed to save draft', { variant: 'error' });
@@ -181,6 +168,7 @@ const MyDegreeTab: React.FC = () => {
     }
   };
 
+  // Open confirmation dialog for enrollment submission
   const handleSubmitEnrollment = () => {
     if (!isValidCourseSelection()) {
       enqueueSnackbar('Please correct your course selection', { variant: 'warning' });
@@ -189,20 +177,16 @@ const MyDegreeTab: React.FC = () => {
     setConfirmationOpen(true);
   };
 
+  // Confirm and submit enrollment for approval
   const confirmSubmitEnrollment = async () => {
     setDraftLoading(true);
     try {
-      // First ensure we have a saved draft
       if (!currentDraft) {
         await handleSaveDraft();
       }
-      
-  // Then submit it via centralized API
-  await enrollmentAPI.submitForApproval({ enrollment_id: currentDraft?.id || '' });
+      await enrollmentAPI.submitForApproval({ enrollment_id: currentDraft?.id || '' });
       enqueueSnackbar('Enrollment submitted successfully', { variant: 'success' });
       setConfirmationOpen(false);
-      
-      // Reset UI and refresh data
       setEnrollmentInitiated(false);
       setSelectedCourses([]);
       checkActiveEnrollmentStatus();
@@ -215,60 +199,48 @@ const MyDegreeTab: React.FC = () => {
     }
   };
 
-  // Helper function to group courses by semester
+  // Group courses by semester (for past semesters tab)
   const groupCoursesBySemester = (courses: CourseWithEnrollmentStatus[]) => {
     const currentSemester = getCurrentSemester();
     return courses.reduce((acc: SemesterData, course) => {
-      // Skip current semester as we handle it separately
       if (course.semester === currentSemester) return acc;
-      
       const semKey = `Semester ${course.semester}`;
-      if (!acc[semKey]) {
-        acc[semKey] = { courses: [], creditTotal: 0 };
-      }
+      if (!acc[semKey]) acc[semKey] = { courses: [], creditTotal: 0 };
       acc[semKey].courses.push(course);
       acc[semKey].creditTotal += course.credits;
       return acc;
     }, {});
   };
 
-  // Function to get available courses for enrollment
+  // Get available courses for current semester enrollment
   const getAvailableCoursesForEnrollment = (): CourseWithEnrollmentStatus[] => {
     const currentSemester = getCurrentSemester();
-    return degreeCourses.courses.filter((course: CourseWithEnrollmentStatus) => 
-      course.semester === currentSemester && 
+    return degreeCourses.courses.filter((course: CourseWithEnrollmentStatus) =>
+      course.semester === currentSemester &&
       !course.isEnrolled &&
       isCourseRegisterable(course)
     );
   };
 
-  // Determine if a specific course is registerable based on degree config and semester-specific enrollment dates
+  // Check if course is registerable for current semester
   const isCourseRegisterable = (course: CourseWithEnrollmentStatus): boolean => {
     try {
-      // If degree config is missing, fallback to true
-  const coursesPerSem = degreeCourses.courses_per_semester || {};
-  const semKey = String(course.semester);
-  const semConfig = coursesPerSem[semKey];
-  if (!semConfig) return false;
-
-  // Use global enrollment window if present
-  const start = degreeCourses.enrollment_start_at ? new Date(degreeCourses.enrollment_start_at) : null;
-  const end = degreeCourses.enrollment_end_at ? new Date(degreeCourses.enrollment_end_at) : null;
-  const now = new Date();
-
-  if (start && now < start) return false;
-  if (end && now > end) return false;
-
-  // Additionally ensure student is in the correct semester to register for this course
-  const studentSem = getCurrentSemester();
-  return course.semester === studentSem;
-    } catch (err) {
-      console.error('Error checking course registerable status:', err);
+      const coursesPerSem = degreeCourses.courses_per_semester || {};
+      const semKey = String(course.semester);
+      const semConfig = coursesPerSem[semKey];
+      if (!semConfig) return false;
+      const start = degreeCourses.enrollment_start_at ? new Date(degreeCourses.enrollment_start_at) : null;
+      const end = degreeCourses.enrollment_end_at ? new Date(degreeCourses.enrollment_end_at) : null;
+      const now = new Date();
+      if (start && now < start) return false;
+      if (end && now > end) return false;
+      return course.semester === getCurrentSemester();
+    } catch {
       return false;
     }
   };
 
-  // Function to get required number of courses for the semester
+  // Get required number of courses for a semester
   const getRequiredCoursesForSemester = (semester: number): number => {
     const coursesPerSem = degreeCourses.courses_per_semester;
     if (coursesPerSem && coursesPerSem[semester]) {
@@ -277,51 +249,41 @@ const MyDegreeTab: React.FC = () => {
     return 0;
   };
 
-  // Check if course selection is valid based on degree requirements
+  // Validate course selection for enrollment
   const isValidCourseSelection = (): boolean => {
     const currentSemester = getCurrentSemester();
     const requiredCount = getRequiredCoursesForSemester(currentSemester);
-    
     if (requiredCount > 0) {
       return selectedCourses.length === requiredCount;
     }
-    
-    // If no specific requirement, at least select one course
     return selectedCourses.length > 0;
   };
 
-  // Check if a course can be selected (e.g., prerequisites met)
+  // Check if course can be selected (prerequisites placeholder)
   const canSelectCourse = (course: CourseWithEnrollmentStatus): boolean => {
-    // Here you could implement prerequisite checking logic
-    // For now, just check if course is in the current semester
     return course.semester === getCurrentSemester();
   };
 
-  // Check if there's an approved enrollment for the current semester
+  // Check if user has approved enrollment for current semester
   const hasApprovedEnrollment = useCallback((): boolean => {
     const currentSemester = getCurrentSemester();
-    const hasApproved = activeEnrollments.some(
-      enrollment => 
-        enrollment.enrollment_status === 'approved' && 
+    return activeEnrollments.some(
+      enrollment =>
+        enrollment.enrollment_status === 'approved' &&
         enrollment.semester === currentSemester
     );
-    // ...existing code...
-    return hasApproved;
   }, [activeEnrollments, getCurrentSemester]);
 
-  // Fetch degree courses for the current student
+  // Fetch degree courses for current student
   const fetchDegreeCourses = useCallback(async () => {
     try {
       const semester = getCurrentSemester();
-      // Prefer new degree-based endpoint when degree code is available
       let response: any = null;
       const degreeCodeCandidate = user?.degree_code || user?.degree?.code || user?.degree?.code?.toUpperCase();
       if (degreeCodeCandidate) {
         try {
-          // ...existing code...
           const r = await enrollmentAPI.getEnrollmentsByDegree(degreeCodeCandidate, { semester });
           if (r && r.degree && Array.isArray(r.courses)) {
-            // Use enrollment_dates for window and count
             response = {
               degree: r.degree,
               courses: r.courses,
@@ -332,38 +294,21 @@ const MyDegreeTab: React.FC = () => {
               }
             };
           }
-        } catch (err) {
-          console.warn('getEnrollmentsByDegree failed, falling back to my-degree-courses', err);
-        }
-      } else {
-  // ...existing code...
+        } catch {}
       }
-
-      // Fallback to existing endpoint if response wasn't populated from the new route
       if (!response) {
         response = await enrollmentAPI.getMyDegreeCourses(semester);
       }
-
       setDegreeCourses(response);
-
-      // Build centralized course code map
       const codeMap: Record<string, CourseWithEnrollmentStatus> = {};
       (response.courses || []).forEach((course: CourseWithEnrollmentStatus) => {
         codeMap[course.code] = course;
       });
       setCourseCodeMap(codeMap);
-
-      // Set current semester courses
       const currentCourses = (response.courses || []).filter(
         (course: CourseWithEnrollmentStatus) => course.semester === semester
       );
       setCurrentSemesterCourses(currentCourses);
-
-      // Group past semester courses
-      const pastCourses = groupCoursesBySemester(response.courses || []);
-      setPastSemesterCourses(pastCourses);
-
-      // Extract course requirements
       const requirements: { [key: string]: number } = {};
       if (response.courses_per_semester) {
         Object.entries(response.courses_per_semester).forEach(([sem, data]: [string, any]) => {
@@ -371,122 +316,93 @@ const MyDegreeTab: React.FC = () => {
         });
       }
       setCourseRequirements(requirements);
-    } catch (error) {
-      console.error('Error fetching degree courses:', error);
+    } catch {
       enqueueSnackbar('Failed to fetch courses', { variant: 'error' });
     } finally {
       setLoading(false);
     }
   }, [enqueueSnackbar, getCurrentSemester]);
 
+  // Fetch draft enrollment
   const fetchDraft = useCallback(async () => {
     try {
-      // Only fetch draft if not already loaded
       if (currentDraft) return;
       const response = await enrollmentAPI.createDraft({ course_codes: [], semester: getCurrentSemester() } as any);
       if (response && response.draft) {
         setCurrentDraft(response.draft);
-        // Use course codes directly for selection
         setSelectedCourses(Array.from(new Set(response.draft.course_codes || [])));
       } else {
         setCurrentDraft(null);
         setSelectedCourses([]);
       }
-    } catch (error) {
-      console.error('Error fetching draft:', error);
-    }
+    } catch {}
   }, [currentDraft, getCurrentSemester]);
 
+  // Check active enrollment status and update UI state
   const checkActiveEnrollmentStatus = useCallback(async () => {
     try {
-  const response = await enrollmentAPI.checkActiveEnrollmentStatus();
-
-      // Store all enrollments for reference, including approved ones
+      const response = await enrollmentAPI.checkActiveEnrollmentStatus();
       setActiveEnrollments(response.activeEnrollments || []);
-
-      // Check if there are any pending (not approved) enrollments
       const pendingEnrollments = (response.activeEnrollments || []).filter(
-        (e: any) => e.enrollment_status !== 'approved' && 
-             e.enrollment_status !== 'draft' && 
-             e.enrollment_status !== 'rejected'
+        (e: any) => e.enrollment_status !== 'approved' &&
+          e.enrollment_status !== 'draft' &&
+          e.enrollment_status !== 'rejected'
       );
-
-      // Check if there's an approved enrollment for the current semester
       const hasApproved = (response.activeEnrollments || []).some(
         (e: any) => e.enrollment_status === 'approved' && e.semester === getCurrentSemester()
       );
-  // ...existing code...
-      
-      // If there's an active enrollment that needs approval, it takes priority
       if (pendingEnrollments.length > 0) {
         setHasActiveEnrollment(true);
         setHasDraftEnrollment(false);
         setDraftEnrollment(null);
-        
-        // Reset enrollment initiation and selection when there's an active enrollment
         setEnrollmentInitiated(false);
         setSelectedCourses([]);
       } else if (response.hasDraft && response.draftEnrollment && !hasApproved) {
-        // Has draft but no active enrollment and no approved enrollment
         setHasActiveEnrollment(false);
         setHasDraftEnrollment(true);
         setDraftEnrollment(response.draftEnrollment);
-        
-        // If there's a draft, automatically set the selected courses and initiate enrollment
-          // Always use course codes for selection
-          if (response.draftEnrollment.course_codes && Array.isArray(response.draftEnrollment.course_codes)) {
-            setSelectedCourses(Array.from(new Set(response.draftEnrollment.course_codes)));
-          } else if (response.draftEnrollment.course_ids && Array.isArray(response.draftEnrollment.course_ids)) {
-            // Map IDs to codes using courseCodeMap
-            const codes = response.draftEnrollment.course_ids
-              .map((id: string) => {
-                // Find course by id in courseCodeMap
-                const found = Object.values(courseCodeMap).find(c => c.id === id);
-                return found ? found.code : null;
-              })
-              .filter((code: string | null) => !!code);
-            setSelectedCourses(Array.from(new Set(codes)));
-          } else {
-            setSelectedCourses([]);
-          }
+        if (response.draftEnrollment.course_codes && Array.isArray(response.draftEnrollment.course_codes)) {
+          setSelectedCourses(Array.from(new Set(response.draftEnrollment.course_codes)));
+        } else if (response.draftEnrollment.course_ids && Array.isArray(response.draftEnrollment.course_ids)) {
+          const codes = response.draftEnrollment.course_ids
+            .map((id: string) => {
+              const found = Object.values(courseCodeMap).find(c => c.id === id);
+              return found ? found.code : null;
+            })
+            .filter((code: string | null) => !!code);
+          setSelectedCourses(Array.from(new Set(codes)));
+        } else {
+          setSelectedCourses([]);
+        }
         setEnrollmentInitiated(true);
         setCurrentDraft(response.draftEnrollment);
       } else {
-        // No active enrollment or we have an approved enrollment
         setHasActiveEnrollment(false);
         setHasDraftEnrollment(false);
         setDraftEnrollment(null);
-        
-        // If there's an approved enrollment, we don't want to initiate a new enrollment
         if (hasApproved) {
           setEnrollmentInitiated(false);
           setSelectedCourses([]);
         }
       }
-    } catch (error) {
-      console.error('Error checking active enrollment status:', error);
-    }
+    } catch {}
   }, [getCurrentSemester]);
-
-  // Add a flag to track initial loading
 
   // Initial load: fetch degree courses and enrollment status
   useEffect(() => {
-    // Only run once on mount
     let isMounted = true;
     const loadAll = async () => {
       await fetchDegreeCourses();
       await checkActiveEnrollmentStatus();
-      // Only fetch draft if there is a draft enrollment and no current draft loaded
       if (isMounted && hasDraftEnrollment && !currentDraft) {
         await fetchDraft();
       }
     };
     loadAll();
     return () => { isMounted = false; };
-  // Only run once on mount
   }, []);
 
+  // Show loading spinner while fetching data
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -495,22 +411,16 @@ const MyDegreeTab: React.FC = () => {
     );
   }
 
-  // Debug render state
   // ...existing code...
 
+  // Main render
   return (
     <>
       {/* Tab Navigation */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="degree tabs">
-          <Tab 
-            label="Current Semester" 
-            icon={<Chip label={currentSemesterCourses.length} size="small" color="primary" />}
-          />
-          <Tab 
-            label="Past Semesters" 
-            icon={<Chip label={Object.keys(pastSemesterCourses).length} size="small" color="success" />}
-          />
+          <Tab label="Current Semester" />
+          <Tab label="Past Semesters" />
         </Tabs>
       </Box>
 
@@ -519,130 +429,60 @@ const MyDegreeTab: React.FC = () => {
         <Box>
           {hasActiveEnrollment && !hasDraftEnrollment ? (
             <>
-              {/* Active Enrollment Status - Only show pending approvals, not approved */}
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <WarningIcon color="warning" />
                 Pending Enrollment Requests
               </Typography>
-              
               <Paper sx={{ mb: 3 }}>
                 <List>
                   {activeEnrollments
                     .filter(e => e.enrollment_status !== 'approved')
-                    .map((enrollment, index) => (
+                    .map((enrollment) => (
                       <React.Fragment key={enrollment.id}>
-                        <ListItem
-                          divider={false}
-                        >
+                        <ListItem divider={false}>
                           <Box sx={{ flex: 1 }}>
                             <Typography variant="body1" component="div" fontWeight="medium">
                               Enrollment ID: {enrollment.id.slice(0, 8)}
                             </Typography>
-                            <Typography variant="body2" color="textSecondary" component="div">
-                              Status: {formatEnrollmentStatus(enrollment.enrollment_status)}
-                            </Typography>
+                            {/* Show submitted courses for this enrollment, aligned with Status */}
+                            {Array.isArray(enrollment.courses) && enrollment.courses.length > 0 && (
+                              <Box sx={{ mt: 1, mb: 2 }}>
+                                <Typography variant="body2" component="div" sx={{ mb: 1 }}>
+                                  Submitted Courses:
+                                </Typography>
+                                <List dense>
+                                  {enrollment.courses.map((course: any) => (
+                                    <ListItem key={course.id}>
+                                      <ListItemIcon>
+                                        <CheckIcon color="primary" />
+                                      </ListItemIcon>
+                                      <ListItemText
+                                        primary={`${course.name} (${course.code})`}
+                                        secondary={`${course.credits || 0} credits`}
+                                      />
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </Box>
+                            )}
                           </Box>
                         </ListItem>
-                        
-                        {enrollment.courses && enrollment.courses.length > 0 ? (
-                          enrollment.courses.map((course: { id: string, code: string, name: string, credits?: number }, courseIndex: number) => (
-                            <ListItem 
-                              key={course.id}
-                              sx={{ pl: 4 }}
-                              divider={courseIndex < enrollment.courses.length - 1 || index < activeEnrollments.filter(e => e.enrollment_status !== 'approved').length - 1}
-                            >
-                              <Box sx={{ flex: 1 }}>
-                                <Typography variant="body1" component="div">
-                                  {course.name} ({course.code})
-                                </Typography>
-                                <Typography variant="body2" color="textSecondary" component="div">
-                                  {course.credits || 0} credits • Pending approval
-                                </Typography>
-                              </Box>
-                            </ListItem>
-                          ))
-                        ) : (
-                          <ListItem sx={{ pl: 4 }}>
-                            <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-                              No course details available
-                            </Typography>
-                          </ListItem>
-                        )}
                       </React.Fragment>
-                    ))
-                  }
+                    ))}
                 </List>
               </Paper>
             </>
-          ) : hasDraftEnrollment ? (
-            <>
-              {/* Draft Enrollment Section */}
-              <Alert severity="info" sx={{ mb: 3 }}>
-                <Typography variant="body1" gutterBottom>
-                  Draft Enrollment for Semester {getCurrentSemester()}
-                </Typography>
-                <Typography variant="body2">
-                  Your draft courses are checked in the list below. You can modify your selection before submitting.
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  When you're ready, click 'Submit Draft Enrollment' to send for approval.
-                </Typography>
-              </Alert>
-              
-              {/* Draft enrollment courses are now shown directly in the available courses list with checkboxes selected */}
-            </>
-          ) : hasApprovedEnrollment() ? (
-            // Don't show course selection section if there's an approved enrollment
-            <></>
-          ) : (
-            <>
-              {/* Current Semester Enrollment Section */}
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <EnrollIcon />
-                Select Courses for Semester {getCurrentSemester()}
-              </Typography>
-              
-              <Typography variant="body2" color="textSecondary" gutterBottom sx={{ mb: 2 }}>
-                Semester: {getCurrentSemester()}
-              </Typography>
-              
-              {/* Enrollment Initiation Button - gated by enrollment window */}
-              {!enrollmentInitiated && isEnrollmentWindowOpen() && (
-                <Box sx={{ mb: 3 }}>
-                  <Button
-                    onClick={() => setEnrollmentInitiated(true)}
-                    variant="contained"
-                    color="primary"
-                    startIcon={<EnrollIcon />}
-                    size="large"
-                  >
-                    Start New Enrollment
-                  </Button>
-                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                    Enrollment window: {degreeCourses.enrollment_start_at 
-                      ? new Date(degreeCourses.enrollment_start_at).toLocaleDateString() + ' ' + new Date(degreeCourses.enrollment_start_at).toLocaleTimeString() 
-                      : 'N/A'} to {degreeCourses.enrollment_end_at 
-                      ? new Date(degreeCourses.enrollment_end_at).toLocaleDateString() + ' ' + new Date(degreeCourses.enrollment_end_at).toLocaleTimeString() 
-                      : 'N/A'}
-                  </Typography>
-                </Box>
-              )}
-            </>
-          )}
-
-          {/* Show info if window is closed */}
+          ) : null}
           {!isEnrollmentWindowOpen() && !hasActiveEnrollment && !hasApprovedEnrollment() && (
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body1" gutterBottom>
                 Enrollment Window Closed
               </Typography>
               <Typography variant="body2">
-                Enrollment window is currently closed. 
-                {degreeCourses?.enrollment_start_at && degreeCourses?.enrollment_end_at ? (
-                  <>You can enroll between {new Date(degreeCourses.enrollment_start_at).toLocaleDateString()} and {new Date(degreeCourses.enrollment_end_at).toLocaleDateString()}.</>
-                ) : (
-                  <>No enrollment period is currently scheduled for your semester.</>
-                )}
+                Enrollment window is currently closed.{' '}
+                {degreeCourses?.enrollment_start_at && degreeCourses?.enrollment_end_at
+                  ? `You can enroll between ${new Date(degreeCourses.enrollment_start_at).toLocaleDateString()} and ${new Date(degreeCourses.enrollment_end_at).toLocaleDateString()}.`
+                  : 'No enrollment period is currently scheduled for your semester.'}
               </Typography>
             </Alert>
           )}
@@ -786,10 +626,7 @@ const MyDegreeTab: React.FC = () => {
                         <Paper sx={{ mb: 3 }}>
                           <List>
                             {displayCourses.map((course, index) => (
-                              <ListItem 
-                                key={course.id} 
-                                divider={index < displayCourses.length - 1}
-                              >
+                              <ListItem key={course.id} divider={index < displayCourses.length - 1}>
                                 {showCheckboxes && (
                                   <ListItemIcon>
                                     <Checkbox
@@ -804,7 +641,7 @@ const MyDegreeTab: React.FC = () => {
                                     {course.name} ({course.code})
                                   </Typography>
                                   <Typography variant="body2" color="textSecondary" component="div">
-                                    {course.credits} credits • Semester {course.semester}
+                                    {course.credits} credits
                                   </Typography>
                                   <Typography variant="body2" color="textSecondary" component="div" sx={{ mt: 1 }}>
                                     {course.overview}
@@ -825,52 +662,75 @@ const MyDegreeTab: React.FC = () => {
 
           {/* Enrollment Action Buttons - shown for drafts and new enrollments */}
                     {/* Course Selection Actions */}
-          {((enrollmentInitiated && !hasActiveEnrollment) || hasDraftEnrollment) && isEnrollmentWindowOpen() && !hasApprovedEnrollment() && (
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-              {/* Show validation message */}
-              {selectedCourses.length > 0 && !isValidCourseSelection() && !hasActiveEnrollment && (
-                <Alert severity="warning" sx={{ flex: 1, mb: 1 }}>
-                  {(() => {
-                    const currentSemester = getCurrentSemester();
-                    const requiredCount = getRequiredCoursesForSemester(currentSemester);
+              {(
+                !(enrollmentInitiated || hasDraftEnrollment)
+                && isEnrollmentWindowOpen()
+                && !hasApprovedEnrollment()
+                && !activeEnrollments.some(e => (e.enrollment_status === 'draft' || e.enrollment_status === 'approved') && e.semester === getCurrentSemester())
+              ) && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 2 }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<EnrollIcon />}
+                    onClick={() => setEnrollmentInitiated(true)}
+                    disabled={hasActiveEnrollment}
+                  >
+                    Enroll in Courses
+                  </Button>
+                </Box>
+              )}
+
+              {(
+                (enrollmentInitiated || hasDraftEnrollment)
+                && isEnrollmentWindowOpen()
+                && !activeEnrollments.some(e => e.enrollment_status === 'approved' && e.semester === getCurrentSemester())
+              ) && (
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* Show validation message */}
+                  {selectedCourses.length > 0 && !isValidCourseSelection() && !hasActiveEnrollment && (
+                    <Alert severity="warning" sx={{ flex: 1, mb: 1 }}>
+                      {(() => {
+                        const currentSemester = getCurrentSemester();
+                        const requiredCount = getRequiredCoursesForSemester(currentSemester);
                     
-                    if (requiredCount > 0) {
-                      return `Semester ${currentSemester} requires exactly ${requiredCount} course(s). Selected: ${selectedCourses.length}`;
-                    }
-                    return 'Please select at least one course';
-                  })()}
-                </Alert>
-              )}
+                        if (requiredCount > 0) {
+                          return `Semester ${currentSemester} requires exactly ${requiredCount} course(s). Selected: ${selectedCourses.length}`;
+                        }
+                        return 'Please select at least one course';
+                      })()}
+                    </Alert>
+                  )}
               
-              <Button
-                onClick={handleSaveDraft}
-                variant="outlined"
-                disabled={selectedCourses.length === 0 || draftLoading || hasActiveEnrollment}
-              >
-                {draftLoading ? 'Saving...' : `Save Draft (${selectedCourses.length} courses)`}
-              </Button>
-              <Button
-                onClick={handleSubmitEnrollment}
-                variant="contained"
-                color="primary"
-                disabled={!isValidCourseSelection() || draftLoading || hasActiveEnrollment}
-              >
-                {draftLoading ? 'Submitting...' : hasDraftEnrollment 
-                  ? 'Submit Draft Enrollment' 
-                  : 'Submit Enrollment for Approval'
-                }
-              </Button>
-              {!hasDraftEnrollment && (
-                <Button
-                  onClick={() => setEnrollmentInitiated(false)}
-                  color="inherit"
-                  disabled={draftLoading || hasActiveEnrollment}
-                >
-                  Cancel
-                </Button>
+                  <Button
+                    onClick={handleSaveDraft}
+                    variant="outlined"
+                    disabled={selectedCourses.length === 0 || draftLoading || hasActiveEnrollment}
+                  >
+                    {draftLoading ? 'Saving...' : `Save Draft (${selectedCourses.length} courses)`}
+                  </Button>
+                  <Button
+                    onClick={handleSubmitEnrollment}
+                    variant="contained"
+                    color="primary"
+                    disabled={!isValidCourseSelection() || draftLoading || hasActiveEnrollment}
+                  >
+                    {draftLoading ? 'Submitting...' : hasDraftEnrollment 
+                      ? 'Submit Enrollment' 
+                      : 'Submit Enrollment for Approval'
+                    }
+                  </Button>
+                  {!hasDraftEnrollment && (
+                    <Button
+                      onClick={() => setEnrollmentInitiated(false)}
+                      color="inherit"
+                      disabled={draftLoading || hasActiveEnrollment}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </Box>
               )}
-            </Box>
-          )}
 
           {/* Divider */}
           <Divider sx={{ my: 4 }} />
@@ -881,7 +741,7 @@ const MyDegreeTab: React.FC = () => {
               <SchoolIcon />
               Enrolled Courses for Semester {getCurrentSemester()}
             </Typography>
-            {activeEnrollments.some(enrollment => enrollment.enrollment_status === 'approved') && (
+            {activeEnrollments.some(enrollment => enrollment.enrollment_status === 'approved' && enrollment.semester === getCurrentSemester()) && (
               <Button 
                 variant="text"
                 color="primary"
@@ -889,7 +749,7 @@ const MyDegreeTab: React.FC = () => {
                 sx={{ textTransform: 'none', fontWeight: 500, fontSize: 16, minWidth: 0, px: 1, mr: { sm: 2, xs: 0 }, textDecoration: 'underline' }}
                 onClick={() => {
                   // Get the first approved enrollment's first course to show the timeline
-                  const approvedEnrollment = activeEnrollments.find(e => e.enrollment_status === 'approved');
+                  const approvedEnrollment = activeEnrollments.find(e => e.enrollment_status === 'approved' && e.semester === getCurrentSemester());
                   let courseToShow = null;
                   if (approvedEnrollment) {
                     // If enrollment.courses is missing or incomplete, combine with degreeCourses.courses
@@ -908,14 +768,13 @@ const MyDegreeTab: React.FC = () => {
             )}
           </Box>
 
-          {/* Check for approved enrollments first */}
-          {activeEnrollments.some(enrollment => enrollment.enrollment_status === 'approved') ? (
+          {/* Check for approved enrollments for current semester only */}
+          {activeEnrollments.some(enrollment => enrollment.enrollment_status === 'approved' && enrollment.semester === getCurrentSemester()) ? (
             <Paper sx={{ mb: 3 }}>
               <List>
                 {activeEnrollments
-                  .filter(enrollment => enrollment.enrollment_status === 'approved')
+                  .filter(enrollment => enrollment.enrollment_status === 'approved' && enrollment.semester === getCurrentSemester())
                   .flatMap(enrollment => {
-                    // If enrollment.courses is missing or incomplete, combine with degreeCourses.courses using course_codes
                     if (Array.isArray(enrollment.courses) && enrollment.courses.length > 0) {
                       return enrollment.courses;
                     }
@@ -936,10 +795,7 @@ const MyDegreeTab: React.FC = () => {
                           {course.name} ({course.code})
                         </Typography>
                         <Typography variant="body2" color="textSecondary" component="div">
-                          {course.credits || 0} credits • Semester {course.semester}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary" component="div">
-                          Status: active
+                          {course.credits || 0} credits
                         </Typography>
                         {course.overview && (
                           <Typography variant="body2" color="textSecondary" component="div" sx={{ mt: 1 }}>
@@ -972,7 +828,7 @@ const MyDegreeTab: React.FC = () => {
                           {course.name} ({course.code})
                         </Typography>
                         <Typography variant="body2" color="textSecondary" component="div">
-                          {course.credits || 0} credits • Semester {course.semester}
+                          {course.credits || 0} credits
                         </Typography>
                         <Typography variant="body2" color="textSecondary" component="div">
                           Status: active
@@ -989,14 +845,16 @@ const MyDegreeTab: React.FC = () => {
               </List>
             </Paper>
           ) : (
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body1" gutterBottom>
-                No Enrollment
-              </Typography>
-              <Typography variant="body2">
-                You are not enrolled in any courses for semester {getCurrentSemester()} yet.
-              </Typography>
-            </Alert>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+              <Alert severity="info" sx={{ mb: 3, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+                <Typography variant="body1" gutterBottom align="center" sx={{ width: '100%' }}>
+                  No Enrollment
+                </Typography>
+                <Typography variant="body2" align="center" sx={{ width: '100%' }}>
+                  You are not enrolled in any courses for semester {getCurrentSemester()} yet.
+                </Typography>
+              </Alert>
+            </Box>
           )}
         </Box>
       )}
@@ -1004,85 +862,66 @@ const MyDegreeTab: React.FC = () => {
       {/* Past Semesters Tab */}
       {activeTab === 1 && (
         <Box>
-          {Object.keys(pastSemesterCourses).length > 0 ? (
-            Object.entries(pastSemesterCourses)
-              .sort(([semA], [semB]) => {
-                // Extract semester numbers and compare
-                const numA = parseInt(semA.split(' ')[1], 10);
-                const numB = parseInt(semB.split(' ')[1], 10);
-                return numB - numA; // Descending order (newer first)
-              })
-              .map(([semester, data]) => (
-                <Box key={semester} sx={{ mb: 4 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <HistoryIcon />
-                      {semester}
-                      <Chip 
-                        label={`${data.courses.length} courses • ${data.creditTotal} credits`} 
-                        size="small" 
-                        color="primary" 
-                        sx={{ ml: 1 }} 
-                      />
-                    </Typography>
-                    {data.courses.length > 0 && (
+          {activeEnrollments.filter(e => e.enrollment_status === 'approved' && e.semester !== getCurrentSemester()).length > 0 ? (
+            activeEnrollments
+              .filter(e => e.enrollment_status === 'approved' && e.semester !== getCurrentSemester())
+              .sort((a, b) => b.semester - a.semester)
+              .map((enrollment) => {
+                const enrolledCourses = enrollment.courses || [];
+                return (
+                  <Box key={enrollment.id} sx={{ mb: 4 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                      <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <HistoryIcon />
+                        Semester {enrollment.semester}
+                        <Chip label={enrolledCourses.length} size="small" color="success" sx={{ ml: 2 }} />
+                      </Typography>
                       <Button 
                         variant="text"
                         color="primary"
                         startIcon={<Timeline />}
                         sx={{ textTransform: 'none', fontWeight: 500, fontSize: 16, minWidth: 0, px: 1, mr: { sm: 2, xs: 0 }, textDecoration: 'underline' }}
-                        onClick={() => {
-                          // Check if there's an enrollment for this semester course
-                          const semNumber = parseInt(semester.split(' ')[1], 10);
-                          const semesterEnrollment = activeEnrollments.find(e => e.semester === semNumber);
-                          
-                          if (semesterEnrollment) {
-                            handleShowTimeline(data.courses[0], semesterEnrollment.id);
-                          } else {
-                            // Fallback to course timeline if no enrollment is found
-                            handleShowTimeline(data.courses[0]);
-                          }
-                        }}
+                        onClick={() => handleShowTimeline(enrolledCourses[0], enrollment.id)}
+                        disabled={enrolledCourses.length === 0}
                       >
                         Timeline
                       </Button>
-                    )}
-                  </Box>
-                  <Paper sx={{ mb: 3 }}>
-                    <List>
-                      {data.courses.map((course, index) => (
-                        <ListItem 
-                          key={course.id}
-                          divider={index < data.courses.length - 1}
-                        >
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="body1" component="div">
-                              {course.name} ({course.code})
-                            </Typography>
-                            <Typography variant="body2" color="textSecondary" component="div">
-                              {course.credits || 0} credits • Semester {course.semester}
-                            </Typography>
-                            {course.overview && (
-                              <Typography variant="body2" color="textSecondary" component="div" sx={{ mt: 1 }}>
-                                {course.overview}
+                    </Box>
+                    <Paper sx={{ mb: 3 }}>
+                      <List>
+                        {enrolledCourses.map((course: any, index: number) => (
+                          <ListItem key={course.id} divider={index < enrolledCourses.length - 1}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="body1" component="div">
+                                {course.name} ({course.code})
                               </Typography>
-                            )}
-                          </Box>
-                        </ListItem>
-                      ))}
-                    </List>
-                  </Paper>
-                </Box>
-              ))
+                              <Typography variant="body2" color="textSecondary" component="div">
+                                {course.credits || 0} credits
+                              </Typography>
+                              {course.overview && (
+                                <Typography variant="body2" color="textSecondary" component="div" sx={{ mt: 1 }}>
+                                  {course.overview}
+                                </Typography>
+                              )}
+                            </Box>
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Paper>
+                  </Box>
+                );
+              })
           ) : (
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body1" gutterBottom>
-                No Course History
-              </Typography>
-              <Typography variant="body2">
-                No course history available for past semesters.
-              </Typography>
-            </Alert>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+              <Alert severity="info" sx={{ mb: 3, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+                <Typography variant="body1" gutterBottom align="center" sx={{ width: '100%' }}>
+                  No past enrollments found.
+                </Typography>
+                <Typography variant="body2" align="center" sx={{ width: '100%' }}>
+                  You have not enrolled in any courses for past semesters yet.
+                </Typography>
+              </Alert>
+            </Box>
           )}
         </Box>
       )}
@@ -1144,7 +983,7 @@ const MyDegreeTab: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </>
+  </>
   );
 };
 

@@ -1,3 +1,13 @@
+
+/**
+ * User Routes - Enterprise Production Ready
+ * -----------------------------------------
+ * Handles all user-related API endpoints for the platform.
+ * - Follows best practices for error handling, validation, and maintainability
+ * - Compatible with serverless and non-serverless deployments
+ * - Uses department_code and degree_code for all associations
+ */
+
 const express = require('express');
 const { body, query } = require('express-validator');
 const models = require('../utils/models');
@@ -6,29 +16,59 @@ const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 
+// Helper to get models for serverless/non-serverless environments
+// Ensures fresh model instances for each request (important for serverless)
+async function getModels() {
+  return {
+    User: await models.User(),
+    Department: await models.Department(),
+    Degree: await models.Degree(),
+  };
+}
+
+// Helper to get models for serverless/non-serverless
+async function getModels() {
+  // In serverless, models may need to be re-initialized per request
+  return {
+    User: await models.User(),
+    Department: await models.Department(),
+    Degree: await models.Degree(),
+  };
+}
+
 const router = express.Router();
 
 // Get all users (temporarily public for testing)
 router.get('/',
+/**
+ * GET /users
+ * List users with pagination and filtering.
+ * Only accessible to admin and office roles.
+ * Query params: page, limit, user_type, department_code, status, search
+ */
   authenticateToken,
   authorizeRoles('admin', 'office'),
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
     query('user_type').optional().isIn(['student', 'faculty', 'office', 'admin']).withMessage('Invalid user type'),
-    query('department_id').optional().isUUID().withMessage('Invalid department ID'),
+    query('department_code').optional().isString().withMessage('Invalid department code'),
     query('status').optional().isIn(['active', 'inactive', 'pending', 'suspended']).withMessage('Invalid status'),
   ],
   handleValidationErrors,
   async (req, res) => {
+  // Parse pagination and build filters
+  // Error handling: all errors are logged and a generic message is returned
     try {
+      // Pagination and filtering
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
       const offset = (page - 1) * limit;
 
+      // Build query filters
       const where = {};
       if (req.query.user_type) where.user_type = req.query.user_type;
-      if (req.query.department_id) where.department_id = req.query.department_id;
+      if (req.query.department_code) where.department_code = req.query.department_code;
       if (req.query.status) where.status = req.query.status;
       if (req.query.search) {
         where[Op.or] = [
@@ -40,25 +80,27 @@ router.get('/',
         ];
       }
 
-  const User = await models.User();
-  const Department = await models.Department();
-  const { count, rows: users } = await User.findAndCountAll({
+      // Get models for current environment
+      const { User, Department } = await getModels();
+      // Query users with department info
+      const { count, rows: users } = await User.findAndCountAll({
         where,
         include: [
           {
             model: Department,
             as: 'department',
-            attributes: ['id', 'name', 'code']
+            attributes: ['code', 'name']
           }
         ],
         attributes: [
-          'id',
+          'id', // User ID
           'first_name',
           'last_name',
           'email',
           'user_type',
           'status',
-          'department_id',
+          'department_code', // Now using code
+          'degree_code', // Now using code
           'employee_id',
           'student_id',
           'is_head_of_department',
@@ -90,14 +132,23 @@ router.get('/',
 
 // Get user by ID
 router.get('/:id',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('admin', 'office'),
+/**
+ * GET /users/:id
+ * Get user details by user ID.
+ * Includes department and degree info.
+ * Access restricted for non-admin/office users to their own department only.
+ */
+  authenticateToken,
+  authorizeRoles('admin', 'office'),
   async (req, res) => {
     try {
+      // Get models for current environment
+      const { User, Department, Degree } = await getModels();
+      // Find user by primary key
       const user = await User.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'department', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
         ],
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
       });
@@ -108,7 +159,8 @@ router.get('/:id',
 
       // Non-admin users can only view users from their department
       if (req.user && req.user.user_type !== 'admin' && req.user.user_type !== 'office') {
-        if (user.department_id !== req.user.department_id) {
+  // Restrict access for non-admin/office users
+  if (user.department_code !== req.user.department_code) {
           return res.status(403).json({ error: 'Access denied' });
         }
       }
@@ -123,59 +175,63 @@ router.get('/:id',
 
 // Update user
 router.put('/:id',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('admin', 'office'),
+/**
+ * PUT /users/:id
+ * Update user profile by user ID.
+ * Validates department_code and degree_code if provided.
+ * Audits all changes for compliance.
+ */
+  authenticateToken,
+  authorizeRoles('admin', 'office'),
   async (req, res, next) => {
-    const User = await require('../utils/models').User();
-    return captureOriginalData(User, 'id')(req, res, next);
+  // Use helper for models
+  const { User } = await getModels();
+  return captureOriginalData(User, 'id')(req, res, next);
   },
   [
     body('first_name').optional().trim().isLength({ min: 1, max: 50 }).withMessage('First name must be less than 50 characters'),
     body('last_name').optional().trim().isLength({ min: 1, max: 50 }).withMessage('Last name must be less than 50 characters'),
     body('user_type').optional().isIn(['student', 'faculty', 'office', 'admin']).withMessage('Invalid user type'),
     body('status').optional().isIn(['active', 'inactive', 'pending', 'suspended']).withMessage('Invalid status'),
-    body('department_id').optional().isUUID().withMessage('Invalid department ID'),
-    body('degree_id').optional().isUUID().withMessage('Invalid degree ID'),
+  body('department_code').optional().isString().withMessage('Invalid department code'),
+  body('degree_code').optional().isString().withMessage('Invalid degree code'),
     body('is_head_of_department').optional().isBoolean().withMessage('is_head_of_department must be boolean'),
   ],
   handleValidationErrors,
   auditMiddleware('update', 'user', 'User profile updated'),
   async (req, res) => {
     try {
+      // Get models for current environment
+      const { User, Department, Degree } = await getModels();
+      // Find user
       const user = await User.findByPk(req.params.id);
-
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
-
-      // Validate department and degree exist if provided
-      if (req.body.department_id) {
-        const department = await Department.findByPk(req.body.department_id);
+      // Validate department and degree codes
+      if (req.body.department_code) {
+        const department = await Department.findOne({ where: { code: req.body.department_code } });
         if (!department) {
           return res.status(400).json({ error: 'Department not found' });
         }
       }
-
-      if (req.body.degree_id) {
-        const degree = await Degree.findByPk(req.body.degree_id);
+      if (req.body.degree_code) {
+        const degree = await Degree.findOne({ where: { code: req.body.degree_code } });
         if (!degree) {
           return res.status(400).json({ error: 'Degree not found' });
         }
       }
-
       // Update user
       await user.update(req.body);
-
       // Reload with associations
       await user.reload({
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'department', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
         ],
       });
-
+      // Exclude sensitive fields
       const { password, password_reset_token, email_verification_token, ...userResponse } = user.toJSON();
-
       res.json({
         message: 'User updated successfully',
         user: userResponse,
@@ -189,28 +245,34 @@ router.put('/:id',
 
 // Delete user
 router.delete('/:id',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('admin'),
+/**
+ * DELETE /users/:id
+ * Delete user by user ID.
+ * Prevents users from deleting their own account.
+ * Audits all deletions for compliance.
+ */
+  authenticateToken,
+  authorizeRoles('admin'),
   async (req, res, next) => {
-    const User = await require('../utils/models').User();
-    return captureOriginalData(User, 'id')(req, res, next);
+  // Use helper for models
+  const { User } = await getModels();
+  return captureOriginalData(User, 'id')(req, res, next);
   },
   auditMiddleware('delete', 'user', 'User deleted'),
   async (req, res) => {
     try {
+      // Get models for current environment
+      const { User } = await getModels();
+      // Find user
       const user = await User.findByPk(req.params.id);
-
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
-
       // Don't allow deleting the current user
-  if (req.user && user.id === req.user.id) {
+      if (req.user && user.id === req.user.id) {
         return res.status(400).json({ error: 'Cannot delete your own account' });
       }
-
       await user.destroy();
-
       res.json({ message: 'User deleted successfully' });
     } catch (error) {
       console.error('Delete user error:', error);
@@ -221,33 +283,38 @@ router.delete('/:id',
 
 // Get users by department (for HOD and faculty)
 router.get('/department/:departmentId',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('faculty', 'admin', 'office'),
+/**
+ * GET /users/department/:departmentId
+ * List users by department code.
+ * Faculty can only view their own department.
+ */
+  authenticateToken,
+  authorizeRoles('faculty', 'admin', 'office'),
   async (req, res) => {
     try {
       const { departmentId } = req.params;
       const { user_type, status } = req.query;
 
-      // Faculty can only view their own department (only if authenticated)
-      if (req.user && req.user.user_type === 'faculty' && req.user.department_id !== departmentId) {
+      // Get models for current environment
+      const { User, Department, Degree } = await getModels();
+      // Faculty can only view their own department
+      if (req.user && req.user.user_type === 'faculty' && req.user.department_code !== departmentId) {
         return res.status(403).json({ error: 'Access denied' });
       }
-
       // Build where clause
-      const whereClause = { department_id: departmentId };
+      const whereClause = { department_code: departmentId };
       if (user_type) whereClause.user_type = user_type;
       if (status) whereClause.status = status;
-
+      // Query users by department
       const users = await User.findAll({
         where: whereClause,
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'department', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
         ],
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
         order: [['user_type'], ['last_name'], ['first_name']],
       });
-
       res.json({ users });
     } catch (error) {
       console.error('Get department users error:', error);
@@ -258,13 +325,21 @@ router.get('/department/:departmentId',
 
 // Admin reset user password
 router.post('/:id/reset-password',
-  // authenticateToken, // Temporarily disabled for testing
-  // authorizeRoles('admin'),
+/**
+ * POST /users/:id/reset-password
+ * Admin-only: Reset a user's password and send reset email.
+ * Generates a secure token and sets expiry.
+ */
+  // Error handling: all errors are logged and a generic message is returned
+  authenticateToken,
+  authorizeRoles('admin'),
   async (req, res) => {
     try {
       const { id } = req.params;
 
-      const user = await User.findByPk(id);
+  // Get models for current environment
+  const { User } = await getModels();
+  const user = await User.findByPk(id);
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }

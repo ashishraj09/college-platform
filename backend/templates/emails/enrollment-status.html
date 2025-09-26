@@ -1,0 +1,57 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enrollment Status - {{APP_NAME}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #388e3c; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .status { font-weight: bold; color: #d32f2f; }
+        .button { display: inline-block; background-color: #388e3c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Enrollment Status Notification</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{STUDENT_NAME}},</h2>
+            {{#if (eq STATUS "Submitted")}}
+                <p>Your enrollment has been submitted for approval and is now pending review by Head of Department.</p>
+            {{else if (eq STATUS "Change Requested")}}
+                <p>Your enrollment has been reviewed by <b>{{HOD_NAME}}</b>, Head of Department. Changes are requested before approval.</p>
+                {{#if REJECTION_REASON}}
+                    <p><b>Requested Changes:</b> {{REJECTION_REASON}}</p>
+                {{/if}}
+            {{else if (eq STATUS "Approved")}}
+                <p>Congratulations! Your enrollment has been <span class="status">approved</span> by <b>{{HOD_NAME}}</b>, Head of Department.</p>
+            {{else}}
+                                    <p>Your enrollment (ID: <b>{{ENROLLMENT_ID}}</b>) for semester <b>{{SEMESTER}}</b> has been <span class="status">{{#if (eq STATUS "Change_requested")}}Change Requested{{else}}{{STATUS}}{{/if}}</span> by <b>{{HOD_NAME}}</b>, Head of Department.</p>
+            {{/if}}
+            <p><b>Degree:</b> {{DEGREE_NAME}} (<b>{{DEGREE_CODE}}</b>)</p>
+            <p><b>Department:</b> {{DEPARTMENT_NAME}} (<b>{{DEPARTMENT_CODE}}</b>)</p>
+            {{#if REJECTION_REASON}}
+                <p style="color:#d32f2f;"><b>Requested Changes:</b> {{REJECTION_REASON}}</p>
+            {{/if}}
+            <p><b>Courses:</b></p>
+            <ul style="margin:8px 0 0 16px; padding:0;">
+                {{#each COURSES}}
+                    <li>{{name}} ({{code}}) - {{credits}} credits</li>
+                {{/each}}
+            </ul>
+            <p>If you have any questions, please contact your department office.</p>
+            <p>Best regards,<br>{{APP_NAME}} Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 {{APP_NAME}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

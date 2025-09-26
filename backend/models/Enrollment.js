@@ -25,11 +25,6 @@ const Enrollment = defineModel('Enrollment', {
     type: DataTypes.ENUM('draft', 'pending_hod_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
     defaultValue: 'draft',
   },
-  is_submitted: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-    comment: 'Flag to track if a draft has been submitted for approval'
-  },
   submitted_at: {
     type: DataTypes.DATE,
     allowNull: true,
@@ -56,10 +51,6 @@ const Enrollment = defineModel('Enrollment', {
   },
   office_approved_at: {
     type: DataTypes.DATE,
-    allowNull: true,
-  },
-  rejection_reason: {
-    type: DataTypes.TEXT,
     allowNull: true,
   },
   academic_year: {
