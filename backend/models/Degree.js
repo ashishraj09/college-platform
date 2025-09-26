@@ -75,14 +75,20 @@ const Degree = defineModel('Degree', {
     defaultValue: {},
     comment: 'JSON object storing number of courses per semester. Format: {"1": 6, "2": 7, "3": 5, ...}',
   },
-  department_id: {
-  // Foreign key to Department
-    type: DataTypes.UUID,
+  department_code: {
+  // Foreign key to Department (code-based)
+    type: DataTypes.STRING(10),
     allowNull: false,
     references: {
       model: 'departments',
-      key: 'id',
+      key: 'code',
     },
+    validate: {
+      notEmpty: true,
+      len: [2, 10],
+      isUppercase: true,
+    },
+    comment: 'Department code for code-based association.'
   },
   status: {
   // Current status of the degree

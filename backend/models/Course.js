@@ -97,22 +97,54 @@ const Course = defineModel('Course', {
     },
   },
   department_id: {
-  // Foreign key to Department
+  // Foreign key to Department (DB primary key)
     type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'departments',
       key: 'id',
     },
+    comment: 'Department ID for DB integrity. Use department_code for linking/querying.'
+  },
+  department_code: {
+  // Foreign key to Department (code-based)
+    type: DataTypes.STRING(10),
+    allowNull: false,
+    references: {
+      model: 'departments',
+      key: 'code',
+    },
+    validate: {
+      notEmpty: true,
+      len: [2, 10],
+      isUppercase: true,
+    },
+    comment: 'Department code for code-based association.'
   },
   degree_id: {
-  // Foreign key to Degree
+  // Foreign key to Degree (DB primary key)
     type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'degrees',
       key: 'id',
     },
+    comment: 'Degree ID for DB integrity. Use degree_code for linking/querying.'
+  },
+  degree_code: {
+  // Foreign key to Degree (code-based)
+    type: DataTypes.STRING(10),
+    allowNull: false,
+    references: {
+      model: 'degrees',
+      key: 'code',
+    },
+    validate: {
+      notEmpty: true,
+      len: [2, 10],
+      isUppercase: true,
+    },
+    comment: 'Degree code for code-based association.'
   },
   created_by: {
   // User who created the course

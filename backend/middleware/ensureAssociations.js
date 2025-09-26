@@ -1,22 +1,38 @@
+/**
+ * @file ensureAssociations.js
+ * @description Express middleware to ensure Sequelize model associations are initialized.
+ *              Critical for serverless environments where each request may start a new app instance.
+ * @author
+ * @date 2024
+ * @enterprise-grade
+ */
+
 // Middleware to ensure model associations are initialized
-// This is especially important for serverless environments where each request
-// might start a new instance of the application
+// Especially important for serverless environments (e.g., Vercel, AWS Lambda)
+// where each request may start a new instance of the application.
 
 const { initializeAssociations } = require('../models/associations');
 
-// Track initialization status
+// Tracks whether associations have been initialized for this process
 let associationsInitialized = false;
 
+/**
+ * Middleware to ensure Sequelize model associations are initialized before handling requests.
+ * Only runs in production to avoid unnecessary overhead in development.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 async function ensureAssociations(req, res, next) {
   if (!associationsInitialized && process.env.NODE_ENV === 'production') {
     try {
-      console.log('Ensuring model associations are initialized before database query');
+      console.log('[ensureAssociations] Initializing model associations...');
       associationsInitialized = await initializeAssociations();
-      console.log('Model associations check complete, status:', associationsInitialized);
+      console.log('[ensureAssociations] Model associations initialized:', associationsInitialized);
     } catch (error) {
-      console.error('Failed to initialize associations in middleware:', error);
-      // Continue processing even if initialization fails
-      // This allows the actual database query to fail with a more specific error
+      // Log error but do not block request; downstream DB errors will be more specific
+      console.error('[ensureAssociations] Failed to initialize associations:', error);
     }
   }
   next();

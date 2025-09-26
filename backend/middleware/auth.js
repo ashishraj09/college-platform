@@ -1,7 +1,21 @@
+
+/**
+ * Authentication & Authorization Middleware
+ * ----------------------------------------
+ * Provides JWT authentication and role-based access control for API routes.
+ * - authenticateToken: verifies JWT and attaches user to request
+ * - authorizeRoles: restricts access by user_type
+ * - authorizeHOD: restricts access to Head of Department
+ * - authorizeDepartmentAccess: restricts access to department resources
+ * - authorizeResourceOwner: restricts access to resource owner or admin/office
+ * - Enterprise-grade error handling and maintainability
+ */
+
 const jwt = require('jsonwebtoken');
 const { User, initializeAssociations } = require('../models');
 
 const authenticateToken = async (req, res, next) => {
+  // Authenticates user by JWT token in cookie
   // Dev mode bypass: if header X-Dev-Bypass-Auth is true, skip auth
   if (process.env.NODE_ENV === 'development' && req.headers['x-dev-bypass-auth'] === 'true') {
     return next();
@@ -82,6 +96,7 @@ const authenticateToken = async (req, res, next) => {
 };
 
 const authorizeRoles = (...roles) => {
+  // Restricts access to specified user roles
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ 
@@ -100,6 +115,7 @@ const authorizeRoles = (...roles) => {
 };
 
 const authorizeHOD = async (req, res, next) => {
+  // Restricts access to Head of Department only
   if (!req.user) {
     return res.status(401).json({ 
       error: 'Authentication required' 
@@ -116,6 +132,7 @@ const authorizeHOD = async (req, res, next) => {
 };
 
 const authorizeDepartmentAccess = (req, res, next) => {
+  // Restricts access to department resources
   if (!req.user) {
     return res.status(401).json({ 
       error: 'Authentication required' 
@@ -145,6 +162,7 @@ const authorizeDepartmentAccess = (req, res, next) => {
 };
 
 const authorizeResourceOwner = (resourceUserIdField = 'created_by') => {
+  // Restricts access to resource owner or admin/office
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ 
@@ -181,6 +199,7 @@ const authorizeResourceOwner = (resourceUserIdField = 'created_by') => {
 };
 
 module.exports = {
+  // Export authentication and authorization middleware
   authenticateToken,
   authorizeRoles,
   authorizeHOD,

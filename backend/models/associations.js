@@ -70,25 +70,30 @@ async function initializeAssociations() {
     // Department associations
     // Department.hasMany(User) association removed. Use department_code for queries and custom logic.
 
-    // Each department has many degrees and courses (ID-based)
-    Department.hasMany(Degree, { foreignKey: 'department_id', as: 'degrees' });
-    Department.hasMany(Course, { foreignKey: 'department_id', as: 'courses' });
+  // Each department has many degrees and courses
+  Department.hasMany(Degree, { foreignKey: 'department_id', as: 'degrees' }); // DB integrity
+  Department.hasMany(Degree, { foreignKey: 'department_code', sourceKey: 'code', as: 'degreesByCode' }); // Code-based
+  Department.hasMany(Course, { foreignKey: 'department_id', as: 'courses' }); // DB integrity
+  Department.hasMany(Course, { foreignKey: 'department_code', sourceKey: 'code', as: 'coursesByCode' }); // Code-based
   // --------------------
   // Degree associations
   // --------------------
-  // Each degree belongs to a department (ID-based)
-  Degree.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-  // Each degree has many students and courses (ID-based)
-  Degree.hasMany(User, { foreignKey: 'degree_id', as: 'students' });
-  Degree.hasMany(Course, { foreignKey: 'degree_id', as: 'courses' });
+  // Each degree belongs to a department
+  Degree.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // DB integrity
+  Degree.belongsTo(Department, { foreignKey: 'department_code', targetKey: 'code', as: 'departmentByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // Code-based
+  // Each degree has many courses
+  Degree.hasMany(Course, { foreignKey: 'degree_id', as: 'courses' }); // DB integrity
+  Degree.hasMany(Course, { foreignKey: 'degree_code', sourceKey: 'code', as: 'coursesByCode' }); // Code-based
   // Each degree has a creator (User)
   Degree.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
   // --------------------
   // Course associations
   // --------------------
-  // Each course belongs to a department and degree (ID-based)
-  Course.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-  Course.belongsTo(Degree, { foreignKey: 'degree_id', as: 'degree', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
+  // Each course belongs to a department and degree
+  Course.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // DB integrity
+  Course.belongsTo(Department, { foreignKey: 'department_code', targetKey: 'code', as: 'departmentByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // Code-based
+  Course.belongsTo(Degree, { foreignKey: 'degree_id', as: 'degree', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // DB integrity
+  Course.belongsTo(Degree, { foreignKey: 'degree_code', targetKey: 'code', as: 'degreeByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // Code-based
   // Each course has a creator, updater, and approver (User)
   Course.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
   Course.belongsTo(User, { foreignKey: 'updated_by', as: 'updater', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
@@ -120,10 +125,10 @@ async function initializeAssociations() {
       onUpdate: 'CASCADE'
     });
 
-    Degree.hasMany(User, { 
-      foreignKey: 'degree_id', 
-      as: 'students' 
-    });
+    // Degree.hasMany(User, { 
+    //   foreignKey: 'degree_id', 
+    //   as: 'students' 
+    // }); // REMOVED: User now uses degree_code only
 
     Degree.hasMany(Course, { 
       foreignKey: 'degree_id', 

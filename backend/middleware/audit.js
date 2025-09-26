@@ -1,6 +1,18 @@
+
+/**
+ * Audit Middleware & Helpers
+ * -------------------------
+ * Provides audit logging for create, update, delete, and other actions.
+ * - logAuditEvent: logs audit events to the database
+ * - auditMiddleware: Express middleware for automatic audit logging
+ * - captureOriginalData: Middleware to capture original data before update/delete
+ * - Enterprise-grade error handling and maintainability
+ */
+
 const { AuditLog } = require('../models');
 
 const logAuditEvent = async (userId, action, entityType, entityId = null, oldValues = null, newValues = null, metadata = null, description = null, ip_address = null, user_agent = null) => {
+  // Logs a single audit event to the database
   try {
     await AuditLog.create({
       user_id: userId,
@@ -20,6 +32,11 @@ const logAuditEvent = async (userId, action, entityType, entityId = null, oldVal
 };
 
 const auditMiddleware = (action, entityType, description = null) => {
+  /**
+   * Express middleware for audit logging
+   * Usage: auditMiddleware('update', 'user', 'User profile updated')
+   * Intercepts res.json and logs audit event after response
+   */
   return async (req, res, next) => {
     // Store original res.json to intercept response
     const originalJson = res.json;
@@ -90,6 +107,10 @@ const auditMiddleware = (action, entityType, description = null) => {
 };
 
 const captureOriginalData = (model, idField = 'id') => {
+  /**
+   * Middleware to capture original data before update/delete
+   * Usage: captureOriginalData(User, 'id')
+   */
   return async (req, res, next) => {
     try {
       const id = req.params[idField];
@@ -107,6 +128,7 @@ const captureOriginalData = (model, idField = 'id') => {
 };
 
 module.exports = {
+  // Export audit helpers and middleware
   logAuditEvent,
   auditMiddleware,
   captureOriginalData,

@@ -1,4 +1,14 @@
-// Centralized debug logger middleware
+
+/**
+ * Debug Logger Middleware
+ * ----------------------
+ * Logs request and response details for debugging purposes.
+ * - Only active if DEBUG env variable is true
+ * - Logs method, URL, body, params, query, and user info
+ * - Logs response payload
+ * - Enterprise-grade maintainability
+ */
+
 const DEBUG = process.env.DEBUG === 'true';
 
 module.exports = function debugLogger(req, res, next) {
@@ -14,7 +24,7 @@ module.exports = function debugLogger(req, res, next) {
       id: req.user.id,
       email: req.user.email,
       user_type: req.user.user_type,
-      department_id: req.user.department_id,
+      department_code: req.user.department_code,
       is_head_of_department: req.user.is_head_of_department
     });
   }
