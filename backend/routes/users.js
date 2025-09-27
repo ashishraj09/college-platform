@@ -18,14 +18,6 @@ const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 
 // Helper to get models for serverless/non-serverless environments
 // Ensures fresh model instances for each request (important for serverless)
-async function getModels() {
-  return {
-    User: await models.User(),
-    Department: await models.Department(),
-    Degree: await models.Degree(),
-  };
-}
-
 // Helper to get models for serverless/non-serverless
 async function getModels() {
   // In serverless, models may need to be re-initialized per request
@@ -33,10 +25,64 @@ async function getModels() {
     User: await models.User(),
     Department: await models.Department(),
     Degree: await models.Degree(),
+    Course: await models.Course(),
   };
 }
 
 const router = express.Router();
+
+// Unified stats endpoint: returns both degree and course stats for the authenticated user
+router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), async (req, res) => {
+  try {
+    const { Degree, Course } = await getModels();
+    // Only HOD can filter by userId, otherwise use current user
+    let targetUserId = req.user.id;
+    if (req.user.is_head_of_department && req.query.userId) {
+      targetUserId = req.query.userId;
+    }
+    // Degree stats for the user's department and created_by
+    const degreeStats = await Degree.findAll({
+      where: {
+        department_code: req.user.department_code,
+        created_by: targetUserId
+      },
+      include: [
+        { model: require('../models').Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
+      ]
+    });
+    // Course stats for the user's department and created_by
+    const courseStats = await Course.findAll({
+      where: {
+        department_code: req.user.department_code,
+        created_by: targetUserId
+      },
+      include: [
+        { model: require('../models').Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
+      ]
+    });
+    // Aggregate status counts for degrees and courses
+    const degreeStatusCounts = {
+      total: degreeStats.length,
+      draft: degreeStats.filter(d => d.status === 'draft').length,
+      pending_approval: degreeStats.filter(d => d.status === 'pending_approval').length,
+      approved: degreeStats.filter(d => d.status === 'approved').length,
+      active: degreeStats.filter(d => d.status === 'active').length,
+      others: degreeStats.filter(d => !['draft', 'pending_approval', 'approved', 'active'].includes(d.status)).length
+    };
+    const courseStatusCounts = {
+      total: courseStats.length,
+      draft: courseStats.filter(c => c.status === 'draft').length,
+      pending_approval: courseStats.filter(c => c.status === 'pending_approval').length,
+      approved: courseStats.filter(c => c.status === 'approved').length,
+      active: courseStats.filter(c => c.status === 'active').length,
+      others: courseStats.filter(c => !['draft', 'pending_approval', 'approved', 'active'].includes(c.status)).length
+    };
+    res.json({ degrees: degreeStatusCounts, courses: courseStatusCounts });
+  } catch (error) {
+    console.error('Unified stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch unified stats' });
+  }
+});
 
 // Get all users (temporarily public for testing)
 router.get('/',
@@ -114,8 +160,16 @@ router.get('/',
         order: [['created_at', 'DESC']],
       });
 
+      // Transform users: rename departmentByCode to department, remove department_code
+      const transformedUsers = users.map(u => {
+        const userObj = u.toJSON();
+        userObj.department = userObj.departmentByCode;
+        delete userObj.departmentByCode;
+        delete userObj.department_code;
+        return userObj;
+      });
       res.json({
-        users,
+        users: transformedUsers,
         pagination: {
           total: count,
           page,
@@ -148,7 +202,7 @@ router.get('/:id',
       const user = await User.findByPk(req.params.id, {
         include: [
           { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
-          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degreeByCode', attributes: ['code', 'name'] },
         ],
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
       });
@@ -227,7 +281,7 @@ router.put('/:id',
       await user.reload({
         include: [
           { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
-          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degreeByCode', attributes: ['code', 'name'] },
         ],
       });
       // Exclude sensitive fields
@@ -282,9 +336,9 @@ router.delete('/:id',
 );
 
 // Get users by department (for HOD and faculty)
-router.get('/department/:departmentId',
+router.get('/department/:code',
 /**
- * GET /users/department/:departmentId
+ * GET /users/department/:code
  * List users by department code.
  * Faculty can only view their own department.
  */
@@ -292,26 +346,25 @@ router.get('/department/:departmentId',
   authorizeRoles('faculty', 'admin', 'office'),
   async (req, res) => {
     try {
-      const { departmentId } = req.params;
+      const department_code = req.params.code;
       const { user_type, status } = req.query;
 
       // Get models for current environment
       const { User, Department, Degree } = await getModels();
       // Faculty can only view their own department
-      if (req.user && req.user.user_type === 'faculty' && req.user.department_code !== departmentId) {
+      if (req.user && req.user.user_type === 'faculty' && req.user.department_code !== department_code) {
         return res.status(403).json({ error: 'Access denied' });
       }
       // Build where clause
-      const whereClause = { department_code: departmentId };
+      const whereClause = { department_code };
       if (user_type) whereClause.user_type = user_type;
       if (status) whereClause.status = status;
-      // Query users by department
+      // Query users by department_code
       const users = await User.findAll({
         where: whereClause,
         include: [
-          { model: Department, as: 'department', attributes: ['code', 'name'] },
-          { model: Degree, as: 'degree', attributes: ['code', 'name'] },
           { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
+          { model: Degree, as: 'degreeByCode', attributes: ['code', 'name'] },
         ],
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
         order: [['user_type'], ['last_name'], ['first_name']],

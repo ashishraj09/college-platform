@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { store } from '../store/store';
 import '../index.css';
 import '../App.css';
+import '../styles/globals.css';
 
 
 import DashboardLayout from '../layouts/DashboardLayout';

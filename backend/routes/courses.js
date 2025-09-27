@@ -65,7 +65,8 @@ router.get('/',
 
       const offset = (page - 1) * limit;
 
-      const courses = await Course.findAll({
+      // Use findAndCountAll for pagination meta
+      const { count, rows: courses } = await Course.findAndCountAll({
         where: whereClause,
         include: [
           {
@@ -115,7 +116,19 @@ router.get('/',
         course.dataValues.hasDraftVersion = !!draft;
         return course;
       }));
-      res.json({ data: coursesWithDraftFlag, message: 'Courses fetched successfully' });
+
+      // Pagination object
+      const pagination = {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(count / limit)
+      };
+
+      res.json({
+        courses: coursesWithDraftFlag,
+        pagination
+      });
     } catch (error) {
       console.error('Error fetching courses:', error);
       res.status(500).json({ error: 'Failed to fetch courses' });

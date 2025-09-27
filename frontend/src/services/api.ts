@@ -117,6 +117,13 @@ export const authAPI = {
 
 // --- Users API ---
 export const usersAPI = {
+  getStats: async () => {
+    try {
+      return (await api.get('/users/stats')).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
   getUsers: async (params?: any) => {
     try {
       return (await api.get('/users', { params })).data;
@@ -598,8 +605,6 @@ export const timelineAPI = {
   deleteTimelineEvent: async (id: string) => (await api.delete(`/timeline/${id}`)).data,
 };
 
-// --- Default export ---
 export default api;
 
-// Re-export shared types for convenience
 export type { CourseWithEnrollmentStatus, UniversityDepartment, Enrollment, EnrollmentData, EnrollmentResponse } from './types';

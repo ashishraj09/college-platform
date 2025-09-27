@@ -39,7 +39,7 @@ const authenticateToken = async (req, res, next) => {
       const user = await User.findByPk(decoded.userId, {
         include: [
           { model: require('../models').Department, as: 'departmentByCode' },
-          { model: require('../models').Degree, as: 'degree' },
+          { model: require('../models').Degree, as: 'degreeByCode' },
         ],
       });
       

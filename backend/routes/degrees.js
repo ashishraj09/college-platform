@@ -350,14 +350,14 @@ router.get('/',
   try {
     const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
     const {
-      department_id,
+      department_code,
       status,
       page = 1,
       limit = 50
     } = req.query;
 
     const whereClause = {};
-    if (department_id) whereClause.department_id = department_id;
+    if (department_code) whereClause['$departmentByCode.code$'] = department_code;
     if (status) whereClause.status = status;
     // Only filter by created_by for non-admin/non-HOD users when status is not 'active'
     if (
@@ -371,7 +371,8 @@ router.get('/',
 
     const offset = (page - 1) * limit;
 
-    const degrees = await Degree.findAll({
+    // Use findAndCountAll for pagination meta
+    const { count, rows: degrees } = await Degree.findAndCountAll({
       where: whereClause,
       include: [
         {
@@ -400,8 +401,18 @@ router.get('/',
       return degree;
     }));
 
-  // Return degrees as an array for simplicity (frontend expects an array)
-  res.json(degreesWithDraftFlag);
+    // Pagination object
+    const pagination = {
+      total: count,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      pages: Math.ceil(count / limit)
+    };
+
+    res.json({
+      degrees: degreesWithDraftFlag,
+      pagination
+    });
   } catch (error) {
     console.error('Error fetching degrees:', error);
     res.status(500).json({ error: 'Failed to fetch degrees' });
@@ -440,7 +451,7 @@ router.get('/my-degrees',
 
     } else {
       // If no user context and no departmentId query param, return empty array
-      whereClause.department_id = 'none-found';
+      return res.json({ all: [], byStatus: {}, departmentInfo: null, summary: {} });
     }
     
     const degrees = await Degree.findAll({
@@ -448,7 +459,7 @@ router.get('/my-degrees',
       include: [
         {
           model: Department,
-          as: 'department',
+          as: 'departmentByCode',
           attributes: ['id', 'name', 'code']
         }
       ],

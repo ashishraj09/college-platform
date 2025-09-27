@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Dialog,
   DialogTitle,
@@ -60,6 +61,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   mode,
   degree,
 }) => {
+  const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -94,7 +96,12 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   // Initialize form when dialog opens or mode/degree changes
   useEffect(() => {
     if (open) {
-      setForm(mode === 'edit' && degree ? { ...defaultForm, ...degree } : defaultForm);
+      // If creating, set department_id to user's department code
+      if (mode === 'create' && user?.department?.code) {
+        setForm({ ...defaultForm, department_id: user.department.code });
+      } else {
+        setForm(mode === 'edit' && degree ? { ...defaultForm, ...degree } : defaultForm);
+      }
       setActiveTab(0);
       setError('');
     }
@@ -279,18 +286,31 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                   </Select>
                 </FormControl>
                 <FormControl fullWidth required>
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={form.department_id}
-                    label="Department"
-                    onChange={handleSelectChange('department_id')}
-                  >
-                    {departments.map((dept) => (
-                      <MenuItem key={dept.id} value={dept.id}>
-                        {dept.name} ({dept.code})
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  {user?.department?.code ? (
+                    <TextField
+                      fullWidth
+                      label="Department"
+                      value={`${user.department.name} (${user.department.code})`}
+                      disabled
+                      helperText="Degrees are automatically assigned to your department"
+                      variant="filled"
+                    />
+                  ) : (
+                    <>
+                      <InputLabel>Department</InputLabel>
+                      <Select
+                        value={form.department_id}
+                        label="Department"
+                        onChange={handleSelectChange('department_id')}
+                      >
+                        {departments.map((dept) => (
+                          <MenuItem key={dept.code} value={dept.code}>
+                            {dept.name} ({dept.code})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </>
+                  )}
                 </FormControl>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <TextField

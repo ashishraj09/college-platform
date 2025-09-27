@@ -40,7 +40,7 @@ async function initializeAssociations() {
   // User associations
   // --------------------
   // User associations: now use department_code and degree_code fields only
-  User.belongsTo(Degree, { foreignKey: 'degree_code', targetKey: 'code', as: 'degree', constraints: false });
+  User.belongsTo(Degree, { foreignKey: 'degree_code', targetKey: 'code', as: 'degreeByCode', constraints: false });
   User.belongsTo(Department, { foreignKey: 'department_code', targetKey: 'code', as: 'departmentByCode', constraints: false });
   // Add code-based association for eager loading
   // If you want to associate User with Degree, use custom logic or scopes on code fields
@@ -67,9 +67,9 @@ async function initializeAssociations() {
     User.hasMany(Message, { foreignKey: 'sender_id', as: 'messages' });
 
   // Each department has many degrees and courses
-  Department.hasMany(Degree, { foreignKey: 'department_id', as: 'degrees' }); // DB integrity
+  // Department.hasMany(Degree, { foreignKey: 'department_id', as: 'degrees' }); // DB integrity (removed)
   Department.hasMany(Degree, { foreignKey: 'department_code', sourceKey: 'code', as: 'degreesByCode', constraints: false }); // Code-based
-  Department.hasMany(Course, { foreignKey: 'department_id', as: 'courses' }); // DB integrity
+  // Department.hasMany(Course, { foreignKey: 'department_id', as: 'courses' }); // DB integrity (removed)
   Department.hasMany(Course, { foreignKey: 'department_code', sourceKey: 'code', as: 'coursesByCode', constraints: false }); // Code-based
   // --------------------
   // Degree associations
@@ -86,7 +86,7 @@ async function initializeAssociations() {
   // Course associations
   // --------------------
   // Each course belongs to a department and degree
-  Course.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // DB integrity
+  // Course.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // DB integrity (removed)
   Course.belongsTo(Department, { foreignKey: 'department_code', targetKey: 'code', as: 'departmentByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE', constraints: false }); // Code-based
   Course.belongsTo(Degree, { foreignKey: 'degree_code', targetKey: 'code', as: 'degreeByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE', constraints: false }); // Code-based
   // Each course has a creator, updater, and approver (User)

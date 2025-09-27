@@ -127,13 +127,15 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
 
   // Load degrees and faculty when dialog opens
   useEffect(() => {
-    if (open && user?.department?.id) {
+    if (open && user?.department?.code) {
       // Fetch degrees
       const fetchDegrees = async () => {
         try {
           setLoadingDegrees(true);
-          const response = await degreesAPI.getActiveDegrees(user.department.id);
-          setDegrees(response.degrees || []);
+          const response = await degreesAPI.getActiveDegrees(user.department.code);
+          // Filter degrees to only those matching department code
+          const filteredDegrees = (response.degrees || []).filter((degree: any) => degree.department_code === user.department.code);
+          setDegrees(filteredDegrees);
         } catch (err) {
           console.error("Error fetching degrees:", err);
           setError("Failed to load degrees");
@@ -145,7 +147,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       // Fetch faculty members
       const fetchFaculty = async () => {
         try {
-          const response = await usersAPI.getUsersByDepartment(user.department.id, { user_type: 'faculty' });
+          // Use department code for API call
+          const response = await usersAPI.getUsersByDepartment(user.department.code, { user_type: 'faculty' });
           setFaculty(response.users || []);
         } catch (err) {
           console.error("Error fetching faculty:", err);

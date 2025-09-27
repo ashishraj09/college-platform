@@ -15,17 +15,12 @@ interface StatusOverviewProps {
 }
 
 const StatusOverview: React.FC<StatusOverviewProps> = ({ items, statusConfig, title }) => {
-  const getStatusCounts = () => {
-    const counts: Record<string, number> = {};
-    statusConfig.forEach(cfg => { counts[cfg.key] = 0; });
-    items.forEach(item => {
-      if (counts.hasOwnProperty(item.status)) {
-        counts[item.status]++;
-      }
-    });
-    return counts;
-  };
-  const statusCounts = getStatusCounts();
+  // Use the count property from items directly
+  const statusCounts: Record<string, number> = {};
+  statusConfig.forEach(cfg => {
+    const found = items.find(item => item.status === cfg.key);
+    statusCounts[cfg.key] = found ? found.count : 0;
+  });
   return (
     <Paper sx={{ p: 3, mb: 4 }}>
       <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
