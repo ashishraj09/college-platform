@@ -49,6 +49,17 @@ import TimelineDialog, { TimelineEvent } from '../../components/common/TimelineD
 import { timelineAPI } from '../../services/api';
 
 const FacultyDashboard: React.FC = () => {
+  // Helper to reload stats after entity actions
+  const reloadStats = async () => {
+    try {
+      const statsRes = await usersAPI.getStats();
+      setStats(statsRes);
+      setCourseStats(statsRes.courses || {});
+      setDegreeStats(statsRes.degrees || {});
+    } catch (err) {
+      enqueueSnackbar('Error loading stats', { variant: 'error' });
+    }
+  };
   // Stats state
   const [courseStats, setCourseStats] = useState<any>(null);
   const [degreeStats, setDegreeStats] = useState<any>(null);
@@ -223,7 +234,7 @@ useEffect(() => {
               {item.is_elective && <Chip label="Elective" variant="outlined" size="small" />}
             </Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              {(item.version_code || item.code) + (item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : '')}
+              Code: {item.code}{item.version > 1 ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
             </Typography>
             <Typography variant="body2" sx={{ mb: 2 }} noWrap>{item.overview || item.description}</Typography>
             {item.rejection_reason && item.status === 'draft' && (
@@ -289,24 +300,22 @@ useEffect(() => {
           await degreesAPI.publishDegree(entity.id);
           enqueueSnackbar('Degree published and is now active!', { variant: 'success' });
         }
-        await loadData();
-                if (deleteType === 'course') {
-                  const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-                  setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
-                  setCoursesPagination(prev => ({
-                    ...prev,
-                    total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
-                    pages: coursesRes.pagination?.pages || 1,
-                  }));
-                } else {
-                  const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-                  setDegrees(degreesRes.degrees || (Array.isArray(degreesRes) ? degreesRes : []));
-                  setDegreesPagination(prev => ({
-                    ...prev,
-                    total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
-                    pages: degreesRes.pagination?.pages || 1,
-                  }));
-                }
+        // Always reload both entity lists and stats after publish
+        const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
+        setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
+        setCoursesPagination(prev => ({
+          ...prev,
+          total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
+          pages: coursesRes.pagination?.pages || 1,
+        }));
+        const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
+        setDegrees(degreesRes.degrees || (Array.isArray(degreesRes) ? degreesRes : []));
+        setDegreesPagination(prev => ({
+          ...prev,
+          total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
+          pages: degreesRes.pagination?.pages || 1,
+        }));
+        await reloadStats();
       } catch (err) {
         let errorMsg = 'Failed to publish';
         if (typeof err === 'object' && err !== null) {
@@ -343,35 +352,33 @@ useEffect(() => {
     try {
       // If approved or active, create a new version
       if (["approved", "active"].includes(entityToEdit.status)) {
-        const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-        const apiPath = entityToEdit.entityType === "course"
-          ? `${API_BASE_URL}/courses/${entityToEdit.id}/create-version`
-          : `${API_BASE_URL}/degrees/${entityToEdit.id}/create-version`;
-
-        const response = await api.post(apiPath);
-        const data = response.data;
+        let data;
+        if (entityToEdit.entityType === "course") {
+          data = await coursesAPI.createCourseVersion(entityToEdit.id);
+        } else {
+          data = await degreesAPI.createDegreeVersion(entityToEdit.id);
+        }
         enqueueSnackbar(
           `New version created successfully. You can now edit the draft.`,
           { variant: "success" }
         );
         setEditEntityDialogOpen(false);
-        if (entityToEdit.entityType === "course") {
-          const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-          setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
-          setCoursesPagination(prev => ({
-            ...prev,
-            total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
-            pages: coursesRes.pagination?.pages || 1,
-          }));
-        } else {
-          const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-          setDegrees(degreesRes.degrees || (Array.isArray(degreesRes) ? degreesRes : []));
-          setDegreesPagination(prev => ({
-            ...prev,
-            total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
-            pages: degreesRes.pagination?.pages || 1,
-          }));
-        }
+        // Always reload both entity lists and stats after version creation
+        const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
+        setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
+        setCoursesPagination(prev => ({
+          ...prev,
+          total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
+          pages: coursesRes.pagination?.pages || 1,
+        }));
+        const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
+        setDegrees(degreesRes.degrees || (Array.isArray(degreesRes) ? degreesRes : []));
+        setDegreesPagination(prev => ({
+          ...prev,
+          total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
+          pages: degreesRes.pagination?.pages || 1,
+        }));
+        await reloadStats();
       } else {
         // For drafts or pending approval, open the edit dialog/modal and only update after user confirms
         if (updatedEntity) {
@@ -382,23 +389,22 @@ useEffect(() => {
           }
           enqueueSnackbar("Entity updated successfully!", { variant: "success" });
           setEditEntityDialogOpen(false);
-          if (entityToEdit.entityType === "course") {
-            const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-            setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
-            setCoursesPagination(prev => ({
-              ...prev,
-              total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
-              pages: coursesRes.pagination?.pages || 1,
-            }));
-          } else {
-            const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-            setDegrees(degreesRes.degrees || (Array.isArray(degreesRes) ? degreesRes : []));
-            setDegreesPagination(prev => ({
-              ...prev,
-              total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
-              pages: degreesRes.pagination?.pages || 1,
-            }));
-          }
+          // Always reload both entity lists and stats after edit
+          const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
+          setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
+          setCoursesPagination(prev => ({
+            ...prev,
+            total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
+            pages: coursesRes.pagination?.pages || 1,
+          }));
+          const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
+          setDegrees(degreesRes.degrees || (Array.isArray(degreesRes) ? degreesRes : []));
+          setDegreesPagination(prev => ({
+            ...prev,
+            total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
+            pages: degreesRes.pagination?.pages || 1,
+          }));
+          await reloadStats();
                 if (deleteType === 'course') {
                   const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
                   setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
@@ -416,6 +422,7 @@ useEffect(() => {
                     pages: degreesRes.pagination?.pages || 1,
                   }));
                 }
+                await reloadStats();
         }
         // Otherwise, just open the edit dialog/modal (handled elsewhere)
       }
@@ -481,10 +488,7 @@ useEffect(() => {
           <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>{item.name}</Typography>
         </Box>
         <Typography variant="subtitle2" color="primary" sx={{ mb: 0.5, fontWeight: 500 }}>
-          {item.version_code || item.code}
-          {item.credits && ` • ${item.credits} Credits`}
-          {item.semester && ` • Semester ${item.semester}`}
-          {item.duration_years && ` • ${item.duration_years} Years`}
+          Code: {item.code}{item.version > 1 ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
         </Typography>
         {item.is_elective && (
           <Chip label="Elective" variant="outlined" size="small" sx={{ mb: 1 }} />
@@ -695,9 +699,6 @@ useEffect(() => {
               My Courses
             </Typography>
           </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2">Draft: {stats?.courses?.draft ?? 0} | Pending Approval: {stats?.courses?.pending_approval ?? 0} | Approved: {stats?.courses?.approved ?? 0} | Active: {stats?.courses?.active ?? 0}</Typography>
-          </Box>
           <Tabs value={courseTab} onChange={(_, v) => setCourseTab(v)} variant="fullWidth" sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
             {courseTabsConfig.map((tab, index) => (
               <Tab key={tab.key} icon={tab.icon} iconPosition="start" label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>{tab.label}<Chip label={stats?.courses?.[tab.key] ?? 0} size="small" color={tab.color as any} sx={{ ml: 1 }} /></Box>} />
@@ -751,9 +752,6 @@ useEffect(() => {
             <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               My Degrees
             </Typography>
-          </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2">Draft: {stats?.degrees?.draft ?? 0} | Pending Approval: {stats?.degrees?.pending_approval ?? 0} | Approved: {stats?.degrees?.approved ?? 0} | Active: {stats?.degrees?.active ?? 0}</Typography>
           </Box>
           <Tabs value={degreeTab} onChange={(_, v) => setDegreeTab(v)} variant="fullWidth" sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
             {degreeTabsConfig.map((tab, index) => (
@@ -822,6 +820,7 @@ useEffect(() => {
               total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
               pages: degreesRes.pagination?.pages || 1,
             }));
+            await reloadStats();
           };
           reloadDegrees();
         }}
@@ -849,9 +848,7 @@ useEffect(() => {
           try {
             await coursesAPI.submitCourseForApproval(
               courseToSubmit.id,
-              courseApprovalMessage,
-              user?.id,
-              user?.department?.id
+              courseApprovalMessage
             );
             enqueueSnackbar('Course submitted for approval!', { variant: 'success' });
             setSubmitCourseDialogOpen(false);
@@ -864,6 +861,7 @@ useEffect(() => {
               total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
               pages: coursesRes.pagination?.pages || 1,
             }));
+            await reloadStats();
           } catch (err) {
             let errorMsg = 'Failed to submit for approval';
             if (typeof err === 'object' && err !== null) {
@@ -900,9 +898,7 @@ useEffect(() => {
           try {
             await degreesAPI.submitDegreeForApproval(
               degreeToSubmit.id,
-              degreeApprovalMessage,
-              user?.id,
-              user?.department?.id
+              degreeApprovalMessage
             );
             enqueueSnackbar('Degree submitted for approval!', { variant: 'success' });
             setSubmitDegreeDialogOpen(false);
@@ -915,6 +911,7 @@ useEffect(() => {
               total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
               pages: degreesRes.pagination?.pages || 1,
             }));
+            await reloadStats();
           } catch (err) {
             let errorMsg = 'Failed to submit for approval';
             if (typeof err === 'object' && err !== null) {

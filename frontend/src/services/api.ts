@@ -183,7 +183,10 @@ export const usersAPI = {
 export const coursesAPI = {
   getCourses: async (params?: any) => {
     try {
-      return (await api.get('/courses', { params })).data;
+      const { data } = await api.get('/courses', { params });
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.courses)) return data.courses;
+      return [];
     } catch (err: any) {
       return handleApiError(err);
     }
@@ -307,9 +310,9 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
-  submitCourseForApproval: async (id: string, message: string, userId?: string, departmentId?: string) => {
+  submitCourseForApproval: async (id: string, message: string) => {
     try {
-      return (await api.patch(`/courses/${id}/submit`, { message, userId, departmentId })).data;
+      return (await api.patch(`/courses/${id}/submit`, { message })).data;
     } catch (err: any) {
       return handleApiError(err);
     }
@@ -356,6 +359,13 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  createDegreeVersion: async (id: string) => {
+    try {
+      return (await api.post(`/degrees/${id}/create-version`)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
   getDegreesByDepartment: async (departmentId: string, isHodView: boolean = false) => {
     try {
       if (isHodView) {
@@ -366,9 +376,9 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
-  submitDegreeForApproval: async (id: string, message: string, userId?: string, departmentId?: string) => {
+  submitDegreeForApproval: async (id: string, message: string) => {
     try {
-      return (await api.patch(`/degrees/${id}/submit`, { message, userId, departmentId })).data;
+      return (await api.patch(`/degrees/${id}/submit`, { message })).data;
     } catch (err: any) {
       return handleApiError(err);
     }
@@ -426,9 +436,9 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
-  getActiveDegrees: async (departmentId: string) => {
+  getActiveDegrees: async (department_code: string) => {
     try {
-      const { data } = await api.get('/degrees', { params: { department_id: departmentId, status: 'active' } });
+      const { data } = await api.get('/degrees', { params: { department_code: department_code, status: 'active' } });
       return data;
     } catch (err: any) {
       return handleApiError(err);

@@ -369,7 +369,19 @@ router.get('/department/:code',
         attributes: { exclude: ['password', 'password_reset_token', 'email_verification_token'] },
         order: [['user_type'], ['last_name'], ['first_name']],
       });
-      res.json({ users });
+      // Remap departmentByCode -> department, remove degreeByCode if null
+      const usersRemapped = users.map(u => {
+        const obj = u.toJSON();
+        if (obj.departmentByCode) {
+          obj.department = obj.departmentByCode;
+          delete obj.departmentByCode;
+        }
+        if (obj.degreeByCode === null) {
+          delete obj.degreeByCode;
+        }
+        return obj;
+      });
+      res.json({ users: usersRemapped });
     } catch (error) {
       console.error('Get department users error:', error);
       res.status(500).json({ error: 'Internal server error' });

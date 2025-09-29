@@ -31,7 +31,7 @@ import {
 } from '@mui/icons-material';
 import TimelineDialog, { TimelineEvent } from '../../components/common/TimelineDialog';
 import { timelineAPI } from '../../services/api';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/router';
 import { useSnackbar } from 'notistack';
 import { coursesAPI, degreesAPI } from '../../services/api';
 
@@ -71,7 +71,7 @@ const FacultyApprovalPage: React.FC = () => {
       setTimelineEvents([]);
     }
   };
-  const navigate = useNavigate();
+  const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState(0);
   const [pendingCourses, setPendingCourses] = useState<any[]>([]);
@@ -262,7 +262,7 @@ const FacultyApprovalPage: React.FC = () => {
             </Typography>
           )}
           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 14, mb: 0.25 }}>
-            {item.code}{item.credits ? ` • ${item.credits} Credits` : ''}{item.semester ? ` • Semester ${item.semester}` : ''}
+            Code: {item.code}{item.version > 1 ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.primary', fontSize: 15, mb: 1 }}>
             {item.description}
@@ -341,7 +341,7 @@ const FacultyApprovalPage: React.FC = () => {
       <Box sx={{ py: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <IconButton 
-            onClick={() => navigate('/hod')}
+            onClick={() => router.push('/hod')}
             sx={{ ml: { xs: 0, sm: 0, md: 0 }, mr: 4, p: 0 }}
             aria-label="Back to dashboard"
           >

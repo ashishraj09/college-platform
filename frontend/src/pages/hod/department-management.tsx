@@ -18,7 +18,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Business as BusinessIcon, School as SchoolIcon, Edit as EditIcon } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/router';
 import { degreesAPI, coursesAPI } from '../../services/api';
 
 interface TabPanelProps {
@@ -80,7 +80,7 @@ const DepartmentManagementPage: React.FC = () => {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectDegreeId, setRejectDegreeId] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   // Get departmentId from localStorage or fetch from HOD profile
   const [departmentId, setDepartmentId] = useState<string | null>(null);
@@ -253,7 +253,7 @@ const DepartmentManagementPage: React.FC = () => {
       <Box sx={{ py: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <IconButton 
-            onClick={() => navigate('/hod')}
+            onClick={() => router.push('/hod')}
             sx={{ ml: { xs: 0, sm: 0, md: 0 }, mr: 4, p: 0 }}
             aria-label="Back to dashboard"
           >

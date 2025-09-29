@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Box,
   Typography,
@@ -129,8 +130,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
   const [timelineEntityName, setTimelineEntityName] = useState('');
 
   // Get department_code from user context
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { user } = require('../../contexts/AuthContext').useAuth();
+  const { user } = useAuth();
   const departmentCode = user?.department?.code || user?.department_code || '';
   const [approvalInProgress, setApprovalInProgress] = useState(false);
 

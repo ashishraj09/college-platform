@@ -284,8 +284,9 @@ const AdminDashboard: React.FC = () => {
 
   // Generic sort function
   const getSortedData = (data: any[], tab: number) => {
-    if (!sortConfig.column || sortConfig.tab !== tab) return data;
-    return [...data].sort((a, b) => {
+  if (!Array.isArray(data)) return [];
+  if (!sortConfig.column || sortConfig.tab !== tab) return data;
+  return [...data].sort((a, b) => {
       let aVal = a[sortConfig.column];
       let bVal = b[sortConfig.column];
       // Special cases

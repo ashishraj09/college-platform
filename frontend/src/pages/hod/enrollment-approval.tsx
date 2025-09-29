@@ -7,18 +7,18 @@ import {
   IconButton
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/router';
 import EnrollmentApprovalsTab from '../../components/hod/EnrollmentApprovalsTab';
 
 const EnrollmentApprovalPage: React.FC = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   return (
     <Container maxWidth="xl">
       <Box sx={{ py: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <IconButton 
-            onClick={() => navigate('/hod')}
+            onClick={() => router.push('/hod')}
             sx={{ ml: { xs: 0, sm: 0, md: 0 }, mr: 4, p: 0 }}
             aria-label="Back to dashboard"
           >

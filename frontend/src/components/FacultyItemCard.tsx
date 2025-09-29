@@ -17,7 +17,7 @@ const FacultyItemCard: React.FC<FacultyItemCardProps> = ({ item, actions, onActi
         </Typography>
       </Box>
       <Typography variant="body2" color="text.secondary" gutterBottom>
-        {(item.version_code || item.code) + (item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : '')}
+        Code: {item.code}{item.version > 1 ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
       </Typography>
       <Typography variant="body2" sx={{ mb: 2 }} noWrap>
         {item.overview || item.description}

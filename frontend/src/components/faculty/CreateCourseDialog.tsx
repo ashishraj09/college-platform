@@ -40,8 +40,8 @@ interface CourseForm {
   overview: string;
   credits: number;
   semester: number;
-  department_id: string;
-  degree_id: string;
+  department_code: string;
+  degree_code: string;
   is_elective: boolean;
   max_students: number;
   prerequisites: string[];
@@ -78,8 +78,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     overview: '',
     credits: 3,
     semester: 1,
-    department_id: '',
-    degree_id: '',
+    department_code: '',
+    degree_code: '',
     is_elective: false,
     max_students: 50,
     prerequisites: [],
@@ -117,7 +117,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     credits?: string;
     semester?: string;
     max_students?: string;
-    degree_id?: string;
+    degree_code?: string;
     learning_objectives?: string;
     course_outcomes?: string;
     assessment_methods?: string;
@@ -177,6 +177,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
             setForm({
               ...defaultForm,
               ...courseData,
+              degree_code: courseData.degree?.id ?? courseData.degree_code ?? '',
+              department_code: courseData.department?.code ?? courseData.department_code ?? '',
               study_details: {
                 ...defaultForm.study_details,
                 ...courseData.study_details,
@@ -196,7 +198,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       } else {
         setForm({
           ...defaultForm,
-          department_id: user?.department?.id || '',
+          department_code: user?.department?.code || '',
         });
         setCourseId(null);
       }
@@ -233,7 +235,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       case 'max_students':
         if (value < 1 || value > 500) return 'Max students must be between 1 and 500';
         break;
-      case 'degree_id':
+      case 'degree_code':
         if (!value) return 'Degree selection is required';
         break;
     }
@@ -252,26 +254,26 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const handleInputChange = (field: keyof CourseForm) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
+    const value = event.target.value ?? '';
     setForm({
       ...form,
-      [field]: event.target.value,
+      [field]: value,
     });
-    
     // Real-time validation
-    updateFieldError(field, event.target.value);
+    updateFieldError(field, value);
     setError('');
   };
 
   const handleSelectChange = (field: keyof CourseForm) => (
     event: SelectChangeEvent
   ) => {
+    const value = event.target.value ?? '';
     setForm({
       ...form,
-      [field]: event.target.value,
+      [field]: value,
     });
-    
     // Real-time validation
-    updateFieldError(field, event.target.value);
+    updateFieldError(field, value);
     setError('');
   };
 
@@ -368,8 +370,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       hasError = true;
     }
 
-    if (!form.degree_id) {
-      newFieldErrors.degree_id = 'Degree selection is required';
+    if (!form.degree_code) {
+      newFieldErrors.degree_code = 'Degree selection is required';
       hasError = true;
     }
 
@@ -424,7 +426,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       setError('Please correct the errors before submitting');
       // Show the tab with errors
       if (fieldErrors.name || fieldErrors.code || fieldErrors.overview || 
-          fieldErrors.credits || fieldErrors.semester || fieldErrors.degree_id || 
+          fieldErrors.credits || fieldErrors.semester || fieldErrors.degree_code || 
           fieldErrors.max_students) {
         setActiveTab(0);
       } else if (fieldErrors.learning_objectives || fieldErrors.course_outcomes || 
@@ -439,9 +441,15 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     setError('');
 
     try {
-      // Filter out empty values
+      // Find selected degree and department objects
+      const selectedDegree = degrees.find(d => d.id === form.degree_code || d.code === form.degree_code);
+      const selectedDepartment = user?.department || null;
+
+      // Filter out empty values and set correct UUIDs
       const cleanedForm = {
         ...form,
+        department_id: selectedDepartment?.id ?? '',
+        degree_id: selectedDegree?.id ?? '',
         prerequisites: form.prerequisites.filter(p => p.trim()),
         study_details: {
           learning_objectives: form.study_details.learning_objectives.filter(obj => obj.trim()),
@@ -466,7 +474,6 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
             const response = await coursesAPI.createCourseVersion(course.id);
             const data = response;
             enqueueSnackbar(`New version created. You will be redirected to edit the draft.`, { variant: 'success' });
-            
             // Return the new course ID for potential redirection
             onSuccess(data.course?.id);
           } catch (error: any) {
@@ -474,12 +481,19 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
           }
         } else {
           // Update draft or pending courses directly
-          if (user?.id && user?.department?.id) {
-            await coursesAPI.updateCourse(course.id, cleanedForm, user.id, user.department.id);
+          if (user?.department?.code && cleanedForm.degree_code) {
+            // Find the selected degree object
+            const selectedDegree = degrees.find(d => d.id === cleanedForm.degree_code || d.code === cleanedForm.degree_code);
+            // Send department_code and degree_code (short code) in the payload
+            await coursesAPI.updateCourse(course.id, {
+              ...cleanedForm,
+              department_code: user.department.code,
+              degree_code: selectedDegree?.code || cleanedForm.degree_code,
+            });
             enqueueSnackbar('Course updated successfully!', { variant: 'success' });
             onSuccess();
           } else {
-            throw new Error('User ID or Department ID is missing');
+            throw new Error('Department code or Degree code is missing');
           }
         }
       } else {
@@ -612,7 +626,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   required
                   fullWidth
                   label="Course Name"
-                  value={form.name}
+                  value={form.name ?? ''}
                   onChange={handleInputChange('name')}
                   error={!!fieldErrors.name}
                   helperText={fieldErrors.name || "Enter the full name of the course"}
@@ -622,7 +636,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   required
                   fullWidth
                   label="Course Code"
-                  value={form.code}
+                  value={form.code ?? ''}
                   onChange={handleInputChange('code')}
                   error={!!fieldErrors.code}
                   helperText={fieldErrors.code || "e.g., CS101 (uppercase letters and numbers only)"}
@@ -642,20 +656,20 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   <TextField
                     fullWidth
                     label="Course Owner"
-                    value={`${owner.first_name} ${owner.last_name}`}
+                    value={`${owner.first_name ?? ''} ${owner.last_name ?? ''}`}
                     disabled
-                    helperText={`Created by ${owner.email}`}
+                    helperText={`Created by ${owner.email ?? ''}`}
                     variant="filled"
                   />
                 )}
 
-                <FormControl fullWidth required error={!!fieldErrors.degree_id}>
+                <FormControl fullWidth required error={!!fieldErrors.degree_code}>
                   <InputLabel>Degree</InputLabel>
                   <Select
-                    value={form.degree_id}
+                    value={form.degree_code ?? ''}
                     label="Degree"
-                    onChange={handleSelectChange('degree_id')}
-                    disabled={!form.department_id || loadingDegrees}
+                    onChange={handleSelectChange('degree_code')}
+                    disabled={!form.department_code || loadingDegrees}
                   >
                     {loadingDegrees ? (
                       <MenuItem disabled>Loading degrees...</MenuItem>
@@ -669,9 +683,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                       ))
                     )}
                   </Select>
-                  {fieldErrors.degree_id && (
+                  {fieldErrors.degree_code && (
                     <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                      {fieldErrors.degree_id}
+                      {fieldErrors.degree_code}
                     </Typography>
                   )}
                 </FormControl>

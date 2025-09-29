@@ -13,24 +13,24 @@ import {
   Assignment as AssignmentIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/router';
 
-const HODDashboard: React.FC = () => {
-  const navigate = useNavigate();
+const IndexPage: React.FC = () => {
+  const router = useRouter();
 
   const dashboardTiles = [
     {
       title: 'Faculty Course Approval',
       description: 'Review and approve course creation and modification requests from faculty members',
       icon: <SchoolIcon sx={{ fontSize: 48, color: '#1976d2' }} />,
-      route: '/hod/faculty-approvals',
+      route: '/hod/faculty-approval',
       buttonText: 'Manage Course Approvals'
     },
     {
       title: 'Student Enrollment Approval',
       description: 'Review and approve student course enrollment requests for the current semester',
       icon: <AssignmentIcon sx={{ fontSize: 48, color: '#2e7d32' }} />,
-      route: '/hod/enrollment-approvals',
+      route: '/hod/enrollment-approval',
       buttonText: 'Manage Enrollments'
     },
     {
@@ -86,7 +86,7 @@ const HODDashboard: React.FC = () => {
                 <Button
                   variant="contained"
                   size="large"
-                  onClick={() => navigate(tile.route)}
+                  onClick={() => router.push(tile.route)}
                   sx={{ 
                     minWidth: 200,
                     borderRadius: 2
@@ -103,4 +103,4 @@ const HODDashboard: React.FC = () => {
   );
 };
 
-export default HODDashboard;
+export default IndexPage;

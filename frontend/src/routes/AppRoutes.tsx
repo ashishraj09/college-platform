@@ -22,10 +22,10 @@ import StudentDegreesPage from '../pages/student/DegreesPage';
 import OfficeDashboard from '../pages/office/OfficeDashboard';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 
-import HODDashboard from '../pages/hod/HODDashboard';
-import FacultyApprovalPage from '../pages/hod/FacultyApprovalPage';
-import EnrollmentApprovalPage from '../pages/hod/EnrollmentApprovalPage';
-import DepartmentManagementPage from '../pages/hod/DepartmentManagementPage';
+import HODDashboard from '../pages/hod';
+import FacultyApprovalPage from '../pages/hod/faculty-approval';
+import EnrollmentApprovalPage from '../pages/hod/enrollment-approval';
+import DepartmentManagementPage from '../pages/hod/department-management';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, user, loading } = useAppSelector((state) => state.auth);

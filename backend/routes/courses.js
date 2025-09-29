@@ -66,7 +66,7 @@ router.get('/',
       const offset = (page - 1) * limit;
 
       // Use findAndCountAll for pagination meta
-      const { count, rows: courses } = await Course.findAndCountAll({
+      const { count, rows: coursesRaw } = await Course.findAndCountAll({
         where: whereClause,
         include: [
           {
@@ -99,23 +99,52 @@ router.get('/',
         ],
         limit: parseInt(limit),
         offset: parseInt(offset),
-        order: [['created_at', 'DESC']]
+        order: [['created_at', 'DESC']],
+        distinct: true
       });
 
-      // For each course, check if a draft version exists for this course or its parent
-      const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
-        const draft = await Course.findOne({
-          where: {
-            [Op.or]: [
-              { parent_course_id: course.id },
-              { parent_course_id: course.parent_course_id || course.id }
-            ],
-            status: 'draft'
-          }
-        });
-        course.dataValues.hasDraftVersion = !!draft;
+      // Deduplicate courses by id
+      const seen = new Set();
+      const courses = coursesRaw.filter(course => {
+        if (seen.has(course.id)) return false;
+        seen.add(course.id);
+        return true;
+      });
+
+      // Batch fetch draft versions for these courses to avoid N+1 queries
+      const parentKeys = new Set();
+      courses.forEach(course => {
+        parentKeys.add(course.id);
+        parentKeys.add(course.parent_course_id || course.id);
+      });
+      const parentKeyArray = Array.from(parentKeys);
+      const drafts = await Course.findAll({
+        where: {
+          parent_course_id: { [Op.in]: parentKeyArray },
+          status: 'draft'
+        },
+        attributes: ['parent_course_id'],
+      });
+      const draftParentSet = new Set(drafts.map(d => d.parent_course_id));
+      const coursesWithDraftFlag = courses.map(course => {
+        const keys = [course.id, course.parent_course_id || course.id];
+        course.dataValues.hasDraftVersion = keys.some(k => draftParentSet.has(k));
         return course;
-      }));
+      });
+
+      // Remap departmentByCode -> department, degreeByCode -> degree
+      const coursesRemapped = coursesWithDraftFlag.map(course => {
+        const obj = { ...course.dataValues };
+        if (obj.departmentByCode) {
+          obj.department = obj.departmentByCode;
+          delete obj.departmentByCode;
+        }
+        if (obj.degreeByCode) {
+          obj.degree = obj.degreeByCode;
+          delete obj.degreeByCode;
+        }
+        return obj;
+      });
 
       // Pagination object
       const pagination = {
@@ -126,7 +155,7 @@ router.get('/',
       };
 
       res.json({
-        courses: coursesWithDraftFlag,
+        courses: coursesRemapped,
         pagination
       });
     } catch (error) {
@@ -569,8 +598,8 @@ router.get('/:id/edit',
       
       const course = await Course.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'departmentByCode' },
+          { model: Degree, as: 'degreeByCode' },
           { model: User, as:'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
@@ -659,8 +688,17 @@ router.get('/:id/edit',
         course.faculty_details = facultyDetails;
       }
 
-      // Return course data - with or without name resolution based on resolveNames parameter
-      res.json({ course });
+      // Remap degreeByCode -> degree and departmentByCode -> department
+      const courseObj = course.toJSON();
+      if (courseObj.degreeByCode) {
+        courseObj.degree = courseObj.degreeByCode;
+        delete courseObj.degreeByCode;
+      }
+      if (courseObj.departmentByCode) {
+        courseObj.department = courseObj.departmentByCode;
+        delete courseObj.departmentByCode;
+      }
+      res.json({ course: courseObj });
     } catch (error) {
       console.error('Error fetching course for editing:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -810,8 +848,8 @@ router.post('/:id/create-version',
       // Get original course without resolving instructor names to preserve UUIDs
       const originalCourse = await Course.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'departmentByCode' },
+          { model: Degree, as: 'degreeByCode' },
         ],
       });
 
@@ -887,13 +925,16 @@ router.post('/:id/create-version',
         prerequisites: originalCourse.prerequisites,
         max_students: originalCourse.max_students,
         department_id: originalCourse.department_id,
+        department_code: originalCourse.department_code,
         degree_id: originalCourse.degree_id,
+        degree_code: originalCourse.degree_code,
         is_elective: originalCourse.is_elective,
         created_by: userId,
         version: nextVersion,
         parent_course_id: originalCourse.parent_course_id || originalCourse.id,
         is_latest_version: true,
         status: 'draft',
+        // DO NOT set id here; let Sequelize auto-generate a new UUID
       };
       
       console.log(`[DEBUG] Creating new course version with data:`, {
@@ -925,8 +966,8 @@ router.post('/:id/create-version',
       // Fetch the created course with associations
       const createdCourse = await Course.findByPk(newCourse.id, {
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'departmentByCode' },
+          { model: Degree, as: 'degreeByCode' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
         ],
       });
@@ -1041,7 +1082,7 @@ router.patch('/:id/submit',
     try {
       const course = await Course.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department' },
+          { model: Department, as: 'departmentByCode' },
           { model: User, as: 'creator' },
         ],
       });
@@ -1050,16 +1091,10 @@ router.patch('/:id/submit',
         return res.status(404).json({ error: 'Course not found' });
       }
 
-      // For development/testing when authentication is disabled
-      const user = req.user || { 
-        id: req.body.userId,
-        department_id: req.body.departmentId, 
-        user_type: 'faculty' 
-      };
-
-      // Validate that we have user context
-      if (!user.id || !user.department_id) {
-        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      // Use only authenticated user context
+      const user = req.user;
+      if (!user || !user.id) {
+        return res.status(400).json({ error: 'User context required' });
       }
 
       // Only course creator can submit
@@ -1067,7 +1102,7 @@ router.patch('/:id/submit',
         return res.status(403).json({ error: 'Only course creator can submit for approval' });
       }
 
-      // Faculty can only submit courses in their own department (temporarily bypassed for testing)
+      // Faculty can only submit courses in their own department
       if (user.user_type !== 'admin' && user.department_id !== course.department_id) {
         return res.status(403).json({ error: 'Can only submit courses in your own department' });
       }
@@ -1093,14 +1128,20 @@ router.patch('/:id/submit',
         });
       }
 
-      // Find HOD of the department
-      const hod = await User.findOne({
-        where: {
-          department_id: course.department_id,
-          user_type: 'faculty',
-          is_head_of_department: true,
-        },
-      });
+      // Find HOD of the department using department_code
+      let hod = null;
+      if (course.department_code) {
+        const department = await Department.findOne({ where: { code: course.department_code } });
+        if (department && department.department_code) {
+          hod = await User.findOne({
+            where: {
+              department_code: course.department_code,
+              user_type: 'faculty',
+              is_head_of_department: true,
+            },
+          });
+        }
+      }
 
       // Send approval email to HOD if found
       if (hod) {
@@ -1303,21 +1344,16 @@ router.patch('/:id/publish',
       if (course.parent_course_id || course.version > 1) {
         // This is a new version being published - archive previous active versions
         const parentId = course.parent_course_id || course.id;
-        
         await Course.update(
           { status: 'archived' },
           {
             where: {
-              [Op.and]: [
-                {
-                  [Op.or]: [
-                    { id: parentId },
-                    { parent_course_id: parentId },
-                  ],
-                },
-                { status: 'active' },
-                { id: { [Op.ne]: course.id } },
+              [Op.or]: [
+                { id: parentId },
+                { parent_course_id: parentId },
               ],
+              status: 'active',
+              id: { [Op.ne]: course.id },
             },
           }
         );
@@ -1325,7 +1361,7 @@ router.patch('/:id/publish',
 
       await course.update({
         status: 'active',
-        updated_by: user.id || req.body.userId,
+        updated_by: user.id,
       });
 
       res.json({
@@ -1350,23 +1386,17 @@ router.put('/:id',
   async (req, res) => {
     try {
       const course = await Course.findByPk(req.params.id, {
-        include: [{ model: Department, as: 'department' }]
+        include: [{ model: Department, as: 'departmentByCode' }]
       });
 
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
       }
 
-      // For development/testing when authentication is disabled
-      const user = req.user || { 
-        id: req.body.userId,
-        department_id: req.body.departmentId,
-        user_type: 'faculty'
-      };
-
-      // Validate that we have user context
-      if (!user.id || !user.department_id) {
-        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      // Use authenticated user context
+      const user = req.user;
+      if (!user || !user.id || !user.department_code) {
+        return res.status(400).json({ error: 'User context required - missing user or department_code in auth' });
       }
 
       // Only course creator can update (except admins)
@@ -1374,8 +1404,8 @@ router.put('/:id',
         return res.status(403).json({ error: 'Only course creator can update this course' });
       }
 
-      // Faculty can only update courses in their own department (temporarily bypassed for testing)
-      if (user.user_type !== 'admin' && user.department_id !== course.department_id) {
+      // Faculty can only update courses in their own department
+      if (user.user_type !== 'admin' && user.department_code !== course.department_code) {
         return res.status(403).json({ error: 'Can only update courses in your own department' });
       }
 
@@ -1396,6 +1426,14 @@ router.put('/:id',
         }
       });
 
+      // Use department_code and degree_code from payload if present
+      if (req.body.department_code) {
+        updatedFields.department_code = req.body.department_code;
+      }
+      if (req.body.degree_code) {
+        updatedFields.degree_code = req.body.degree_code;
+      }
+
       if (updatedFields.code) {
         updatedFields.code = updatedFields.code.toUpperCase();
       }
@@ -1407,17 +1445,28 @@ router.put('/:id',
 
       const updatedCourse = await Course.findByPk(course.id, {
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'departmentByCode' },
+          { model: Degree, as: 'degreeByCode' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
         ],
       });
 
+      // Remap departmentByCode -> department, degreeByCode -> degree
+      const courseObj = updatedCourse.toJSON();
+      if (courseObj.departmentByCode) {
+        courseObj.department = courseObj.departmentByCode;
+        delete courseObj.departmentByCode;
+      }
+      if (courseObj.degreeByCode) {
+        courseObj.degree = courseObj.degreeByCode;
+        delete courseObj.degreeByCode;
+      }
+
       res.json({
         message: 'Course updated successfully',
-        course: updatedCourse,
+        course: courseObj,
       });
     } catch (error) {
       console.error('Error updating course:', error);

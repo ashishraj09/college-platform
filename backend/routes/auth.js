@@ -501,13 +501,16 @@ router.get('/me', authenticateToken, async (req, res) => {
  * Access: Authenticated users only
  * Response: { user }
  */
+  // declare outer-scoped variables for use in catch block diagnostics
+  let userId = null;
+  let user = null;
   try {
-    console.debug('[auth/me] userId:');
+    console.debug('[auth/me] userId:', req?.user?.id);
     const User = await models.User();
     const Department = await models.Department();
     const Degree = await models.Degree();
-    const userId = req.user.id;
-    const user = await User.findByPk(userId);
+    userId = req.user && req.user.id;
+    user = await User.findByPk(userId);
     console.debug('[auth/me] userId:', userId);
     console.debug('[auth/me] user:', user ? user.toJSON() : user);
     if (!user) return res.status(404).json({ error: 'User not found' });

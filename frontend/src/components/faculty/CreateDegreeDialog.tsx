@@ -61,6 +61,40 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   mode,
   degree,
 }) => {
+    const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+  const validateField = (field: string, value: any): string | undefined => {
+    switch (field) {
+      case 'name':
+        if (!value?.trim()) return 'Degree name is required';
+        if (value.trim().length < 3) return 'Degree name must be at least 3 characters';
+        break;
+      case 'code':
+        if (!value?.trim()) return 'Degree code is required';
+        if (!/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
+        break;
+      case 'department_id':
+        if (!value) return 'Department selection is required';
+        break;
+      case 'degree_type':
+        if (!value) return 'Degree type is required';
+        break;
+      case 'total_credits':
+        if (!value || isNaN(Number(value)) || Number(value) < 1) return 'Total credits must be at least 1';
+        break;
+      case 'duration_years':
+        if (!value || isNaN(Number(value)) || Number(value) < 1) return 'Duration must be at least 1 year';
+        break;
+      case 'description':
+        if (!value?.trim()) return 'Description is required';
+        if (value.trim().length < 10) return 'Description must be at least 10 characters';
+        break;
+      default:
+        return undefined;
+    }
+  };
+  const updateFieldError = (field: string, value: any) => {
+    setFieldErrors(prev => ({ ...prev, [field]: validateField(field, value) || '' }));
+  };
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
@@ -96,9 +130,13 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   // Initialize form when dialog opens or mode/degree changes
   useEffect(() => {
     if (open) {
-      // If creating, set department_id to user's department code
-      if (mode === 'create' && user?.department?.code) {
-        setForm({ ...defaultForm, department_id: user.department.code });
+      // Always set department_id from user context if available
+      if (user?.department?.code) {
+        if (mode === 'edit' && degree) {
+          setForm({ ...defaultForm, ...degree, department_id: user.department.code });
+        } else {
+          setForm({ ...defaultForm, department_id: user.department.code });
+        }
       } else {
         setForm(mode === 'edit' && degree ? { ...defaultForm, ...degree } : defaultForm);
       }
@@ -153,7 +191,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   const handleInputChange = (field: keyof DegreeForm) => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-  setForm((prev: DegreeForm) => ({ ...prev, [field]: event.target.value }));
+    setForm((prev: DegreeForm) => ({ ...prev, [field]: event.target.value }));
+    updateFieldError(field, event.target.value);
     setError('');
   };
 
@@ -161,13 +200,38 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   const handleSelectChange = (field: keyof DegreeForm) => (
     event: any
   ) => {
-  setForm((prev: DegreeForm) => ({ ...prev, [field]: event.target.value }));
+    setForm((prev: DegreeForm) => ({ ...prev, [field]: event.target.value }));
+    updateFieldError(field, event.target.value);
     setError('');
   };
 
   const handleSubmit = async () => {
-    if (!form.name || !form.code || !form.department_id || !form.degree_type || !form.total_credits) {
-      setError('Please fill in all required fields');
+
+    // Validate all required fields
+    const requiredFields = ['name', 'code', 'department_id', 'degree_type', 'total_credits', 'duration_years', 'description'];
+    let hasError = false;
+    const newErrors: { [key: string]: string } = {};
+    requiredFields.forEach(field => {
+      const error = validateField(field, form[field]);
+      if (error) {
+        newErrors[field] = error;
+        hasError = true;
+      }
+    });
+    setFieldErrors(newErrors);
+    if (hasError) {
+      setError('Please correct the errors before submitting');
+      // Tab switching logic: find which tab has the first error
+      const tab0Fields = ['name', 'code', 'department_id', 'degree_type', 'total_credits', 'duration_years', 'description'];
+      const tab1Fields = ['specializations', 'career_prospects', 'accreditation', 'study_mode', 'learning_outcomes', 'assessment_methods', 'contact_information', 'application_process'];
+      const tab2Fields = ['admission_requirements', 'entry_requirements', 'fees', 'location', 'application_deadlines'];
+      if (tab0Fields.some(f => newErrors[f])) {
+        setActiveTab(0);
+      } else if (tab1Fields.some(f => fieldErrors[f])) {
+        setActiveTab(1);
+      } else if (tab2Fields.some(f => fieldErrors[f])) {
+        setActiveTab(2);
+      }
       return;
     }
 
@@ -175,7 +239,12 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     setError('');
 
     try {
-      const payload = { ...form };
+      // Remove department_id and department object from payload, only send department_code
+      const { department_id, department, ...restForm } = form;
+      const payload = {
+        ...restForm,
+        department_code: user?.department?.code,
+      };
       if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
         payload.courses_per_semester = form.courses_per_semester;
       }
@@ -209,7 +278,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
         errorMsg = 'An unknown error occurred';
       }
       setError(errorMsg);
-  enqueueSnackbar(errorMsg, { variant: 'error' });
+      enqueueSnackbar(errorMsg, { variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -238,6 +307,15 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
           {error && (
             <Alert severity="error" sx={{ m: 2 }}>
               {error}
+              {Object.values(fieldErrors).filter(Boolean).length > 0 && (
+                <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+                  {Object.entries(fieldErrors)
+                    .filter(([_, msg]) => !!msg)
+                    .map(([field, msg]) => (
+                      <li key={field}>{msg}</li>
+                    ))}
+                </ul>
+              )}
             </Alert>
           )}
           <Tabs 
@@ -259,6 +337,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                   label="Degree Name"
                   value={form.name}
                   onChange={handleInputChange('name')}
+                  error={!!fieldErrors.name}
+                  helperText={fieldErrors.name ? fieldErrors.name : "e.g., Master of Commerce"}
                   placeholder="e.g., Master of Commerce"
                 />
                 <TextField
@@ -267,15 +347,19 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                   label="Degree Code"
                   value={form.code}
                   onChange={handleInputChange('code')}
+                  error={!!fieldErrors.code}
+                  helperText={fieldErrors.code ? fieldErrors.code : "e.g., MCOM (uppercase letters and numbers only)"}
                   inputProps={{ style: { textTransform: 'uppercase' } }}
                   placeholder="e.g., MCOM"
                 />
-                <FormControl fullWidth required>
+                <FormControl fullWidth required error={!!fieldErrors.degree_type}>
                   <InputLabel>Degree Type</InputLabel>
                   <Select
                     value={form.degree_type}
                     label="Degree Type"
                     onChange={handleSelectChange('degree_type')}
+                    error={!!fieldErrors.degree_type}
+                    sx={fieldErrors.degree_type ? { border: '1px solid #d32f2f' } : {}}
                   >
                     <MenuItem value="Certificate">Certificate</MenuItem>
                     <MenuItem value="Diploma">Diploma</MenuItem>
@@ -285,7 +369,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                     <MenuItem value="Doctoral">Doctoral Degree</MenuItem>
                   </Select>
                 </FormControl>
-                <FormControl fullWidth required>
+                <FormControl fullWidth required error={!!fieldErrors.department_id}>
                   {user?.department?.code ? (
                     <TextField
                       fullWidth
@@ -302,6 +386,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                         value={form.department_id}
                         label="Department"
                         onChange={handleSelectChange('department_id')}
+                        error={!!fieldErrors.department_id}
+                        sx={fieldErrors.department_id ? { border: '1px solid #d32f2f' } : {}}
                       >
                         {departments.map((dept) => (
                           <MenuItem key={dept.code} value={dept.code}>
@@ -309,6 +395,11 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                           </MenuItem>
                         ))}
                       </Select>
+                      {fieldErrors.department_id && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                          {fieldErrors.department_id}
+                        </Typography>
+                      )}
                     </>
                   )}
                 </FormControl>
@@ -320,6 +411,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                     type="number"
                     value={form.duration_years}
                     onChange={handleInputChange('duration_years')}
+                    error={!!fieldErrors.duration_years}
+                    helperText={fieldErrors.duration_years ? fieldErrors.duration_years : "1+ years"}
                     inputProps={{ min: 1, max: 10 }}
                   />
                   <TextField
@@ -329,6 +422,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                     type="number"
                     value={form.total_credits}
                     onChange={handleInputChange('total_credits')}
+                    error={!!fieldErrors.total_credits}
+                    helperText={fieldErrors.total_credits ? fieldErrors.total_credits : "1+ credits"}
                     inputProps={{ min: 1, max: 300 }}
                   />
                 </Box>
@@ -408,6 +503,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                   label="Program Description"
                   value={form.description}
                   onChange={handleInputChange('description')}
+                  error={!!fieldErrors.description}
+                  helperText={fieldErrors.description ? fieldErrors.description : "Comprehensive overview of the degree program"}
                   placeholder="Comprehensive overview of the degree program"
                 />
               </Box>
