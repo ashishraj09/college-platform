@@ -1143,13 +1143,11 @@ router.patch('/:id/submit',
         }
       }
 
-      // Send approval email to HOD if found
+      // Send approval email to HOD if found (non-blocking)
       if (hod) {
-        try {
-          await sendCourseApprovalEmail(course, hod);
-        } catch (emailError) {
+        sendCourseApprovalEmail(course, hod).catch(emailError => {
           console.error('Failed to send course approval email:', emailError);
-        }
+        });
       }
 
       res.json({

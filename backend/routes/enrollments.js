@@ -437,21 +437,7 @@ router.post('/draft/submit',
         const Course = await models.Course();
         const courses = await Course.findAll({ where: { code: { [Op.in]: courseCodes } } });
         const courseList = courses.map(c => `${c.name} (${c.code})`);
-        // Send to HOD
-        if (hodUser && hodUser.email) {
-          console.log(`Sending enrollment approval email to HOD: ${hodUser.email} (${hodUser.first_name} ${hodUser.last_name})`);
-          await sendEnrollmentApprovalEmail({
-            ...draft.get({ plain: true }),
-            student,
-            degree,
-            department,
-            courseList
-          }, hodUser, true);
-          console.log('HOD approval email sent successfully');
-        } else {
-          console.warn('No HOD user found or HOD user missing email for department:', department ? department.code : null);
-        }
-        // Send confirmation to student
+        // Send emails sequentially (non-blocking for API, but rate-limited between emails)
         // Prepare deduplicated course details for email
         const coursesDeduped = [];
         const seenCodes = new Set();
@@ -477,18 +463,41 @@ router.post('/draft/submit',
           emailStatus = 'Change Requested';
         }
         
-        console.log(`Sending enrollment status email to student: ${student.email} (${student.first_name} ${student.last_name}), status: ${emailStatus}`);
-        await sendEnrollmentStatusEmail({
-          student,
-          enrollment: draft,
-          courses: coursesDeduped,
-          degree: { name: degreeName, code: degreeCode },
-          department: { name: departmentName, code: departmentCode },
-          status: emailStatus,
-          hod: hodUser || {},
-          rejection_reason: draft.rejection_reason || '',
-        });
-        console.log('Student status email sent successfully');
+        // Send emails in sequence (fire-and-forget but chained for rate limiting)
+        (async () => {
+          try {
+            // First: Send to HOD
+            if (hodUser && hodUser.email) {
+              console.log(`Sending enrollment approval email to HOD: ${hodUser.email} (${hodUser.first_name} ${hodUser.last_name})`);
+              await sendEnrollmentApprovalEmail({
+                ...draft.get({ plain: true }),
+                student,
+                degree,
+                department,
+                courseList
+              }, hodUser, true);
+              console.log('HOD approval email sent');
+            } else {
+              console.warn('No HOD user found or HOD user missing email for department:', department ? department.code : null);
+            }
+            
+            // Second: Send to student (will wait for rate limit automatically)
+            console.log(`Sending enrollment status email to student: ${student.email} (${student.first_name} ${student.last_name}), status: ${emailStatus}`);
+            await sendEnrollmentStatusEmail({
+              student,
+              enrollment: draft,
+              courses: coursesDeduped,
+              degree: { name: degreeName, code: degreeCode },
+              department: { name: departmentName, code: departmentCode },
+              status: emailStatus,
+              hod: hodUser || {},
+              rejection_reason: draft.rejection_reason || '',
+            });
+            console.log('Student status email sent');
+          } catch (err) {
+            console.error('Failed to send enrollment emails:', err);
+          }
+        })();
       } catch (emailErr) {
         console.error('Failed to send enrollment approval/confirmation email:', emailErr);
       }

@@ -90,9 +90,10 @@ router.post('/approve',
             department = await Department.findOne({ where: { code: enrollment.department_code } });
           }
           
-          // Send email to student
-          try {
-            await sendEnrollmentStatusEmail({
+          // Return enrollment with email data (send later)
+          return {
+            updated,
+            emailData: {
               student: enrollment.student,
               enrollment: updated,
               courses: coursesForEmail,
@@ -100,20 +101,30 @@ router.post('/approve',
               department,
               status: 'Approved',
               hod: req.user
-            });
+            }
+          };
+        })
+      );
+      
+      // Send emails sequentially in background (fire-and-forget with rate limiting)
+      (async () => {
+        for (const { emailData } of updatedEnrollments) {
+          try {
+            await sendEnrollmentStatusEmail(emailData);
+            console.log(`Sent approval email to ${emailData.student.email}`);
           } catch (err) {
             console.error('Failed to send approval email to student:', err);
           }
-          return updated;
-        })
-      );
+        }
+      })();
+      
       // Add message to Message table if provided
       const Message = require('../models/Message');
       if (req.body.message) {
-        for (const enrollment of updatedEnrollments) {
+        for (const { updated } of updatedEnrollments) {
           await Message.create({
             type: 'enrollment',
-            reference_id: enrollment.id,
+            reference_id: updated.id,
             sender_id: req.user.id,
             message: req.body.message,
           });
@@ -121,7 +132,7 @@ router.post('/approve',
       }
       res.json({
         message: `${updatedEnrollments.length} enrollment(s) approved successfully`,
-        enrollments: updatedEnrollments
+        enrollments: updatedEnrollments.map(e => e.updated)
       });
     } catch (error) {
       console.error('Error approving enrollments:', error);
@@ -202,9 +213,10 @@ router.post('/reject',
             department = await Department.findOne({ where: { code: enrollment.department_code } });
           }
           
-          // Send email to student
-          try {
-            await sendEnrollmentStatusEmail({
+          // Return enrollment with email data (send later)
+          return {
+            updated,
+            emailData: {
               student: enrollment.student,
               enrollment: updated,
               courses: coursesForEmail,
@@ -213,27 +225,36 @@ router.post('/reject',
               status: 'Change Requested',
               hod: req.user,
               rejection_reason
-            });
-          } catch (err) {
-            console.error('Failed to send rejection email to student:', err);
-          }
-          return updated;
+            }
+          };
         })
       );
       
+      // Send emails sequentially in background (fire-and-forget with rate limiting)
+      (async () => {
+        for (const { emailData } of updatedEnrollments) {
+          try {
+            await sendEnrollmentStatusEmail(emailData);
+            console.log(`Sent rejection email to ${emailData.student.email}`);
+          } catch (err) {
+            console.error('Failed to send rejection email to student:', err);
+          }
+        }
+      })();
+      
       // Always add rejection reason to Message table
       const Message = require('../models/Message');
-      for (const enrollment of updatedEnrollments) {
+      for (const { updated } of updatedEnrollments) {
         await Message.create({
           type: 'enrollment',
-          reference_id: enrollment.id,
+          reference_id: updated.id,
           sender_id: req.user.id,
           message: req.body.message ? req.body.message : `Change requested: ${rejection_reason}`,
         });
       }
       res.json({
         message: `${updatedEnrollments.length} enrollment(s) rejected successfully`,
-        enrollments: updatedEnrollments
+        enrollments: updatedEnrollments.map(e => e.updated)
       });
     } catch (error) {
       console.error('Error rejecting enrollments:', error);

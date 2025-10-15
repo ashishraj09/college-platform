@@ -603,11 +603,9 @@ router.patch(
         });
         if (hod) {
           const { sendDegreeApprovalEmail } = require('../utils/email');
-          try {
-            await sendDegreeApprovalEmail(degree, hod);
-          } catch (emailErr) {
+          sendDegreeApprovalEmail(degree, hod).catch(emailErr => {
             console.error('Failed to send degree approval email to HOD:', emailErr);
-          }
+          });
         }
       } catch (notifyErr) {
         console.error('Error finding HOD or sending notification:', notifyErr);
