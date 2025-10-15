@@ -43,15 +43,13 @@ router.get('/',
 
       // Helper: Filter enrollments for HOD by department
       async function filterHODDepartment(enrollments, user, query) {
-        let deptCode = query.department_code;
-        if (!deptCode && user.department_id) {
-          const dept = await Department.findOne({ where: { id: user.department_id } });
-          if (dept) deptCode = dept.code;
-        }
+        let deptCode = query.department_code || user.department_code;
+        
         if (deptCode) {
           return enrollments.filter(e => e.department_code === deptCode);
         } else {
-          const students = await User.findAll({ where: { department_id: user.department_id } });
+          // Fallback: get students by department_code if available
+          const students = await User.findAll({ where: { department_code: user.department_code } });
           const studentIds = students.map(s => s.id);
           return enrollments.filter(e => studentIds.includes(e.student_id));
         }
@@ -99,11 +97,11 @@ router.get('/',
         if (userType === 'hod') {
           const student = await User.findOne({
             where: { id: enrollment.student_id },
-            attributes: ['id', 'first_name', 'last_name', 'student_id', 'degree_id']
+            attributes: ['id', 'first_name', 'last_name', 'student_id', 'degree_code']
           });
           let degree = null;
-          if (student && student.degree_id) {
-            degree = await Degree.findOne({ where: { id: student.degree_id }, attributes: ['id', 'name', 'code'] });
+          if (student && student.degree_code) {
+            degree = await Degree.findOne({ where: { code: student.degree_code }, attributes: ['id', 'name', 'code'] });
           }
           shaped.student = {
             id: student.id,
@@ -253,12 +251,7 @@ router.put('/draft',
 
       if (!draft) {
         // Get department code from user
-        let department_code = null;
-        if (req.user.department_id) {
-          const Department = await models.Department();
-          const dept = await Department.findOne({ where: { id: req.user.department_id } });
-          if (dept) department_code = dept.code;
-        }
+        const department_code = req.user.department_code || null;
         // Ensure course_codes are codes
         const course_codes_clean = Array.from(new Set(course_codes));
         draft = await Enrollment.create({
@@ -377,12 +370,7 @@ router.post('/draft/submit',
           return res.status(400).json({ error: 'One or more course codes are invalid', found: courses.map(c => c.code), requested: course_codes_clean });
         }
         // Get department code from user
-        let department_code = null;
-        if (req.user.department_id) {
-          const Department = await models.Department();
-          const dept = await Department.findOne({ where: { id: req.user.department_id } });
-          if (dept) department_code = dept.code;
-        }
+        const department_code = req.user.department_code || null;
         draft = await Enrollment.create({
           student_id: req.user.id,
           academic_year: academicYear,
@@ -436,21 +424,22 @@ router.post('/draft/submit',
         if (deptCode) {
           department = await Department.findOne({ where: { code: deptCode } });
           if (department) {
-            hodUser = await User.findOne({ where: { department_id: department.id, is_head_of_department: true } });
+            hodUser = await User.findOne({ where: { department_code: deptCode, is_head_of_department: true } });
           }
         }
         // Attach student and course info for emails
         const student = await User.findOne({ where: { id: draft.student_id } });
-        if (student && student.degree_id) {
+        if (student && student.degree_code) {
           degree = await Degree.findOne({ where: { code: student.degree_code } });
         }
         // Deduplicate course codes before querying
-  const courseCodes = Array.from(new Set(draft.course_codes || []));
-  const Course = await models.Course();
-  const courses = await Course.findAll({ where: { code: { [Op.in]: courseCodes } } });
-  const courseList = courses.map(c => `${c.name} (${c.code})`);
+        const courseCodes = Array.from(new Set(draft.course_codes || []));
+        const Course = await models.Course();
+        const courses = await Course.findAll({ where: { code: { [Op.in]: courseCodes } } });
+        const courseList = courses.map(c => `${c.name} (${c.code})`);
         // Send to HOD
         if (hodUser && hodUser.email) {
+          console.log(`Sending enrollment approval email to HOD: ${hodUser.email} (${hodUser.first_name} ${hodUser.last_name})`);
           await sendEnrollmentApprovalEmail({
             ...draft.get({ plain: true }),
             student,
@@ -458,6 +447,7 @@ router.post('/draft/submit',
             department,
             courseList
           }, hodUser, true);
+          console.log('HOD approval email sent successfully');
         } else {
           console.warn('No HOD user found or HOD user missing email for department:', department ? department.code : null);
         }
@@ -476,16 +466,29 @@ router.post('/draft/submit',
         const departmentCode = department ? department.code : '';
         const degreeName = degree ? degree.name : '';
         const degreeCode = degree ? degree.code : '';
+        
+        // Format status for email template
+        let emailStatus = 'Submitted';
+        if (draft.enrollment_status === 'pending_hod_approval') {
+          emailStatus = 'Submitted';
+        } else if (draft.enrollment_status === 'approved') {
+          emailStatus = 'Approved';
+        } else if (draft.enrollment_status === 'change_requested') {
+          emailStatus = 'Change Requested';
+        }
+        
+        console.log(`Sending enrollment status email to student: ${student.email} (${student.first_name} ${student.last_name}), status: ${emailStatus}`);
         await sendEnrollmentStatusEmail({
           student,
           enrollment: draft,
           courses: coursesDeduped,
           degree: { name: degreeName, code: degreeCode },
           department: { name: departmentName, code: departmentCode },
-          status: draft.enrollment_status === 'change_requested' ? 'Change Requested' : draft.enrollment_status,
+          status: emailStatus,
           hod: hodUser || {},
           rejection_reason: draft.rejection_reason || '',
         });
+        console.log('Student status email sent successfully');
       } catch (emailErr) {
         console.error('Failed to send enrollment approval/confirmation email:', emailErr);
       }

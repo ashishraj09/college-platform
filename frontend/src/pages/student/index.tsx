@@ -13,8 +13,8 @@ const StudentDashboard: React.FC = () => {
 
   return (
     <Container maxWidth="xl">
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
+      <Box sx={{ mb: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <Typography variant="h4" gutterBottom>
           My Degree - Course Enrollment
         </Typography>
         <Typography variant="body1" color="textSecondary">

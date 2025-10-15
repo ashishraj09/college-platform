@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enrollment - Changes Requested - {{APP_NAME}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #ff9800; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .warning-badge { display: inline-block; background-color: #ff9800; color: white; padding: 8px 16px; border-radius: 4px; font-weight: bold; margin: 10px 0; }
+        .info-box { background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0; }
+        .feedback-box { background-color: #fff8e1; border: 2px solid #ff9800; padding: 20px; border-radius: 4px; margin: 20px 0; }
+        .course-list { background-color: white; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .course-item { padding: 8px 0; border-bottom: 1px solid #e0e0e0; }
+        .course-item:last-child { border-bottom: none; }
+        .button { display: inline-block; background-color: #ff9800; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Changes Requested for Your Enrollment</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{STUDENT_NAME}},</h2>
+            
+            <div class="info-box">
+                <p style="margin: 0; font-size: 16px;">
+                    Your enrollment for <strong>Semester {{SEMESTER}}</strong> ({{ACADEMIC_YEAR}}) has been reviewed by your Head of Department. Some changes are requested before final approval.
+                </p>
+            </div>
+
+            <p><strong>Reviewed by:</strong> {{HOD_NAME}}, Head of Department</p>
+            
+            <h3>Enrollment Details</h3>
+            <p><strong>Degree:</strong> {{DEGREE_NAME}} ({{DEGREE_CODE}})</p>
+            <p><strong>Department:</strong> {{DEPARTMENT_NAME}} ({{DEPARTMENT_CODE}})</p>
+            <p><strong>Academic Year:</strong> {{ACADEMIC_YEAR}}</p>
+            <p><strong>Semester:</strong> {{SEMESTER}}</p>
+
+            <h3>Current Course Selection</h3>
+            <div class="course-list">
+                {{#each COURSES}}
+                    <div class="course-item">
+                        <strong>{{name}}</strong> ({{code}}) - {{credits}} credits
+                    </div>
+                {{/each}}
+            </div>
+
+            {{#if REJECTION_REASON}}
+            <h3>Requested Changes</h3>
+            <div class="feedback-box">
+                <p style="margin: 0; font-size: 15px; line-height: 1.8;">{{REJECTION_REASON}}</p>
+            </div>
+            {{/if}}
+
+            <div class="info-box">
+                <p style="margin: 0;">
+                    <strong>What to do next:</strong><br>
+                    • Review the feedback from your Head of Department<br>
+                    • Make the necessary changes to your course selection<br>
+                    • Resubmit your enrollment for approval<br>
+                    • Contact the department office if you need clarification
+                </p>
+            </div>
+
+            <p>Please log in to the enrollment portal to make the requested changes and resubmit your enrollment.</p>
+
+            <p>If you have any questions about the requested changes, please contact your department office or schedule a meeting with your Head of Department.</p>
+
+            <p>Best regards,<br>{{APP_NAME}} Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2025 {{APP_NAME}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

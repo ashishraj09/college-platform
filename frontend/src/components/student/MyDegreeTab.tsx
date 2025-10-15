@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -46,9 +46,10 @@ interface SemesterData {
 }
 
 // Main student degree/enrollment tab component
-const MyDegreeTab: React.FC = () => {
+  const MyDegreeTab: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
+  const hasLoadedData = useRef(false); // Prevent duplicate API calls
   // UI and data state
   const [activeTab, setActiveTab] = useState(0); // Tab selection
   const [loading, setLoading] = useState(true); // Loading spinner
@@ -154,6 +155,8 @@ const MyDegreeTab: React.FC = () => {
       enqueueSnackbar('Enrollment draft saved successfully', { variant: 'success' });
       if (response && response.draft) {
         setCurrentDraft(response.draft);
+        setDraftEnrollment(response.draft);
+        setHasDraftEnrollment(true);
         if (Array.isArray(response.draft.course_codes)) {
           setSelectedCourses(Array.from(new Set(response.draft.course_codes)));
         } else {
@@ -181,16 +184,49 @@ const MyDegreeTab: React.FC = () => {
   const confirmSubmitEnrollment = async () => {
     setDraftLoading(true);
     try {
-      if (!currentDraft) {
-        await handleSaveDraft();
+      // Always save the draft first to ensure latest course selection is persisted
+      const saveResponse = await enrollmentAPI.saveDraft({ 
+        enrollment_id: currentDraft?.id || '', 
+        course_codes: selectedCourses 
+      });
+      
+      // Update the current draft with the saved response
+      if (saveResponse && saveResponse.draft) {
+        setCurrentDraft(saveResponse.draft);
       }
-      await enrollmentAPI.submitForApproval({ enrollment_id: currentDraft?.id || '' });
+      
+      // Now submit for approval
+      const draftId = saveResponse?.draft?.id || currentDraft?.id;
+      if (!draftId) {
+        throw new Error('No draft ID available for submission');
+      }
+      
+      await enrollmentAPI.submitForApproval({ enrollment_id: draftId });
       enqueueSnackbar('Enrollment submitted successfully', { variant: 'success' });
       setConfirmationOpen(false);
       setEnrollmentInitiated(false);
       setSelectedCourses([]);
-      checkActiveEnrollmentStatus();
-      fetchDraft();
+      setCurrentDraft(null);
+      
+      // Reload enrollment data to show the pending status
+      const enrollmentsData = await enrollmentAPI.getAllEnrollments();
+      if (Array.isArray(enrollmentsData)) {
+        setActiveEnrollments(enrollmentsData);
+        
+        const semester = getCurrentSemester();
+        const pendingEnrollments = enrollmentsData.filter((e: any) => 
+          e.semester === semester && 
+          e.enrollment_status !== 'approved' && 
+          e.enrollment_status !== 'draft' && 
+          e.enrollment_status !== 'rejected'
+        );
+        
+        if (pendingEnrollments.length > 0) {
+          setHasActiveEnrollment(true);
+          setHasDraftEnrollment(false);
+          setDraftEnrollment(null);
+        }
+      }
     } catch (error) {
       console.error('Error submitting enrollment:', error);
       enqueueSnackbar('Failed to submit enrollment', { variant: 'error' });
@@ -215,30 +251,36 @@ const MyDegreeTab: React.FC = () => {
   // Get available courses for current semester enrollment
   const getAvailableCoursesForEnrollment = (): CourseWithEnrollmentStatus[] => {
     const currentSemester = getCurrentSemester();
+    if (!Array.isArray(degreeCourses.courses)) return [];
     return degreeCourses.courses.filter((course: CourseWithEnrollmentStatus) =>
       course.semester === currentSemester &&
       !course.isEnrolled &&
-      isCourseRegisterable(course)
+      isCourseRegisterable(course, hasDraftEnrollment)
     );
   };
 
-  // Check if course is registerable for current semester
-  const isCourseRegisterable = (course: CourseWithEnrollmentStatus): boolean => {
-    try {
-      const coursesPerSem = degreeCourses.courses_per_semester || {};
-      const semKey = String(course.semester);
-      const semConfig = coursesPerSem[semKey];
-      if (!semConfig) return false;
+// Check if course is registerable for current semester
+const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateCheck: boolean = false): boolean => {
+  try {
+    const coursesPerSem = degreeCourses.courses_per_semester || {};
+    const semKey = String(course.semester);
+    const semConfig = coursesPerSem[semKey];
+    if (!semConfig) return false;
+    
+    // If we have a draft enrollment, ignore the date check to show the courses
+    if (!ignoreDateCheck) {
       const start = degreeCourses.enrollment_start_at ? new Date(degreeCourses.enrollment_start_at) : null;
       const end = degreeCourses.enrollment_end_at ? new Date(degreeCourses.enrollment_end_at) : null;
       const now = new Date();
       if (start && now < start) return false;
       if (end && now > end) return false;
-      return course.semester === getCurrentSemester();
-    } catch {
-      return false;
     }
-  };
+    
+    return course.semester === getCurrentSemester();
+  } catch {
+    return false;
+  }
+};
 
   // Get required number of courses for a semester
   const getRequiredCoursesForSemester = (semester: number): number => {
@@ -388,19 +430,137 @@ const MyDegreeTab: React.FC = () => {
     } catch {}
   }, [getCurrentSemester]);
 
-  // Initial load: fetch degree courses and enrollment status
-  useEffect(() => {
-    let isMounted = true;
-    const loadAll = async () => {
-      await fetchDegreeCourses();
-      await checkActiveEnrollmentStatus();
-      if (isMounted && hasDraftEnrollment && !currentDraft) {
-        await fetchDraft();
+// Initial load: fetch degree courses and enrollment status
+useEffect(() => {
+  // Prevent duplicate loads - but only if we've already loaded data successfully
+  if (hasLoadedData.current) {
+    console.log('🛑 Skipping load - data already loaded');
+    return;
+  }
+  
+  // Don't attempt to load if we don't have user data yet
+  if (!user) {
+    console.log('⏳ Waiting for user data...');
+    return;
+  }
+  
+  let isMounted = true;
+  const loadAll = async () => {
+    console.log('🚀 Loading enrollment data...');
+    setLoading(true);
+    try {
+      const semester = getCurrentSemester();
+      const degreeCodeCandidate = user?.degree_code || user?.degree?.code;
+      
+      console.log('📡 Calling APIs - Degree:', degreeCodeCandidate, 'Semester:', semester);
+      
+      // Call both APIs in parallel
+      const [enrollmentsData, degreeData] = await Promise.all([
+        enrollmentAPI.getAllEnrollments(),
+        degreeCodeCandidate 
+          ? enrollmentAPI.getEnrollmentsByDegree(degreeCodeCandidate, { semester })
+          : enrollmentAPI.getMyDegreeCourses(semester)
+      ]);
+      
+      console.log('✅ API responses received:', { enrollmentsData, degreeData });
+      
+      // Process degree/courses data
+        if (degreeData && (degreeData as any).degree && Array.isArray((degreeData as any).courses)) {
+          const processedData = {
+            degree: (degreeData as any).degree,
+            courses: (degreeData as any).courses,
+            enrollment_start_at: (degreeData as any).enrollment_dates?.enrollment_start,
+            enrollment_end_at: (degreeData as any).enrollment_dates?.enrollment_end,
+            courses_per_semester: {
+              [semester]: { count: (degreeData as any).enrollment_dates?.count }
+            }
+          };
+          setDegreeCourses(processedData);
+          
+          // Build course code map
+          const codeMap: Record<string, CourseWithEnrollmentStatus> = {};
+          (degreeData as any).courses.forEach((course: CourseWithEnrollmentStatus) => {
+            codeMap[course.code] = course;
+          });
+          setCourseCodeMap(codeMap);
+          
+          // Set current semester courses
+          const currentCourses = (degreeData as any).courses.filter(
+            (course: CourseWithEnrollmentStatus) => course.semester === semester
+          );
+          setCurrentSemesterCourses(currentCourses);
+          
+          // Set course requirements
+          const requirements: { [key: string]: number } = {};
+          if ((degreeData as any).enrollment_dates?.count) {
+            requirements[semester] = parseInt((degreeData as any).enrollment_dates.count, 10);
+          }
+          setCourseRequirements(requirements);
+        }
+        
+        // Process enrollment data
+        if (Array.isArray(enrollmentsData)) {
+          setActiveEnrollments(enrollmentsData);
+          
+          // Find draft enrollment for current semester
+          const draftEnrollment = enrollmentsData.find((e: any) => e.enrollment_status === 'draft' && e.semester === semester);
+          
+          // Find pending enrollments (submitted but not approved/rejected)
+          const pendingEnrollments = enrollmentsData.filter((e: any) => 
+            e.semester === semester && 
+            e.enrollment_status !== 'approved' && 
+            e.enrollment_status !== 'draft' && 
+            e.enrollment_status !== 'rejected'
+          );
+          
+          // Find approved enrollment for current semester
+          const approvedEnrollment = enrollmentsData.find((e: any) => 
+            e.enrollment_status === 'approved' && e.semester === semester
+          );
+          
+          if (pendingEnrollments.length > 0) {
+            // Pending enrollment exists - can't modify
+            setHasActiveEnrollment(true);
+            setHasDraftEnrollment(false);
+            setDraftEnrollment(null);
+            setEnrollmentInitiated(false);
+            setSelectedCourses([]);
+          } else if (draftEnrollment && !approvedEnrollment) {
+            // Draft exists and no approved enrollment - show it
+            setHasDraftEnrollment(true);
+            setEnrollmentInitiated(true);
+            setCurrentDraft(draftEnrollment);
+            setDraftEnrollment(draftEnrollment);
+            setHasActiveEnrollment(false);
+            
+            // Pre-select courses from draft
+            if (Array.isArray(draftEnrollment.course_codes)) {
+              setSelectedCourses(Array.from(new Set(draftEnrollment.course_codes)));
+            }
+          } else {
+            // No draft, no pending, or has approved
+            setHasActiveEnrollment(false);
+            setHasDraftEnrollment(false);
+            setDraftEnrollment(null);
+            if (approvedEnrollment) {
+              setEnrollmentInitiated(false);
+              setSelectedCourses([]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading enrollment data:', error);
+        enqueueSnackbar('Failed to load enrollment data', { variant: 'error' });
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
+    
     loadAll();
     return () => { isMounted = false; };
-  }, []);
+  }, [user, getCurrentSemester, enqueueSnackbar]);
 
   // Show loading spinner while fetching data
   if (loading) {
@@ -429,10 +589,33 @@ const MyDegreeTab: React.FC = () => {
         <Box>
           {hasActiveEnrollment && !hasDraftEnrollment ? (
             <>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <WarningIcon color="warning" />
-                Pending Enrollment Requests
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <WarningIcon color="warning" />
+                  Pending Enrollment Requests
+                </Typography>
+                {activeEnrollments.filter(e => e.enrollment_status !== 'approved').length > 0 && (
+                  <Button 
+                    variant="text"
+                    color="primary"
+                    startIcon={<Timeline />}
+                    sx={{ textTransform: 'none', fontWeight: 500, fontSize: 16, minWidth: 0, px: 1, mr: { sm: 2, xs: 0 }, textDecoration: 'underline' }}
+                    onClick={() => {
+                      const pendingEnrollment = activeEnrollments.find(e => e.enrollment_status !== 'approved');
+                      if (pendingEnrollment) {
+                        const courses = Array.isArray(pendingEnrollment.courses) && pendingEnrollment.courses.length > 0
+                          ? pendingEnrollment.courses
+                          : (pendingEnrollment.course_codes || []).map((code: string) => degreeCourses.courses?.find((c: any) => c.code === code)).filter(Boolean);
+                        if (courses.length > 0) {
+                          handleShowTimeline(courses[0], pendingEnrollment.id);
+                        }
+                      }
+                    }}
+                  >
+                    Timeline
+                  </Button>
+                )}
+              </Box>
               <Paper sx={{ mb: 3 }}>
                 <List>
                   {activeEnrollments
@@ -619,10 +802,32 @@ const MyDegreeTab: React.FC = () => {
                   if (displayCourses.length > 0) {
                     return (
                       <div id="course-selection-area" data-testid="available-courses">
-                        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: hasActiveEnrollment ? 0 : 0 }}>
-                          <SchoolIcon />
-                          Available Courses for {hasDraftEnrollment ? 'Enrollment' : 'Semester ' + getCurrentSemester()}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: hasActiveEnrollment ? 0 : 0 }}>
+                            <SchoolIcon />
+                            Available Courses for {hasDraftEnrollment ? 'Enrollment' : 'Semester ' + getCurrentSemester()}
+                          </Typography>
+                          {hasDraftEnrollment && draftEnrollment && (
+                            <Button 
+                              variant="text"
+                              color="primary"
+                              startIcon={<Timeline />}
+                              sx={{ textTransform: 'none', fontWeight: 500, fontSize: 16, minWidth: 0, px: 1, mr: { sm: 2, xs: 0 }, textDecoration: 'underline' }}
+                              onClick={() => {
+                                const courses = Array.isArray(draftEnrollment.courses) && draftEnrollment.courses.length > 0
+                                  ? draftEnrollment.courses
+                                  : (draftEnrollment.course_codes || []).map((code: string) => degreeCourses.courses?.find((c: any) => c.code === code)).filter(Boolean);
+                                if (courses.length > 0) {
+                                  handleShowTimeline(courses[0], draftEnrollment.id);
+                                } else if (displayCourses.length > 0) {
+                                  handleShowTimeline(displayCourses[0], draftEnrollment.id);
+                                }
+                              }}
+                            >
+                              Timeline
+                            </Button>
+                          )}
+                        </Box>
                         <Paper sx={{ mb: 3 }}>
                           <List>
                             {displayCourses.map((course, index) => (

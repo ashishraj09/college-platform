@@ -64,6 +64,10 @@ async function sendEmail({ to, subject, html, text }) {
 
 // Send template-based email
 async function sendTemplateEmail(templateName, to, subject, variables = {}) {
+  console.log(`[Email] Preparing to send email using template: ${templateName}`);
+  console.log(`[Email] Recipient: ${to}`);
+  console.log(`[Email] Subject: ${subject}`);
+  
   const html = await renderTemplate(templateName, {
     ...variables,
     FRONTEND_URL: process.env.FRONTEND_URL,
@@ -71,6 +75,7 @@ async function sendTemplateEmail(templateName, to, subject, variables = {}) {
     APP_NAME: process.env.FROM_NAME,
     YEAR: new Date().getFullYear(),
   });
+  
   return await sendEmail({ to, subject, html });
 }
 
@@ -113,6 +118,7 @@ async function sendEnrollmentApprovalEmail(enrollment, approver, isHOD = true) {
   const subject = `Student Enrollment ${approverType} Approval Required: ${studentName}`;
   const enrollmentUrl = `${process.env.FRONTEND_URL}/enrollments/${enrollment.id}/review`;
   return await sendTemplateEmail('enrollment-approval', approver.email, subject, {
+    HOD_NAME: `${approver.first_name} ${approver.last_name}`,
     APPROVER_NAME: `${approver.first_name} ${approver.last_name}`,
     STUDENT_NAME: studentName,
     STUDENT_ID: enrollment.student ? enrollment.student.student_id : '',
@@ -139,19 +145,25 @@ async function sendEnrollmentConfirmationEmail(enrollment) {
   });
 }
 
-async function sendEnrollmentStatusEmail({ student, enrollment, courses, status, hod, rejection_reason }) {
+async function sendEnrollmentStatusEmail({ student, enrollment, courses, status, hod, rejection_reason, degree, department }) {
   let subject, templateName;
   let statusFormatted = status;
+  
+  // Choose template and subject based on status
   if (statusFormatted === 'Submitted') {
     subject = 'Enrollment Submitted for Approval';
+    templateName = 'enrollment-status';
   } else if (statusFormatted === 'Approved') {
     subject = 'Your Enrollment Has Been Approved';
+    templateName = 'enrollment-approved';
   } else if (statusFormatted === 'Change Requested') {
-    subject = 'Change Requested';
+    subject = 'Changes Requested for Your Enrollment';
+    templateName = 'enrollment-change-requested';
   } else {
     subject = `Enrollment Status: ${statusFormatted}`;
+    templateName = 'enrollment-status';
   }
-  templateName = 'enrollment-status';
+  
   return await sendTemplateEmail(templateName, student.email, subject, {
     STUDENT_NAME: `${student.first_name} ${student.last_name}`,
     ENROLLMENT_ID: enrollment.id,

@@ -534,39 +534,68 @@ export const enrollmentsAPI = {
 // --- New Enrollment API (Using course codes) ---
 export const enrollmentAPI = {
   // Student endpoints
-  getAllEnrollments: async () => (await api.get('/enrollments')).data,
-  createDraft: async (payload: { course_codes: string[], semester: number, degree_code: string, department_code: string }) => {
-  // Backend no longer exposes /enrollments/draft; fetch drafts via enrollments list
-  const { course_codes, semester, department_code } = payload as any;
-  // Send department_code to backend
-  const result = await enrollmentsAPI.getEnrollments();
-  return result;
+  getAllEnrollments: async () => {
+    try {
+      return (await api.get('/enrollments')).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
   },
-  saveDraft: async (payload: { enrollment_id: string, course_codes: string[], department_code?: string }) => 
-    (await api.put('/enrollments/draft', { enrollment_id: payload.enrollment_id, course_codes: payload.course_codes, department_code: payload.department_code })).data,
-  submitForApproval: async (payload: { enrollment_id: string }) => 
-    (await api.post('/enrollments/draft/submit')).data,
-  getMyDegreeCourses: async (params?: any) => 
-    (await api.get('/enrollments/my-degree-courses', { params })).data,
+  createDraft: async (payload: { course_codes: string[], semester: number, degree_code: string, department_code: string }) => {
+    try {
+      // Backend no longer exposes /enrollments/draft; fetch drafts via enrollments list
+      const { course_codes, semester, department_code } = payload as any;
+      // Send department_code to backend
+      const result = await enrollmentsAPI.getEnrollments();
+      return result;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  saveDraft: async (payload: { enrollment_id: string, course_codes: string[], department_code?: string }) => {
+    try {
+      return (await api.put('/enrollments/draft', { enrollment_id: payload.enrollment_id, course_codes: payload.course_codes, department_code: payload.department_code })).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  submitForApproval: async (payload: { enrollment_id: string }) => {
+    try {
+      return (await api.post('/enrollments/draft/submit')).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  getMyDegreeCourses: async (params?: any) => {
+    try {
+      return (await api.get('/enrollments/my-degree-courses', { params })).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
   checkActiveEnrollmentStatus: async () => {
-    // Backend now returns a plain array at GET /enrollments.
-    // Fetch all enrollments for the current user and compute derived fields client-side.
-    const enrollments: any[] = await enrollmentsAPI.getEnrollments();
+    try {
+      // Backend now returns a plain array at GET /enrollments.
+      // Fetch all enrollments for the current user and compute derived fields client-side.
+      const enrollments: any[] = await enrollmentsAPI.getEnrollments();
 
-    const activeEnrollments = Array.isArray(enrollments) ? enrollments : [];
-    const hasDraft = activeEnrollments.some(e => e.enrollment_status === 'draft');
-    const draftEnrollment = activeEnrollments.find(e => e.enrollment_status === 'draft') || null;
+      const activeEnrollments = Array.isArray(enrollments) ? enrollments : [];
+      const hasDraft = activeEnrollments.some(e => e.enrollment_status === 'draft');
+      const draftEnrollment = activeEnrollments.find(e => e.enrollment_status === 'draft') || null;
 
-    return {
-      activeEnrollments,
-      hasDraft,
-      draftEnrollment
-    };
+      return {
+        activeEnrollments,
+        hasDraft,
+        draftEnrollment
+      };
+    } catch (err: any) {
+      return handleApiError(err);
+    }
   },
   
   // HOD endpoints
-  getPendingApprovals: async (params?: { degree_code?: string, semester?: number, search?: string }) => 
-    (async (params?: any) => {
+  getPendingApprovals: async (params?: { degree_code?: string, semester?: number, search?: string }) => {
+    try {
       const { data } = await api.get('/enrollment/pending-approvals', { params });
       // Normalize to object with pendingApprovals array
       if (!data) return { pendingApprovals: [] };
@@ -574,45 +603,100 @@ export const enrollmentAPI = {
       if (Array.isArray(data.pendingApprovals)) return data;
       // Some backends may return { pendingApprovals: [] } nested under data.degree, etc.
       return { pendingApprovals: [] };
-    })(),
-  approveEnrollments: async (payload: { enrollment_ids: string[] }) => 
-    (await api.post('/enrollment/approve', payload)).data,
-  rejectEnrollments: async (payload: { enrollment_ids: string[], rejection_reason: string }) => 
-    (await api.post('/enrollment/reject', payload)).data,
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  approveEnrollments: async (payload: { enrollment_ids: string[] }) => {
+    try {
+      return (await api.post('/enrollment/approve', payload)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  rejectEnrollments: async (payload: { enrollment_ids: string[], rejection_reason: string }) => {
+    try {
+      return (await api.post('/enrollment/reject', payload)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
   // Individual enrollment approval/rejection
-  approveEnrollment: async (enrollmentId: string) => 
-    (await api.post('/enrollment/approve', { enrollment_ids: [enrollmentId] })).data,
-  rejectEnrollment: async (enrollmentId: string, rejectionReason: string) => 
-    (await api.post('/enrollment/reject', { enrollment_ids: [enrollmentId], rejection_reason: rejectionReason })).data,
+  approveEnrollment: async (enrollmentId: string) => {
+    try {
+      return (await api.post('/enrollment/approve', { enrollment_ids: [enrollmentId] })).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  rejectEnrollment: async (enrollmentId: string, rejectionReason: string) => {
+    try {
+      return (await api.post('/enrollment/reject', { enrollment_ids: [enrollmentId], rejection_reason: rejectionReason })).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
   // Get enrollments by degree code (new helper calling backend /enrollment/degree/:code)
   getEnrollmentsByDegree: async (degreeCode: string, params?: { semester?: number; academic_year?: string; status?: string }) => {
-    const { data } = await api.get(`/enrollment/degree/${degreeCode}`, { params });
-    // Normalize response: expect { degree, enrollment_dates, courses }
-    if (!data) return { degree: null, enrollment_dates: {}, courses: [] };
-    return {
-      degree: data.degree || null,
-      enrollment_dates: data.enrollment_dates || {},
-      courses: Array.isArray(data.courses) ? data.courses : []
-    };
+    try {
+      const { data } = await api.get(`/enrollment/degree/${degreeCode}`, { params });
+      // Normalize response: expect { degree, enrollment_dates, courses }
+      if (!data) return { degree: null, enrollment_dates: {}, courses: [] };
+      return {
+        degree: data.degree || null,
+        enrollment_dates: data.enrollment_dates || {},
+        courses: Array.isArray(data.courses) ? data.courses : []
+      };
+    } catch (err: any) {
+      return handleApiError(err);
+    }
   },
-};
-
-// --- Message API ---
-export const messageAPI = {
-  getInbox: (userId: string) => api.get(`/messages/inbox/${userId}`),
-  getSent: (userId: string) => api.get(`/messages/sent/${userId}`),
-  sendMessage: (data: any) => api.post('/messages', data),
-  deleteMessage: (id: string) => api.delete(`/messages/${id}`),
 };
 
 // --- Timeline API (entityType + entityId) ---
 export const timelineAPI = {
-  getTimeline: async (entityType: string, entityId: string) => (await api.get(`/timeline/${entityType}/${entityId}`)).data,
-  getTimelineForUser: async (userId: string) => (await api.get(`/timeline/user/${userId}`)).data,
-  getTimelineForDepartment: async (departmentId: string) => (await api.get(`/timeline/department/${departmentId}`)).data,
-  createTimelineEvent: async (payload: any) => (await api.post('/timeline', payload)).data,
-  updateTimelineEvent: async (id: string, payload: any) => (await api.put(`/timeline/${id}`, payload)).data,
-  deleteTimelineEvent: async (id: string) => (await api.delete(`/timeline/${id}`)).data,
+  getTimeline: async (entityType: string, entityId: string) => {
+    try {
+      return (await api.get(`/timeline/${entityType}/${entityId}`)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  getTimelineForUser: async (userId: string) => {
+    try {
+      return (await api.get(`/timeline/user/${userId}`)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  getTimelineForDepartment: async (departmentId: string) => {
+    try {
+      return (await api.get(`/timeline/department/${departmentId}`)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  createTimelineEvent: async (payload: any) => {
+    try {
+      return (await api.post('/timeline', payload)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  updateTimelineEvent: async (id: string, payload: any) => {
+    try {
+      return (await api.put(`/timeline/${id}`, payload)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  deleteTimelineEvent: async (id: string) => {
+    try {
+      return (await api.delete(`/timeline/${id}`)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
 };
 
 export default api;

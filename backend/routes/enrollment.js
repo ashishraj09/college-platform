@@ -54,7 +54,7 @@ router.post('/approve',
         include: [{ model: User, as: 'student' }]
       });
       // Filter enrollments to only those in HOD's department
-      const validEnrollments = enrollments.filter(e => e.student.department_id === req.user.department_id);
+      const validEnrollments = enrollments.filter(e => e.student.department_code === req.user.department_code);
       if (validEnrollments.length === 0) {
         return res.status(404).json({ error: 'No valid enrollments found for approval' });
       }
@@ -69,13 +69,36 @@ router.post('/approve',
           });
           // Fetch course details
           const courses = await Course.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
+          
+          // Format courses for email with name, code, and credits
+          const coursesForEmail = courses.map(c => ({
+            name: c.name,
+            code: c.code,
+            credits: c.credits
+          }));
+          
+          // Fetch degree and department for email
+          const Degree = require('../models/Degree');
+          const Department = require('../models/Department');
+          let degree = null;
+          let department = null;
+          
+          if (enrollment.student.degree_code) {
+            degree = await Degree.findOne({ where: { code: enrollment.student.degree_code } });
+          }
+          if (enrollment.department_code) {
+            department = await Department.findOne({ where: { code: enrollment.department_code } });
+          }
+          
           // Send email to student
           try {
             await sendEnrollmentStatusEmail({
               student: enrollment.student,
               enrollment: updated,
-              courses,
-              status: 'approved',
+              courses: coursesForEmail,
+              degree,
+              department,
+              status: 'Approved',
               hod: req.user
             });
           } catch (err) {
@@ -136,7 +159,7 @@ router.post('/reject',
       
       // Check if all enrollments belong to the HOD's department
       const validEnrollments = enrollments.filter(enrollment => 
-        enrollment.student.department_id === req.user.department_id
+        enrollment.student.department_code === req.user.department_code
       );
       
       if (validEnrollments.length !== enrollments.length) {
@@ -158,13 +181,36 @@ router.post('/reject',
           });
           // Fetch course details
           const courses = await Course.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
+          
+          // Format courses for email with name, code, and credits
+          const coursesForEmail = courses.map(c => ({
+            name: c.name,
+            code: c.code,
+            credits: c.credits
+          }));
+          
+          // Fetch degree and department for email
+          const Degree = require('../models/Degree');
+          const Department = require('../models/Department');
+          let degree = null;
+          let department = null;
+          
+          if (enrollment.student.degree_code) {
+            degree = await Degree.findOne({ where: { code: enrollment.student.degree_code } });
+          }
+          if (enrollment.department_code) {
+            department = await Department.findOne({ where: { code: enrollment.department_code } });
+          }
+          
           // Send email to student
           try {
             await sendEnrollmentStatusEmail({
               student: enrollment.student,
               enrollment: updated,
-              courses,
-              status: 'change_requested',
+              courses: coursesForEmail,
+              degree,
+              department,
+              status: 'Change Requested',
               hod: req.user,
               rejection_reason
             });
@@ -255,8 +301,7 @@ router.get('/degree/:code',
 
           // Search by degree name as well
           const nameMatches = await Degree.findAll({
-            where: { name: { [Op.iLike]: `%${codeStr}%` } },
-            limit: 10
+            where: { name: { [Op.iLike]: `%${codeStr}%` } }
           });
           nameMatches.forEach(m => {
             if (!suggestions.some(s => s.id === m.id)) {
@@ -274,46 +319,47 @@ router.get('/degree/:code',
       const currentYear = new Date().getFullYear();
       const defaultAcademicYear = `${currentYear}-${currentYear + 1}`;
 
-          // Get enrollment start/end dates for the semester from degree.courses_per_semester only
-          let enrollmentDates = {};
-          let perSemesterObj = degree.courses_per_semester;
-          if (typeof perSemesterObj === 'string' && perSemesterObj.trim().length > 0) {
-            try {
-              perSemesterObj = JSON.parse(perSemesterObj);
-            } catch (e) {
-              perSemesterObj = {};
-            }
-          }
-          const semKey = String(semester);
-          if (perSemesterObj && typeof perSemesterObj === 'object' && perSemesterObj[semKey]) {
-            enrollmentDates = {
-              enrollment_start: perSemesterObj[semKey].enrollment_start,
-              enrollment_end: perSemesterObj[semKey].enrollment_end,
-              count: perSemesterObj[semKey].count
-            };
-          }
+      // Get enrollment start/end dates for the semester from degree.courses_per_semester only
+      let enrollmentDates = {};
+      let perSemesterObj = degree.courses_per_semester;
+      if (typeof perSemesterObj === 'string' && perSemesterObj.trim().length > 0) {
+        try {
+          perSemesterObj = JSON.parse(perSemesterObj);
+        } catch (e) {
+          perSemesterObj = {};
+        }
+      }
+      const semKey = String(semester);
+      if (perSemesterObj && typeof perSemesterObj === 'object' && perSemesterObj[semKey]) {
+        enrollmentDates = {
+          enrollment_start: perSemesterObj[semKey].enrollment_start,
+          enrollment_end: perSemesterObj[semKey].enrollment_end,
+          count: perSemesterObj[semKey].count
+        };
+      }
 
-          // Fetch all active courses for this degree and semester
-          const courseWhere = { degree_id: degree.id, status: 'active' };
-          if (semester) courseWhere.semester = parseInt(semester);
-          let courses = await Course.findAll({
-            where: courseWhere,
-            attributes: ['id', 'name', 'code', 'semester', 'credits', 'version', 'status']
-          });
-          // Remove duplicate courses by id
-          const seen = new Set();
-          courses = courses.filter(course => {
-            if (seen.has(course.id)) return false;
-            seen.add(course.id);
-            return true;
-          });
+      // Fetch all active courses for this degree and semester using degree_code (not degree_id)
+      const courseWhere = { degree_code: degree.code, status: 'active' };
+      if (semester) courseWhere.semester = parseInt(semester);
+      let courses = await Course.findAll({
+        where: courseWhere,
+        attributes: ['id', 'name', 'code', 'semester', 'credits', 'version', 'status']
+      });
 
-          console.log(`Found ${courses.length} active courses for degree ${degree.code} semester ${semester}`);
-          res.json({
-            degree: { id: degree.id, name: degree.name, code: degree.code },
-            enrollment_dates: enrollmentDates,
-            courses: courses
-          });
+      // Remove duplicate courses by id
+      const seen = new Set();
+      courses = courses.filter(course => {
+        if (seen.has(course.id)) return false;
+        seen.add(course.id);
+        return true;
+      });
+
+      console.log(`Found ${courses.length} active courses for degree ${degree.code} semester ${semester}`);
+      res.json({
+        degree: { id: degree.id, name: degree.name, code: degree.code },
+        enrollment_dates: enrollmentDates,
+        courses: courses
+      });
     } catch (error) {
       console.error('Error fetching enrollments by degree code:', error);
       res.status(500).json({ error: 'Failed to fetch enrollments for degree' });

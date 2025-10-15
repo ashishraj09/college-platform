@@ -132,14 +132,17 @@ const EnrollmentApprovalsTab: React.FC = () => {
   // Get department_code from user context
   const { user } = useAuth();
   const departmentCode = user?.department?.code || user?.department_code || '';
-  const [approvalInProgress, setApprovalInProgress] = useState(false);
+  
+  // Track which specific action is in progress: 'bulk-approve', 'bulk-reject', or student ID for individual actions
+  const [processingAction, setProcessingAction] = useState<string | null>(null);
 
   const loadPendingApprovals = React.useCallback(async () => {
     try {
       setLoading(true);
   const params: any = {
     page: pagination.page,
-    limit: pagination.limit
+    limit: pagination.limit,
+    status: 'pending_hod_approval' // Only fetch enrollments pending HOD approval
   };
   if (selectedDegree) params.degree_id = selectedDegree;
   if (selectedSemester) params.semester = selectedSemester;
@@ -270,6 +273,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
     if (selectedEnrollments.length === 0) return;
 
     try {
+      setProcessingAction('bulk-approve');
       await enrollmentAPI.approveEnrollments({
         enrollment_ids: selectedEnrollments
       });
@@ -280,6 +284,8 @@ const EnrollmentApprovalsTab: React.FC = () => {
     } catch (err) {
       setError('Failed to approve enrollments');
       console.error(err);
+    } finally {
+      setProcessingAction(null);
     }
   };
 
@@ -287,6 +293,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
     if (selectedEnrollments.length === 0 || !rejectionReason.trim()) return;
 
     try {
+      setProcessingAction('bulk-reject');
       await enrollmentAPI.rejectEnrollments({
         enrollment_ids: selectedEnrollments,
         rejection_reason: rejectionReason
@@ -299,15 +306,17 @@ const EnrollmentApprovalsTab: React.FC = () => {
     } catch (err) {
       setError('Failed to reject enrollments');
       console.error(err);
+    } finally {
+      setProcessingAction(null);
     }
   };
 
   // Individual approval/rejection handlers
   const handleIndividualApprove = async (group: GroupedEnrollment) => {
-    if (approvalInProgress) return;
+    if (processingAction) return;
     
     try {
-      setApprovalInProgress(true);
+      setProcessingAction(`approve-${group.student.id}`);
       const enrollmentIds = group.enrollments.map(e => e.id);
       
       await enrollmentAPI.approveEnrollments({
@@ -320,7 +329,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
       setError('Failed to approve enrollment');
       console.error(err);
     } finally {
-      setApprovalInProgress(false);
+      setProcessingAction(null);
     }
   };
 
@@ -328,6 +337,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
     if (!individualRejectionGroup || !individualRejectionReason.trim()) return;
     
     try {
+      setProcessingAction(`reject-${individualRejectionGroup.student.id}`);
       const enrollmentIds = individualRejectionGroup.enrollments.map(e => e.id);
       
       await enrollmentAPI.rejectEnrollments({
@@ -343,6 +353,8 @@ const EnrollmentApprovalsTab: React.FC = () => {
     } catch (err) {
       setError('Failed to reject enrollment');
       console.error(err);
+    } finally {
+      setProcessingAction(null);
     }
   };
 
@@ -448,18 +460,20 @@ const EnrollmentApprovalsTab: React.FC = () => {
             <Button
               variant="contained"
               color="success"
-              startIcon={<ApproveIcon />}
+              startIcon={processingAction === 'bulk-approve' ? <CircularProgress size={20} color="inherit" /> : <ApproveIcon />}
               onClick={() => setApprovalDialog(true)}
+              disabled={processingAction !== null || loading}
             >
-              Approve Selected
+              {processingAction === 'bulk-approve' ? 'Processing...' : 'Approve Selected'}
             </Button>
             <Button
               variant="contained"
               color="error"
-              startIcon={<RejectIcon />}
+              startIcon={processingAction === 'bulk-reject' ? <CircularProgress size={20} color="inherit" /> : <RejectIcon />}
               onClick={() => setRejectionDialog(true)}
+              disabled={processingAction !== null || loading}
             >
-              Request Changes for Selected
+              {processingAction === 'bulk-reject' ? 'Processing...' : 'Request Changes for Selected'}
             </Button>
           </Box>
         </Paper>
@@ -559,10 +573,11 @@ const EnrollmentApprovalsTab: React.FC = () => {
                         }}
                         variant="outlined"
                         color="error"
-                        startIcon={<RejectIcon />}
+                        startIcon={processingAction === `reject-${group.student.id}` ? <CircularProgress size={20} color="inherit" /> : <RejectIcon />}
                         sx={{ mb: { xs: 1, sm: 0 }, mr: { sm: 2, xs: 0 } }}
+                        disabled={processingAction !== null || loading}
                       >
-                        Request Change
+                        {processingAction === `reject-${group.student.id}` ? 'Processing...' : 'Request Change'}
                       </Button>
                       <Button
                         onClick={(e) => {
@@ -571,9 +586,10 @@ const EnrollmentApprovalsTab: React.FC = () => {
                         }}
                         variant="contained"
                         color="success"
-                        startIcon={<ApproveIcon />}
+                        startIcon={processingAction === `approve-${group.student.id}` ? <CircularProgress size={20} color="inherit" /> : <ApproveIcon />}
+                        disabled={processingAction !== null || loading}
                       >
-                        Approve
+                        {processingAction === `approve-${group.student.id}` ? 'Approving...' : 'Approve'}
                       </Button>
                     </Box>
                   </Box>
@@ -614,11 +630,24 @@ const EnrollmentApprovalsTab: React.FC = () => {
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 2, pb: 2, justifyContent: 'flex-end' }}>
-          <Button onClick={() => setApprovalDialog(false)} variant="outlined" color="inherit" sx={{ borderRadius: 1, minWidth: 120, fontWeight: 500, fontSize: 16, py: 1, px: 3, mx: 1 }}>
+          <Button 
+            onClick={() => setApprovalDialog(false)} 
+            variant="outlined" 
+            color="inherit" 
+            sx={{ borderRadius: 1, minWidth: 120, fontWeight: 500, fontSize: 16, py: 1, px: 3, mx: 1 }}
+            disabled={processingAction === 'bulk-approve'}
+          >
             Cancel
           </Button>
-          <Button onClick={handleApprove} variant="contained" color="success" startIcon={<ApproveIcon />} sx={{ borderRadius: 1, minWidth: 120, fontWeight: 600, fontSize: 16, py: 1, px: 3, mx: 1, boxShadow: 1 }}>
-            Approve
+          <Button 
+            onClick={handleApprove} 
+            variant="contained" 
+            color="success" 
+            startIcon={processingAction === 'bulk-approve' ? <CircularProgress size={20} color="inherit" /> : <ApproveIcon />} 
+            sx={{ borderRadius: 1, minWidth: 120, fontWeight: 600, fontSize: 16, py: 1, px: 3, mx: 1, boxShadow: 1 }}
+            disabled={processingAction === 'bulk-approve'}
+          >
+            {processingAction === 'bulk-approve' ? 'Approving...' : 'Approve'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -641,18 +670,24 @@ const EnrollmentApprovalsTab: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRejectionDialog(false)} variant="outlined" color="inherit" sx={{ borderRadius: 1, minWidth: 120, fontWeight: 500, fontSize: 16, py: 1, px: 3, mx: 1 }}>
+          <Button 
+            onClick={() => setRejectionDialog(false)} 
+            variant="outlined" 
+            color="inherit" 
+            sx={{ borderRadius: 1, minWidth: 120, fontWeight: 500, fontSize: 16, py: 1, px: 3, mx: 1 }}
+            disabled={processingAction === 'bulk-reject'}
+          >
             Cancel
           </Button>
           <Button 
             onClick={handleReject} 
             variant="contained" 
             color="error"
-            startIcon={<RejectIcon />}
-            disabled={!rejectionReason.trim()}
+            startIcon={processingAction === 'bulk-reject' ? <CircularProgress size={20} color="inherit" /> : <RejectIcon />}
+            disabled={!rejectionReason.trim() || processingAction === 'bulk-reject'}
             sx={{ borderRadius: 1, minWidth: 120, fontWeight: 600, fontSize: 16, py: 1, px: 3, mx: 1, boxShadow: 1 }}
           >
-            Request Change
+            {processingAction === 'bulk-reject' ? 'Processing...' : 'Request Change'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -711,14 +746,22 @@ const EnrollmentApprovalsTab: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIndividualRejectionDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={() => setIndividualRejectionDialog(false)} 
+            variant="outlined" 
+            color="inherit"
+            disabled={!!individualRejectionGroup && processingAction === `reject-${individualRejectionGroup.student.id}`}
+          >
+            Cancel
+          </Button>
           <Button 
             onClick={handleIndividualReject} 
             variant="contained" 
             color="error"
-            disabled={!individualRejectionReason.trim()}
+            startIcon={!!individualRejectionGroup && processingAction === `reject-${individualRejectionGroup.student.id}` ? <CircularProgress size={20} color="inherit" /> : <RejectIcon />}
+            disabled={!individualRejectionReason.trim() || (!!individualRejectionGroup && processingAction === `reject-${individualRejectionGroup.student.id}`)}
           >
-            Request Change
+            {!!individualRejectionGroup && processingAction === `reject-${individualRejectionGroup.student.id}` ? 'Processing...' : 'Request Change'}
           </Button>
         </DialogActions>
       </Dialog>
