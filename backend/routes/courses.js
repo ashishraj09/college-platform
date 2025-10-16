@@ -1082,7 +1082,7 @@ router.get('/:id/can-edit',
 // Submit course for approval (Faculty only)
 router.patch('/:id/submit',
   authenticateToken,
-  captureOriginalData(Course, 'id'),
+  captureOriginalData('Course', 'id'),
   auditMiddleware('update', 'course', 'Course submitted for approval'),
   async (req, res) => {
     try {
@@ -1247,7 +1247,7 @@ router.patch('/:id/reject',
   handleValidationErrors,
   authenticateToken,
   authorizeRoles('faculty', 'admin'),
-  captureOriginalData(Course, 'id'),
+  captureOriginalData('Course', 'id'),
   auditMiddleware('update', 'course', 'Course rejected'),
   async (req, res) => {
     try {
@@ -1385,7 +1385,7 @@ router.put('/:id',
   authorizeRoles('faculty', 'admin'),
   courseValidation,
   handleValidationErrors,
-  captureOriginalData(Course, 'id'),
+  captureOriginalData('Course', 'id'),
   auditMiddleware('update', 'course', 'Course updated'),
   async (req, res) => {
     try {
@@ -1495,7 +1495,7 @@ router.put('/:id',
 router.delete('/:id',
   authenticateToken,
   authorizeRoles('faculty', 'admin'),
-  captureOriginalData(Course, 'id'),
+  captureOriginalData('Course', 'id'),
   auditMiddleware('delete', 'course', 'Course deleted'),
   async (req, res) => {
     try {

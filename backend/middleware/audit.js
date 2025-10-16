@@ -10,6 +10,7 @@
  */
 
 const { AuditLog } = require('../models');
+const { getModel } = require('../utils/getModel');
 
 const logAuditEvent = async (userId, action, entityType, entityId = null, oldValues = null, newValues = null, metadata = null, description = null, ip_address = null, user_agent = null) => {
   // Logs a single audit event to the database
@@ -106,15 +107,18 @@ const auditMiddleware = (action, entityType, description = null) => {
   };
 };
 
-const captureOriginalData = (model, idField = 'id') => {
+const captureOriginalData = (modelName, idField = 'id') => {
   /**
    * Middleware to capture original data before update/delete
-   * Usage: captureOriginalData(User, 'id')
+   * Usage: captureOriginalData('User', 'id')
+   * @param {string} modelName - Name of the model (e.g., 'User', 'Course')
+   * @param {string} idField - Name of the ID field in params (default: 'id')
    */
   return async (req, res, next) => {
     try {
       const id = req.params[idField];
       if (id) {
+        const model = await getModel(modelName);
         const originalData = await model.findByPk(id);
         if (originalData) {
           req.originalData = originalData.toJSON();

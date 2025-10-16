@@ -237,11 +237,7 @@ router.put('/:id',
  */
   authenticateToken,
   authorizeRoles('admin', 'office'),
-  async (req, res, next) => {
-  // Use helper for models
-  const { User } = await getModels();
-  return captureOriginalData(User, 'id')(req, res, next);
-  },
+  captureOriginalData('User', 'id'),
   [
     body('first_name').optional().trim().isLength({ min: 1, max: 50 }).withMessage('First name must be less than 50 characters'),
     body('last_name').optional().trim().isLength({ min: 1, max: 50 }).withMessage('Last name must be less than 50 characters'),
@@ -307,11 +303,7 @@ router.delete('/:id',
  */
   authenticateToken,
   authorizeRoles('admin'),
-  async (req, res, next) => {
-  // Use helper for models
-  const { User } = await getModels();
-  return captureOriginalData(User, 'id')(req, res, next);
-  },
+  captureOriginalData('User', 'id'),
   auditMiddleware('delete', 'user', 'User deleted'),
   async (req, res) => {
     try {

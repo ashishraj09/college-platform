@@ -454,11 +454,7 @@ router.put(
   authorizeRoles('faculty', 'admin'),
   degreeValidation,
   handleValidationErrors,
-  async (req, res, next) => {
-    // Per-request model load to avoid global state in serverless
-    const { Degree } = await require('../utils/models').getMany('Degree');
-    return captureOriginalData(Degree, 'id')(req, res, next);
-  },
+  captureOriginalData('Degree', 'id'),
   auditMiddleware('update', 'degree', 'Degree updated'),
   async (req, res) => {
     try {
@@ -708,10 +704,7 @@ router.delete(
   '/:id',
   authenticateToken,
   authorizeRoles('faculty', 'admin'),
-  async (req, res, next) => {
-    const { Degree } = await require('../utils/models').getMany('Degree');
-    return captureOriginalData(Degree, 'id')(req, res, next);
-  },
+  captureOriginalData('Degree', 'id'),
   auditMiddleware('delete', 'degree', 'Degree deleted'),
   async (req, res) => {
     try {
