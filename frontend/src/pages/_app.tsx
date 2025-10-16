@@ -5,6 +5,7 @@ import { store } from '../store/store';
 import '../index.css';
 import '../App.css';
 import '../styles/globals.css';
+import { Analytics } from '@vercel/analytics/react';
 
 
 import DashboardLayout from '../layouts/DashboardLayout';
@@ -18,6 +19,7 @@ function MyApp({ Component, pageProps }: AppProps) {
     <Provider store={store}>
       <AuthProvider>
         {getLayout(<Component {...pageProps} />)}
+        <Analytics />
       </AuthProvider>
     </Provider>
   );
