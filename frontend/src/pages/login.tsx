@@ -16,6 +16,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import { useAppDispatch } from '../hooks/redux';
 import { setUser } from '../store/slices/authSlice';
 import { authAPI } from '../services/api';
@@ -120,6 +121,22 @@ const LoginPage: React.FC = () => {
         >
           <CardContent sx={{ p: 4 }}>
             <Box textAlign="center" mb={4}>
+              <Box 
+                sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  mb: 3 
+                }}
+              >
+                <Image
+                  src="/static/college-logo.png"
+                  alt="College Logo"
+                  width={120}
+                  height={120}
+                  style={{ objectFit: 'contain' }}
+                  priority
+                />
+              </Box>
               <Typography variant="h4" component="h1" gutterBottom fontWeight="bold">
                 College Platform
               </Typography>
