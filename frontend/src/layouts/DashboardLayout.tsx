@@ -67,7 +67,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               style={{ height: 40, marginRight: 14, background: 'transparent', borderRadius: 8 }}
             />
             <Typography variant="h6" component="div" sx={{ fontWeight: 700, textAlign: 'left', letterSpacing: 0.5 }}>
-              {process.env.REACT_APP_APP_NAME || 'College Platform'}
+              {process.env.NEXT_PUBLIC_APP_NAME}
             </Typography>
           </Box>
           

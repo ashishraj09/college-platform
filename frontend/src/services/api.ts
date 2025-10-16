@@ -1,7 +1,11 @@
 // src/services/api.ts
 
 import axios from 'axios';
+
+// Next.js requires NEXT_PUBLIC_ prefix for client-side env vars
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+console.log('🔗 API Base URL:', API_BASE_URL); // Debug log to verify env var is loaded
 
 // Create axios instance
 const api = axios.create({
@@ -19,7 +23,7 @@ api.interceptors.request.use(
     // Add dev bypass header if enabled
     if (
       process.env.NODE_ENV === 'development' &&
-      process.env.REACT_APP_BYPASS_AUTH === 'true'
+      process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true'
     ) {
       config.headers['X-Dev-Bypass-Auth'] = 'true';
     }
@@ -252,7 +256,7 @@ export const coursesAPI = {
         throw new Error('Department ID is required');
       }
       // For HOD view - shows all department courses
-      if (process.env.REACT_APP_HOD_VIEW === 'true') {
+      if (process.env.NEXT_PUBLIC_HOD_VIEW === 'true') {
         return (await api.get('/courses/department-courses', { params: { departmentId: deptId } })).data;
       }
       // Regular faculty view - shows only their own courses
