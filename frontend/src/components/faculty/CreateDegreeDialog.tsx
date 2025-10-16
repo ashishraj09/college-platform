@@ -103,6 +103,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
@@ -139,7 +140,12 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
       const departmentCode = user?.department?.code || '';
       
       if (mode === 'edit' && degree) {
-        setForm({ ...defaultForm, ...degree, department_code: departmentCode });
+        setInitialLoading(true);
+        // Simulate a small delay to show loader (or if fetching degree data)
+        setTimeout(() => {
+          setForm({ ...defaultForm, ...degree, department_code: departmentCode });
+          setInitialLoading(false);
+        }, 300);
       } else {
         setForm({ ...defaultForm, department_code: departmentCode });
       }
@@ -176,7 +182,10 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
 
   useEffect(() => {
     if (open) {
-      loadDepartments();
+      setInitialLoading(true);
+      loadDepartments().finally(() => {
+        setInitialLoading(false);
+      });
     }
   }, [open]);
 
@@ -319,32 +328,41 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
           {mode === 'edit' ? 'Edit Degree Program' : 'Create New Degree Program'}
         </DialogTitle>
         <DialogContent dividers sx={{ height: '70vh', overflow: 'hidden', p: 0 }}>
-          {error && (
-            <Alert severity="error" sx={{ m: 2 }}>
-              {error}
-              {Object.values(fieldErrors).filter(Boolean).length > 0 && (
-                <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
-                  {Object.entries(fieldErrors)
-                    .filter(([_, msg]) => !!msg)
-                    .map(([field, msg]) => (
-                      <li key={field}>{msg}</li>
-                    ))}
-                </ul>
+          {initialLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
+              <CircularProgress size={60} />
+              <Typography variant="body1" color="text.secondary">
+                {mode === 'edit' ? 'Loading degree...' : 'Loading form...'}
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              {error && (
+                <Alert severity="error" sx={{ m: 2 }}>
+                  {error}
+                  {Object.values(fieldErrors).filter(Boolean).length > 0 && (
+                    <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+                      {Object.entries(fieldErrors)
+                        .filter(([_, msg]) => !!msg)
+                        .map(([field, msg]) => (
+                          <li key={field}>{msg}</li>
+                        ))}
+                    </ul>
+                  )}
+                </Alert>
               )}
-            </Alert>
-          )}
-          <Tabs 
-            value={activeTab} 
-            onChange={handleTabChange}
-            sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
-          >
-            <Tab label="Basic Info" />
-            <Tab label="Program Details" />
-            <Tab label="Admission & Fees" />
-          </Tabs>
-          <Box sx={{ p: 3, height: 'calc(100% - 48px)', overflowY: 'auto' }}>
-            {/* Tab 0: Basic Information */}
-            {activeTab === 0 && (
+              <Tabs 
+                value={activeTab} 
+                onChange={handleTabChange}
+                sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+              >
+                <Tab label="Basic Info" />
+                <Tab label="Program Details" />
+                <Tab label="Admission & Fees" />
+              </Tabs>
+              <Box sx={{ p: 3, height: 'calc(100% - 48px)', overflowY: 'auto' }}>
+                {/* Tab 0: Basic Information */}
+                {activeTab === 0 && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField
                   required
@@ -634,6 +652,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
               </Box>
             )}
           </Box>
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose} disabled={loading}>

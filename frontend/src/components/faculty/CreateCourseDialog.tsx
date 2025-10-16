@@ -101,6 +101,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   // State management
   const [form, setForm] = useState<CourseForm>({...defaultForm});
   const [loading, setLoading] = useState<boolean>(false);
+  const [initialLoading, setInitialLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [owner, setOwner] = useState<any>(null);
   const [courseId, setCourseId] = useState<string | null>(null);
@@ -128,6 +129,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   // Load degrees and faculty when dialog opens
   useEffect(() => {
     if (open && user?.department?.code) {
+      setInitialLoading(true);
+      
       // Fetch degrees
       const fetchDegrees = async () => {
         try {
@@ -155,8 +158,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
         }
       };
 
-      fetchDegrees();
-      fetchFaculty();
+      Promise.all([fetchDegrees(), fetchFaculty()]).finally(() => {
+        setInitialLoading(false);
+      });
     }
   }, [open, user]);
 
@@ -170,7 +174,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
         setCourseId(course.id);
         const fetchCourseForEdit = async () => {
           try {
-            setLoading(true);
+            setInitialLoading(true);
             const response = await coursesAPI.getCourseForEdit(course.id as string);
             const courseData = response.course;
             setOwner(courseData.creator);
@@ -191,7 +195,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
           } catch (err) {
             setError('Failed to load course for editing');
           } finally {
-            setLoading(false);
+            setInitialLoading(false);
           }
         };
         fetchCourseForEdit();
@@ -595,31 +599,40 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       </DialogTitle>
       
       <DialogContent dividers sx={{ height: '70vh', overflow: 'hidden', p: 0 }}>
-        {!user?.department && (
-          <Alert severity="error" sx={{ m: 2 }}>
-            You must be assigned to a department to create courses. Please contact your administrator.
-          </Alert>
-        )}
-        
-        {error && (
-          <Alert severity="error" sx={{ m: 2 }}>
-            {error}
-          </Alert>
-        )}
-        
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange}
-          sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
-        >
-          <Tab label="Basic Information" />
-          <Tab label="Study Details" />
-          <Tab label="Faculty Details" />
-        </Tabs>
-        
-        <Box sx={{ p: 3, height: 'calc(100% - 48px)', overflowY: 'auto' }}>
-          {/* Tab 0: Basic Information */}
-          {activeTab === 0 && (
+        {initialLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
+            <CircularProgress size={60} />
+            <Typography variant="body1" color="text.secondary">
+              {mode === 'edit' ? 'Loading course...' : 'Loading form...'}
+            </Typography>
+          </Box>
+        ) : (
+          <>
+            {!user?.department && (
+              <Alert severity="error" sx={{ m: 2 }}>
+                You must be assigned to a department to create courses. Please contact your administrator.
+              </Alert>
+            )}
+            
+            {error && (
+              <Alert severity="error" sx={{ m: 2 }}>
+                {error}
+              </Alert>
+            )}
+            
+            <Tabs 
+              value={activeTab} 
+              onChange={handleTabChange}
+              sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+            >
+              <Tab label="Basic Information" />
+              <Tab label="Study Details" />
+              <Tab label="Faculty Details" />
+            </Tabs>
+            
+            <Box sx={{ p: 3, height: 'calc(100% - 48px)', overflowY: 'auto' }}>
+              {/* Tab 0: Basic Information */}
+              {activeTab === 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                 <TextField
@@ -841,6 +854,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
             </Box>
           )}
         </Box>
+          </>
+        )}
       </DialogContent>
 
       <DialogActions>
