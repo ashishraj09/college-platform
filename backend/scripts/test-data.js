@@ -66,7 +66,7 @@ async function seedTestData() {
   // Create Faculty Users (3 per department, one HOD)
   const facultyByDept = {};
   for (const dept of departments) {
-    facultyByDept[dept.id] = [];
+    facultyByDept[dept.code] = [];
     for (let f = 0; f < 3; f++) {
       const faculty = await User.create({
         id: uuidv4(),
@@ -76,12 +76,12 @@ async function seedTestData() {
         password: await hashPassword('password123'),
         user_type: 'faculty',
         employee_id: `EMP${dept.code}${f + 1}`,
-        department_id: dept.id,
+        department_code: dept.code,
         status: 'active',
         email_verified: true,
         is_head_of_department: f === 0, // First faculty is HOD
       });
-      facultyByDept[dept.id].push(faculty);
+      facultyByDept[dept.code].push(faculty);
     }
   }
 
@@ -136,14 +136,14 @@ async function seedTestData() {
     for (let j = 0; j < degreeTypes.length; j++) {
       const degreeType = degreeTypes[j];
       // Pick a non-HOD faculty (index 1 or 2)
-      const nonHodFaculty = facultyByDept[dept.id][1] || facultyByDept[dept.id][2];
+      const nonHodFaculty = facultyByDept[dept.code][1] || facultyByDept[dept.code][2];
       const degree = await Degree.create({
         id: uuidv4(),
         name: `MSc in ${degreeType.name}`,
         code: `${degreeType.code}`,
         description: `Master of Science in ${degreeType.name}`,
         duration_years: 2,
-        department_id: dept.id,
+        department_code: dept.code,
         status: 'active',
         courses_per_semester: { '1': 4, '2': 4 },
         created_by: nonHodFaculty.id,
@@ -190,13 +190,13 @@ async function seedTestData() {
       };
       
       // Get the department code from the degree's department
-      const deptCode = departments.find(d => d.id === degree.department_id).code;
+      const deptCode = departments.find(d => d.code === degree.department_code).code;
       const courses = coursesByDepartment[deptCode];
       
       for (let k = 0; k < courses.length; k++) {
         const course = courses[k];
         // Distribute courses among faculty members more evenly
-        const facultyList = facultyByDept[degree.department_id];
+        const facultyList = facultyByDept[degree.department_code];
         
         // Use faculty index based on a combination of course index and semester
         // This ensures different faculty members get assigned different courses
@@ -210,8 +210,8 @@ async function seedTestData() {
           overview: `${course.name} for ${semester === 1 ? 'beginning' : 'advanced'} graduate students.`,
           credits: 4,
           semester,
-          department_id: degree.department_id,
-          degree_id: degree.id,
+          department_code: degree.department_code,
+          degree_code: degree.code,
           status: 'active',
           study_details: {},
           faculty_details: {},
@@ -232,8 +232,8 @@ async function seedTestData() {
         password: await hashPassword('password123'),
         user_type: 'student',
         student_id: `STU${dept.code}${s + 1}`,
-        degree_id: degrees.find(d => d.department_id === dept.id).id,
-        department_id: dept.id,
+        degree_code: degrees.find(d => d.department_code === dept.code).code,
+        department_code: dept.code,
         status: 'active',
         email_verified: true,
         enrolled_year: 2025,
