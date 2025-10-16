@@ -12,7 +12,7 @@
  */
 
 const jwt = require('jsonwebtoken');
-const { User, initializeAssociations } = require('../models');
+const getModel = require('../utils/getModel');
 
 const authenticateToken = async (req, res, next) => {
   // Authenticates user by JWT token in cookie
@@ -34,12 +34,15 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     try {
-      // Associations are initialized once at startup; do not re-initialize here
+      // Get models using getModel utility for proper initialization
+      const User = await getModel('User');
+      const Department = await getModel('Department');
+      const Degree = await getModel('Degree');
       
       const user = await User.findByPk(decoded.userId, {
         include: [
-          { model: require('../models').Department, as: 'departmentByCode' },
-          { model: require('../models').Degree, as: 'degreeByCode' },
+          { model: Department, as: 'departmentByCode' },
+          { model: Degree, as: 'degreeByCode' },
         ],
       });
       
@@ -60,7 +63,7 @@ const authenticateToken = async (req, res, next) => {
       res.cookie('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production' ? true : false,
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
         maxAge: 60 * 60 * 1000 // 60 minutes
       });
       next();
