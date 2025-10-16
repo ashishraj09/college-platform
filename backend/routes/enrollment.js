@@ -2,6 +2,7 @@ const express = require('express');
 const { body, query, param } = require('express-validator');
 const router = express.Router();
 const { Enrollment, Course, User, Department, Degree } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -78,16 +79,16 @@ router.post('/approve',
           }));
           
           // Fetch degree and department for email
-          const Degree = require('../models/Degree');
-          const Department = require('../models/Department');
+          const DegreeModel = await models.Degree();
+          const DepartmentModel = await models.Department();
           let degree = null;
           let department = null;
           
           if (enrollment.student.degree_code) {
-            degree = await Degree.findOne({ where: { code: enrollment.student.degree_code } });
+            degree = await DegreeModel.findOne({ where: { code: enrollment.student.degree_code } });
           }
           if (enrollment.department_code) {
-            department = await Department.findOne({ where: { code: enrollment.department_code } });
+            department = await DepartmentModel.findOne({ where: { code: enrollment.department_code } });
           }
           
           // Return enrollment with email data (send later)
@@ -119,8 +120,8 @@ router.post('/approve',
       })();
       
       // Add message to Message table if provided
-      const Message = require('../models/Message');
       if (req.body.message) {
+        const Message = await models.Message();
         for (const { updated } of updatedEnrollments) {
           await Message.create({
             type: 'enrollment',
@@ -201,16 +202,16 @@ router.post('/reject',
           }));
           
           // Fetch degree and department for email
-          const Degree = require('../models/Degree');
-          const Department = require('../models/Department');
+          const DegreeModel = await models.Degree();
+          const DepartmentModel = await models.Department();
           let degree = null;
           let department = null;
           
           if (enrollment.student.degree_code) {
-            degree = await Degree.findOne({ where: { code: enrollment.student.degree_code } });
+            degree = await DegreeModel.findOne({ where: { code: enrollment.student.degree_code } });
           }
           if (enrollment.department_code) {
-            department = await Department.findOne({ where: { code: enrollment.department_code } });
+            department = await DepartmentModel.findOne({ where: { code: enrollment.department_code } });
           }
           
           // Return enrollment with email data (send later)
@@ -243,7 +244,7 @@ router.post('/reject',
       })();
       
       // Always add rejection reason to Message table
-      const Message = require('../models/Message');
+      const Message = await models.Message();
       for (const { updated } of updatedEnrollments) {
         await Message.create({
           type: 'enrollment',

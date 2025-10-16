@@ -1168,8 +1168,8 @@ router.patch('/:id/submit',
       });
 
       // Add message to messages table
-      const Message = require('../models/Message');
       if (req.body.message) {
+        const Message = await models.Message();
         await Message.create({
           type: 'course',
           reference_id: course.id,
@@ -1218,12 +1218,12 @@ router.patch('/:id/approve',
   auditMiddleware('update', 'course', 'Course approved'),
   async (req, res) => {
     const { Sequelize } = require('sequelize');
-    const Message = require('../models/Message');
     const sequelize = require('../config/database').sequelize;
     const transaction = await sequelize.transaction();
     try {
       // Get models for this request
       const Course = await models.Course();
+      const Message = await models.Message();
       
       const course = await Course.findByPk(req.params.id, { transaction });
       if (!course) {
@@ -1325,7 +1325,7 @@ router.patch('/:id/reject',
       });
 
       // Add rejection message to messages table
-      const Message = require('../models/Message');
+      const Message = await models.Message();
       await Message.create({
         type: 'course',
         reference_id: course.id,

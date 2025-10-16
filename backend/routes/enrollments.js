@@ -290,8 +290,8 @@ router.put('/draft',
       draftPlain.course_codes = course_codes;
 
       // Add message to Message table if provided
-      const Message = require('../models/Message');
       if (req.body.message) {
+        const Message = await models.Message();
         await Message.create({
           type: 'enrollment',
           reference_id: draft.id,
@@ -400,8 +400,8 @@ router.post('/draft/submit',
       });
 
       // Add message to Message table if provided
-      const Message = require('../models/Message');
       if (req.body.message) {
+        const Message = await models.Message();
         await Message.create({
           type: 'enrollment',
           reference_id: draft.id,

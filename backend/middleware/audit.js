@@ -9,12 +9,12 @@
  * - Enterprise-grade error handling and maintainability
  */
 
-const { AuditLog } = require('../models');
-const { getModel } = require('../utils/getModel');
+const getModel = require('../utils/getModel');
 
 const logAuditEvent = async (userId, action, entityType, entityId = null, oldValues = null, newValues = null, metadata = null, description = null, ip_address = null, user_agent = null) => {
   // Logs a single audit event to the database
   try {
+    const AuditLog = await getModel('AuditLog');
     await AuditLog.create({
       user_id: userId,
       action,

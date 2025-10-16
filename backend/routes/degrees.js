@@ -304,6 +304,7 @@ router.post(
   auditMiddleware('create', 'degree', 'Degree created'),
   async (req, res) => {
     try {
+      const { Degree, Department } = await models.getMany('Degree', 'Department');
       const { name, code, description, duration_years, department_id } = req.body;
       // Verify department exists and user belongs to it
       const department = await Department.findByPk(department_id);
@@ -458,11 +459,7 @@ router.put(
   auditMiddleware('update', 'degree', 'Degree updated'),
   async (req, res) => {
     try {
-      const { Degree, Department, User } = await require('../utils/models').getMany(
-        'Degree',
-        'Department',
-        'User'
-      );
+      const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
 
       const degree = await Degree.findByPk(req.params.id);
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
@@ -555,7 +552,7 @@ router.patch(
   auditMiddleware('update', 'degree', 'Degree submitted for approval'),
   async (req, res) => {
     try {
-      const { Degree, Message, User } = await require('../utils/models').getMany('Degree', 'Message', 'User');
+      const { Degree, Message, User } = await models.getMany('Degree', 'Message', 'User');
 
       const degree = await Degree.findByPk(req.params.id);
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
@@ -608,8 +605,9 @@ router.patch(
       }
 
       // Return updated degree
+      const Department = await models.Department();
       const updated = await Degree.findByPk(degree.id, {
-        include: [{ model: require('../models').Department, as: 'departmentByCode' }],
+        include: [{ model: Department, as: 'departmentByCode' }],
       });
 
       res.json({ message: 'Degree submitted for approval', degree: updated });
@@ -636,7 +634,7 @@ router.patch(
   authorizeRoles('faculty'),
   auditMiddleware('update', 'degree', 'Degree approved'),
   async (req, res) => {
-    const { Degree, Message } = await require('../utils/models').getMany('Degree', 'Message');
+    const { Degree, Message } = await models.getMany('Degree', 'Message');
     const sequelize = require('../config/database').sequelize;
     const transaction = await sequelize.transaction();
     try {
@@ -680,8 +678,9 @@ router.patch(
 
       await transaction.commit();
 
+      const Department = await models.Department();
       const updated = await Degree.findByPk(degree.id, {
-        include: [{ model: require('../models').Department, as: 'departmentByCode' }],
+        include: [{ model: Department, as: 'departmentByCode' }],
       });
 
       res.json({ message: 'Degree approved', degree: updated });
@@ -708,7 +707,7 @@ router.delete(
   auditMiddleware('delete', 'degree', 'Degree deleted'),
   async (req, res) => {
     try {
-      const { Degree, User, Course } = await require('../utils/models').getMany('Degree', 'User', 'Course');
+      const { Degree, User, Course } = await models.getMany('Degree', 'User', 'Course');
 
       const degree = await Degree.findByPk(req.params.id);
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
@@ -771,7 +770,7 @@ router.patch('/:id/publish',
   auditMiddleware('update', 'degree', 'Degree published/activated'),
   async (req, res) => {
     try {
-      const { Degree, Department, User } = await require('../utils/models').getMany('Degree', 'Department', 'User', 'Course');
+      const { Degree, Department, User, Course } = await models.getMany('Degree', 'Department', 'User', 'Course');
       const degree = await Degree.findByPk(req.params.id, {
         include: [
           { model: Department, as: 'departmentByCode' },
