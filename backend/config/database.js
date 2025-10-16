@@ -80,12 +80,30 @@ const defineModel = (modelName, attributes, options) => {
   // Store model definition for later use
   modelDefinitions[modelName] = { attributes, options };
   
-  // If we're in development and sequelize is already initialized, define the model immediately
-  if (process.env.NODE_ENV !== 'production' && sequelizeInstance) {
-    return sequelizeInstance.define(modelName, attributes, options);
+  // If sequelize is already initialized, define the model immediately
+  if (sequelizeInstance && isInitialized) {
+    console.log(`[defineModel] Defining model '${modelName}' immediately (sequelize ready)`);
+    if (!sequelizeInstance.models[modelName]) {
+      return sequelizeInstance.define(modelName, attributes, options);
+    } else {
+      console.log(`[defineModel] Model '${modelName}' already defined, returning existing`);
+      return sequelizeInstance.models[modelName];
+    }
   }
   
-  // In production, return a proxy that will lazily define the model when needed
+  // If we're in development, define immediately (backward compatibility)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[defineModel] Development mode - defining model '${modelName}' immediately`);
+    return sequelizeInstance?.define(modelName, attributes, options) || createLazyProxy(modelName);
+  }
+  
+  // In production before sequelize init, return a proxy that will lazily define the model
+  console.log(`[defineModel] Production mode - creating lazy proxy for model '${modelName}'`);
+  return createLazyProxy(modelName);
+};
+
+// Helper to create lazy proxy
+const createLazyProxy = (modelName) => {
   return new Proxy({}, {
     get: function(target, prop) {
       // Ensure we have a model instance to work with
@@ -97,6 +115,7 @@ const defineModel = (modelName, attributes, options) => {
         // Define model if it's not already defined
         if (!sequelizeInstance.models[modelName]) {
           const { attributes, options } = modelDefinitions[modelName];
+          console.log(`[LazyProxy] Defining model '${modelName}' on first access`);
           target.modelInstance = sequelizeInstance.define(modelName, attributes, options);
         } else {
           target.modelInstance = sequelizeInstance.models[modelName];
@@ -112,6 +131,31 @@ const defineModel = (modelName, attributes, options) => {
 // Get sequelize instance asynchronously - for use in production
 const getSequelize = async () => {
   return await initializeSequelize();
+};
+
+// Helper to eagerly define all stored models
+// Call this after Sequelize is initialized to convert lazy proxies to real models
+const defineAllModels = () => {
+  if (!sequelizeInstance || !isInitialized) {
+    console.warn('[defineAllModels] Sequelize not initialized yet');
+    return;
+  }
+  
+  console.log('[defineAllModels] Defining all stored models...');
+  const definedModels = [];
+  
+  for (const [modelName, { attributes, options }] of Object.entries(modelDefinitions)) {
+    if (!sequelizeInstance.models[modelName]) {
+      console.log(`[defineAllModels] Defining model: ${modelName}`);
+      sequelizeInstance.define(modelName, attributes, options);
+      definedModels.push(modelName);
+    } else {
+      console.log(`[defineAllModels] Model already defined: ${modelName}`);
+    }
+  }
+  
+  console.log(`[defineAllModels] Complete. Defined ${definedModels.length} models: ${definedModels.join(', ')}`);
+  console.log(`[defineAllModels] Available models: ${Object.keys(sequelizeInstance.models).join(', ')}`);
 };
 
 // Initialize immediately for development mode
@@ -165,5 +209,6 @@ if (process.env.NODE_ENV !== 'production') {
 module.exports = {
   sequelize: sequelizeInstance,
   getSequelize,
-  defineModel
+  defineModel,
+  defineAllModels
 };

@@ -42,7 +42,7 @@ app.set('trust proxy', true); // Trust proxy for rate limiting behind proxies
 // --------------------
 // Database & Models
 // --------------------
-const { sequelize, getSequelize } = require('./config/database');
+const { sequelize, getSequelize, defineAllModels } = require('./config/database');
 const models = require('./models');
 const { initializeAssociations } = require('./models/associations');
 
@@ -50,21 +50,64 @@ const { initializeAssociations } = require('./models/associations');
 // Startup Initialization
 // --------------------
 const runMode = process.env.RUN_MODE === 'serverless' ? 'serverless' : 'traditional';
-let associationsInitialized = false;
+let initializationPromise = null;
+let isFullyInitialized = false;
+
 async function startupInitialization() {
-  if (!associationsInitialized) {
-    try {
-      console.log(`[Startup] Initializing model associations for mode: ${runMode}`);
-      await initializeAssociations();
-      associationsInitialized = true;
-      console.log('[Startup] Model associations initialized successfully');
-    } catch (error) {
-      console.error('[Startup] Failed to initialize model associations:', error);
-    }
-  } else {
-    console.log('[Startup] Associations already initialized, skipping');
+  // Return existing initialization if in progress
+  if (initializationPromise) {
+    console.log('[Startup] Initialization already in progress, awaiting...');
+    return initializationPromise;
   }
+  
+  if (isFullyInitialized) {
+    console.log('[Startup] Already fully initialized, skipping');
+    return true;
+  }
+  
+  // Create initialization promise
+  initializationPromise = (async () => {
+    try {
+      console.log(`[Startup] Initializing for mode: ${runMode}`);
+      
+      // Step 1: Get Sequelize instance
+      const db = await getSequelize();
+      console.log('[Startup] Sequelize instance obtained');
+      
+      // Step 2: Ensure all models are loaded by requiring them
+      // This triggers model definition storage
+      const User = require('./models/User');
+      const Department = require('./models/Department');
+      const Degree = require('./models/Degree');
+      const Course = require('./models/Course');
+      const Enrollment = require('./models/Enrollment');
+      const AuditLog = require('./models/AuditLog');
+      const Message = require('./models/Message');
+      console.log('[Startup] All model files loaded');
+      
+      // Step 3: Eagerly define all models in Sequelize
+      defineAllModels();
+      
+      // Step 4: Verify models are in sequelize.models
+      console.log('[Startup] Available models:', Object.keys(db.models || {}));
+      
+      // Step 5: Initialize associations
+      await initializeAssociations();
+      console.log('[Startup] Model associations initialized successfully');
+      
+      isFullyInitialized = true;
+      return true;
+    } catch (error) {
+      console.error('[Startup] Failed to initialize:', error);
+      initializationPromise = null; // Reset so we can retry
+      throw error;
+    }
+  })();
+  
+  return initializationPromise;
 }
+
+// Start initialization immediately (don't await - let it run in background)
 startupInitialization();
 
 // --------------------
@@ -157,6 +200,26 @@ if (process.env.NODE_ENV !== 'production') {
 } else {
   app.use(morgan('combined'));
 }
+
+// --------------------
+// Initialization Guard Middleware
+// --------------------
+// This middleware ensures models and associations are initialized
+// before any request is processed - critical for serverless
+app.use(async (req, res, next) => {
+  try {
+    // Await initialization to complete before processing any request
+    await startupInitialization();
+    next();
+  } catch (error) {
+    console.error('[Init Guard] Initialization failed:', error);
+    res.status(503).json({
+      error: 'Service temporarily unavailable',
+      message: 'Database initialization in progress',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
 
 // --------------------
 // API Endpoints
@@ -363,22 +426,6 @@ const startServer = async () => {
 if (runMode === 'traditional') {
   startServer();
 }
-
-// For serverless deployment, initialize the database on each request
-app.use(async (req, res, next) => {
-  if (runMode === 'serverless') {
-    try {
-      const dbInstance = await getSequelize();
-      req.sequelize = dbInstance;
-      next();
-    } catch (error) {
-      console.error('Error initializing database in middleware:', error);
-      res.status(500).json({ error: 'Database connection error', details: error.message });
-    }
-  } else {
-    next();
-  }
-});
 
 // Export for serverless deployment
 module.exports = app;
