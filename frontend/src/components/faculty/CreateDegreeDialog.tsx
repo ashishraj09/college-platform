@@ -27,7 +27,11 @@ interface CreateDegreeDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   mode: 'create' | 'edit';
-  degree?: Partial<DegreeForm> & { id?: string };
+  degree?: Partial<DegreeForm> & { 
+    id?: string;
+    department_code?: string;
+    department?: { code: string; name: string };
+  };
 }
 
 interface DegreeForm {
@@ -35,7 +39,7 @@ interface DegreeForm {
   code: string;
   description: string;
   duration_years: number;
-  department_id: string;
+  department_code: string;
   degree_type: string;
   total_credits: number;
   courses_per_semester: { [semester: string]: { count: number | string; enrollment_start: string; enrollment_end: string } };
@@ -72,7 +76,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
         if (!value?.trim()) return 'Degree code is required';
         if (!/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
         break;
-      case 'department_id':
+      case 'department_code':
         if (!value) return 'Department selection is required';
         break;
       case 'degree_type':
@@ -107,7 +111,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     code: '',
     description: '',
     duration_years: 4,
-    department_id: '',
+    department_code: '',
     degree_type: 'Bachelor',
     total_credits: 120,
     courses_per_semester: {},
@@ -130,15 +134,13 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   // Initialize form when dialog opens or mode/degree changes
   useEffect(() => {
     if (open) {
-      // Always set department_id from user context if available
-      if (user?.department?.code) {
-        if (mode === 'edit' && degree) {
-          setForm({ ...defaultForm, ...degree, department_id: user.department.code });
-        } else {
-          setForm({ ...defaultForm, department_id: user.department.code });
-        }
+      // Always use the user's department code (faculty can only create/edit for their department)
+      const departmentCode = user?.department?.code || '';
+      
+      if (mode === 'edit' && degree) {
+        setForm({ ...defaultForm, ...degree, department_code: departmentCode });
       } else {
-        setForm(mode === 'edit' && degree ? { ...defaultForm, ...degree } : defaultForm);
+        setForm({ ...defaultForm, department_code: departmentCode });
       }
       setActiveTab(0);
       setError('');
@@ -208,7 +210,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   const handleSubmit = async () => {
 
     // Validate all required fields
-    const requiredFields = ['name', 'code', 'department_id', 'degree_type', 'total_credits', 'duration_years', 'description'];
+    const requiredFields = ['name', 'code', 'department_code', 'degree_type', 'total_credits', 'duration_years', 'description'];
     let hasError = false;
     const newErrors: { [key: string]: string } = {};
     requiredFields.forEach(field => {
@@ -222,7 +224,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     if (hasError) {
       setError('Please correct the errors before submitting');
       // Tab switching logic: find which tab has the first error
-      const tab0Fields = ['name', 'code', 'department_id', 'degree_type', 'total_credits', 'duration_years', 'description'];
+      const tab0Fields = ['name', 'code', 'department_code', 'degree_type', 'total_credits', 'duration_years', 'description'];
       const tab1Fields = ['specializations', 'career_prospects', 'accreditation', 'study_mode', 'learning_outcomes', 'assessment_methods', 'contact_information', 'application_process'];
       const tab2Fields = ['admission_requirements', 'entry_requirements', 'fees', 'location', 'application_deadlines'];
       if (tab0Fields.some(f => newErrors[f])) {
@@ -239,8 +241,8 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     setError('');
 
     try {
-      // Remove department_id and department object from payload, only send department_code
-      const { department_id, department, ...restForm } = form;
+      // Remove department object from payload if present, department_code is already in form
+      const { department, ...restForm } = form as any;
       const payload = {
         ...restForm,
         department_code: user?.department?.code,
@@ -369,39 +371,15 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                     <MenuItem value="Doctoral">Doctoral Degree</MenuItem>
                   </Select>
                 </FormControl>
-                <FormControl fullWidth required error={!!fieldErrors.department_id}>
-                  {user?.department?.code ? (
-                    <TextField
-                      fullWidth
-                      label="Department"
-                      value={`${user.department.name} (${user.department.code})`}
-                      disabled
-                      helperText="Degrees are automatically assigned to your department"
-                      variant="filled"
-                    />
-                  ) : (
-                    <>
-                      <InputLabel>Department</InputLabel>
-                      <Select
-                        value={form.department_id}
-                        label="Department"
-                        onChange={handleSelectChange('department_id')}
-                        error={!!fieldErrors.department_id}
-                        sx={fieldErrors.department_id ? { border: '1px solid #d32f2f' } : {}}
-                      >
-                        {departments.map((dept) => (
-                          <MenuItem key={dept.code} value={dept.code}>
-                            {dept.name} ({dept.code})
-                          </MenuItem>
-                        ))}
-                      </Select>
-                      {fieldErrors.department_id && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-                          {fieldErrors.department_id}
-                        </Typography>
-                      )}
-                    </>
-                  )}
+                <FormControl fullWidth required error={!!fieldErrors.department_code}>
+                  <TextField
+                    fullWidth
+                    label="Department"
+                    value={user?.department ? `${user.department.name} (${user.department.code})` : ''}
+                    disabled
+                    helperText="Degrees are automatically assigned to your department"
+                    variant="filled"
+                  />
                 </FormControl>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <TextField

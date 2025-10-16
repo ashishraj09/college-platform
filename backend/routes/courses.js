@@ -176,6 +176,12 @@ router.get('/my-courses',
   authenticateToken,
   async (req, res) => {
   try {
+    // Get models for this request
+    const Course = await models.Course();
+    const Department = await models.Department();
+    const Degree = await models.Degree();
+    const User = await models.User();
+    
     // Extract query parameters
     console.log('Request query parameters raw:', req.query);
     const userId = req.query.userId || null;
@@ -378,6 +384,12 @@ router.get('/department-courses',
   authenticateToken,
   async (req, res) => {
   try {
+    // Get models for this request
+    const Course = await models.Course();
+    const Department = await models.Department();
+    const Degree = await models.Degree();
+    const User = await models.User();
+    
     const { userId, departmentId } = req.query;
     
     // For development/testing when authentication is disabled
@@ -463,6 +475,12 @@ router.get('/:id',
   authenticateToken,
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
+      const User = await models.User();
+      
       const course = await Course.findByPk(req.params.id, {
         include: [
           { model: Department, as: 'department' },
@@ -600,6 +618,12 @@ router.get('/:id/edit',
   authenticateToken,
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
+      const User = await models.User();
+      
       const resolveNames = req.query.resolve_names !== 'false'; // Default to true
       
       const course = await Course.findByPk(req.params.id, {
@@ -721,6 +745,12 @@ router.post('/',
   auditMiddleware('create', 'course', 'Course created'),
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
+      const User = await models.User();
+      
       const {
         name,
         code,
@@ -849,6 +879,12 @@ router.post('/:id/create-version',
   auditMiddleware('create', 'course', 'Course version created'),
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
+      const User = await models.User();
+      
       console.log(`[DEBUG] Create version request for course ID: ${req.params.id} by user:`, req.user);
       
       // Get original course without resolving instructor names to preserve UUIDs
@@ -1000,6 +1036,9 @@ router.get('/:id/can-edit',
   authenticateToken,
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      
       const course = await Course.findByPk(req.params.id);
 
       if (!course) {
@@ -1086,6 +1125,11 @@ router.patch('/:id/submit',
   auditMiddleware('update', 'course', 'Course submitted for approval'),
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const User = await models.User();
+      
       const course = await Course.findByPk(req.params.id, {
         include: [
           { model: Department, as: 'departmentByCode' },
@@ -1178,6 +1222,9 @@ router.patch('/:id/approve',
     const sequelize = require('../config/database').sequelize;
     const transaction = await sequelize.transaction();
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      
       const course = await Course.findByPk(req.params.id, { transaction });
       if (!course) {
         await transaction.rollback();
@@ -1251,6 +1298,9 @@ router.patch('/:id/reject',
   auditMiddleware('update', 'course', 'Course rejected'),
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      
       const { reason } = req.body;
       const course = await Course.findByPk(req.params.id);
 
@@ -1301,6 +1351,11 @@ router.patch('/:id/publish',
   auditMiddleware('update', 'course', 'Course published/activated'),
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const User = await models.User();
+      
       const course = await Course.findByPk(req.params.id, {
         include: [
           { model: Department, as: 'department' },
@@ -1389,6 +1444,12 @@ router.put('/:id',
   auditMiddleware('update', 'course', 'Course updated'),
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
+      const User = await models.User();
+      
       const course = await Course.findByPk(req.params.id, {
         include: [{ model: Department, as: 'departmentByCode' }]
       });
@@ -1499,6 +1560,10 @@ router.delete('/:id',
   auditMiddleware('delete', 'course', 'Course deleted'),
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      
       const course = await Course.findByPk(req.params.id, {
         include: [{ model: Department, as: 'department' }]
       });
