@@ -341,6 +341,7 @@ useEffect(() => {
     if (action === 'delete') {
       setEntityToDelete(entity);
       setDeleteType(type);
+      setDeleteError(''); // Clear any previous errors
       setDeleteDialogOpen(true);
       return;
     }
@@ -596,9 +597,14 @@ useEffect(() => {
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
-          <Typography>
+          <Typography gutterBottom>
             Are you sure you want to delete this {deleteType}? This action cannot be undone.
           </Typography>
+          {entityToDelete?.status !== 'active' && (
+            <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+              Draft, pending approval, and approved {deleteType}s can be deleted if no active version exists.
+            </Alert>
+          )}
           {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
         </DialogContent>
         <DialogActions>
@@ -615,13 +621,32 @@ useEffect(() => {
                 if (deleteType === 'course') {
                   await coursesAPI.deleteCourse(entityToDelete.id, { userId: user?.id, departmentId: user?.department?.id });
                   enqueueSnackbar('Course deleted successfully!', { variant: 'success' });
+                  // Reload courses after deletion
+                  const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
+                  setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));
+                  setCoursesPagination(prev => ({
+                    ...prev,
+                    total: coursesRes.pagination?.total || (coursesRes.courses ? coursesRes.courses.length : 0),
+                    pages: coursesRes.pagination?.pages || 1,
+                  }));
                 } else {
                   await degreesAPI.deleteDegree(entityToDelete.id, { userId: user?.id, departmentId: user?.department?.id });
                   enqueueSnackbar('Degree deleted successfully!', { variant: 'success' });
+                  // Reload degrees after deletion
+                  const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
+                  setDegrees(degreesRes.degrees || (Array.isArray(degreesRes) ? degreesRes : []));
+                  setDegreesPagination(prev => ({
+                    ...prev,
+                    total: degreesRes.pagination?.total || (degreesRes.degrees ? degreesRes.degrees.length : 0),
+                    pages: degreesRes.pagination?.pages || 1,
+                  }));
                 }
+                // Reload stats after deletion
+                await reloadStats();
                 setDeleteDialogOpen(false);
                 setEntityToDelete(null);
                 setDeleteType(null);
+                setDeleteError('');
               } catch (err) {
                 let errorMsg = `Failed to delete ${deleteType}`;
                 if (typeof err === 'object' && err !== null) {
