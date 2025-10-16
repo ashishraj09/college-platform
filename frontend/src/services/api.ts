@@ -5,15 +5,20 @@ import axios from 'axios';
 // Next.js requires NEXT_PUBLIC_ prefix for client-side env vars
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-console.log('🔗 API Base URL:', API_BASE_URL); // Debug log to verify env var is loaded
+// Environment detection
+const isProduction = process.env.NEXT_PUBLIC_ENVIRONMENT === 'production';
 
-// Create axios instance
+console.log('🔗 API Base URL:', API_BASE_URL);
+console.log('🌍 Environment:', isProduction ? 'Production' : 'Development');
+console.log('🍪 Cross-domain cookies:', isProduction ? 'Enabled (SameSite=None)' : 'Same-site (SameSite=Lax)');
+
+// Create axios instance with credentials enabled for cookie-based auth
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true,
+  withCredentials: true, // CRITICAL: Enables sending/receiving cookies in cross-domain requests
 });
 
 // Request interceptor to add dev bypass header only
@@ -37,9 +42,17 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for handling auth errors
+// Response interceptor for handling auth errors and debugging cookies
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Debug: Log Set-Cookie headers (only visible in network tab, not accessible in JS for httpOnly cookies)
+    if (response.config.url?.includes('login') || response.config.url?.includes('auth')) {
+      console.log('🍪 Auth response received from:', response.config.url);
+      console.log('🍪 Check Network tab → Response Headers → Set-Cookie');
+      console.log('🌍 Current domain:', window.location.hostname);
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     // Prevent infinite loops
