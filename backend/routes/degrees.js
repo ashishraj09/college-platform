@@ -103,12 +103,34 @@ router.post(
       if (!['approved', 'active'].includes(degree.status)) {
         return res.status(400).json({ error: 'Can only create versions from approved or active degrees' });
       }
+
+      // Check if there's already a draft, pending, or approved version in the family
+      const degreeFamily = [];
+      if (req.params.id) degreeFamily.push({ id: req.params.id });
+      if (req.params.id) degreeFamily.push({ parent_degree_id: req.params.id });
+      if (degree.parent_degree_id) degreeFamily.push({ id: degree.parent_degree_id });
+      if (degree.parent_degree_id) degreeFamily.push({ parent_degree_id: degree.parent_degree_id });
+
+      const existingDraftOrPending = await Degree.findOne({
+        where: {
+          [Op.or]: degreeFamily,
+          status: { [Op.in]: ['draft', 'pending_approval', 'approved'] }
+        }
+      });
+
+      if (existingDraftOrPending) {
+        return res.status(400).json({ 
+          error: 'Cannot create a new version while another version is in draft, pending approval, or approved status',
+          existingVersion: {
+            id: existingDraftOrPending.id,
+            version: existingDraftOrPending.version,
+            status: existingDraftOrPending.status
+          }
+        });
+      }
+
       // Find the highest version number for this degree family
-      const opOrArray = [];
-      if (req.params.id) opOrArray.push({ id: req.params.id });
-      if (req.params.id) opOrArray.push({ parent_degree_id: req.params.id });
-      if (degree.parent_degree_id) opOrArray.push({ id: degree.parent_degree_id });
-      if (degree.parent_degree_id) opOrArray.push({ parent_degree_id: degree.parent_degree_id });
+      const opOrArray = degreeFamily;
       const maxVersionDegree = await Degree.findOne({
         where: { [Op.or]: opOrArray },
         order: [['version', 'DESC']],
@@ -733,8 +755,8 @@ router.delete(
 
       // Can't delete degrees with students or courses
       const [studentCount, courseCount] = await Promise.all([
-        User.count({ where: { degree_id: degree.id, user_type: 'student' } }),
-        Course.count({ where: { degree_id: degree.id } }),
+        User.count({ where: { degree_code: degree.code, user_type: 'student' } }),
+        Course.count({ where: { degree_code: degree.code } }),
       ]);
 
       if (studentCount > 0) {

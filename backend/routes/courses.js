@@ -924,18 +924,40 @@ router.post('/:id/create-version',
         });
       }
 
+      // Check if there's already a draft, pending, or approved version in the family
+      const courseFamily = [
+        { id: req.params.id },
+        { parent_course_id: req.params.id },
+        { id: originalCourse.parent_course_id },
+        { parent_course_id: originalCourse.parent_course_id },
+      ];
+
+      const existingDraftOrPending = await Course.findOne({
+        where: {
+          [Op.or]: courseFamily,
+          status: { [Op.in]: ['draft', 'pending_approval', 'approved'] }
+        }
+      });
+
+      if (existingDraftOrPending) {
+        console.log(`[ERROR] Cannot create version. Found existing version in ${existingDraftOrPending.status} status`);
+        return res.status(400).json({ 
+          error: 'Cannot create a new version while another version is in draft, pending approval, or approved status',
+          existingVersion: {
+            id: existingDraftOrPending.id,
+            version: existingDraftOrPending.version,
+            status: existingDraftOrPending.status
+          }
+        });
+      }
+
       // Use the authenticated user
       const userId = req.user.id;
       
       // Find the highest version number for this course family
       const maxVersionCourse = await Course.findOne({
         where: {
-          [Op.or]: [
-            { id: req.params.id },
-            { parent_course_id: req.params.id },
-            { id: originalCourse.parent_course_id },
-            { parent_course_id: originalCourse.parent_course_id },
-          ],
+          [Op.or]: courseFamily,
         },
         order: [['version', 'DESC']],
       });
