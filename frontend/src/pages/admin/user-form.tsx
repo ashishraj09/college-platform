@@ -15,6 +15,8 @@ import {
   Step,
   StepLabel,
   Divider,
+  CircularProgress,
+  Skeleton,
 } from '@mui/material';
 import { Checkbox, FormControlLabel } from '@mui/material';
 import { useRouter } from 'next/router';
@@ -46,6 +48,9 @@ const CreateUser: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingUser, setLoadingUser] = useState(false);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [loadingDegrees, setLoadingDegrees] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [degrees, setDegrees] = useState<any[]>([]);
   const isEditMode = !!userId;
@@ -65,16 +70,23 @@ const CreateUser: React.FC = () => {
 
   const steps = ['Basic Information', 'Academic Details', 'Review & Submit'];
 
+  // Fetch departments and degrees on mount
   useEffect(() => {
     fetchDepartments();
     fetchDegrees();
-    
+  }, []);
+
+  // Fetch user data when in edit mode
+  useEffect(() => {
     const fetchUserData = async (id: string) => {
       try {
-        setLoading(true);
+        setLoadingUser(true);
         const response = await usersAPI.getUserById(id);
         // API may return { user } or the user object directly
         const userData = response?.user || response?.data?.user || response?.data || response;
+
+        const departmentCode = userData.department_code || userData.departmentByCode?.code || userData.department_id || '';
+        const degreeCode = userData.degree_code || userData.degree?.code || userData.degree_id || '';
 
         setFormData({
           first_name: userData.first_name || '',
@@ -82,38 +94,57 @@ const CreateUser: React.FC = () => {
           email: userData.email || '',
           user_type: userData.user_type || 'student',
           status: userData.status || 'pending',
-          department_id: userData.departmentByCode?.code || userData.department_id || '',
-          degree_id: userData.degree?.code || userData.degree_id || '',
+          department_id: departmentCode,
+          degree_id: degreeCode,
           student_id: userData.student_id || '',
           employee_id: userData.employee_id || '',
           is_head_of_department: !!userData.is_head_of_department,
         });
+
+        // If user is a student with a department, fetch degrees for that department
+        if (userData.user_type === 'student' && departmentCode) {
+          await fetchDegreesByDepartment(departmentCode);
+        }
       } catch (error) {
         console.error('Error fetching user data:', error);
         enqueueSnackbar('Failed to load user data', { variant: 'error' });
       } finally {
-        setLoading(false);
+        setLoadingUser(false);
       }
     };
     
     if (isEditMode && typeof userId === 'string') {
       fetchUserData(userId);
     }
-  }, [userId, isEditMode, enqueueSnackbar]); // Added all dependencies
+  }, [userId, isEditMode, enqueueSnackbar]);
+
+  // Refetch degrees when department changes (for filtering)
+  // But only if not in edit mode or if user manually changes department
+  useEffect(() => {
+    if (formData.department_id && formData.user_type === 'student' && !loadingUser) {
+      // Only refetch if we're not loading user data (to avoid overwriting initial load)
+      fetchDegreesByDepartment(formData.department_id);
+    }
+  }, [formData.department_id, formData.user_type, loadingUser]);
 
   const fetchDepartments = async () => {
     try {
+      setLoadingDepartments(true);
       const response = await departmentsAPI.getDepartments();
-  // Departments API returns an array directly or possibly wrapped
-  const depts = Array.isArray(response) ? response : (response?.data && Array.isArray(response.data) ? response.data : response);
-  setDepartments(depts || []);
+      // Departments API returns an array directly or possibly wrapped
+      const depts = Array.isArray(response) ? response : (response?.data && Array.isArray(response.data) ? response.data : response);
+      setDepartments(depts || []);
     } catch (error) {
       console.error('Error fetching departments:', error);
+      enqueueSnackbar('Failed to load departments', { variant: 'error' });
+    } finally {
+      setLoadingDepartments(false);
     }
   };
 
   const fetchDegrees = async () => {
     try {
+      setLoadingDegrees(true);
       // Only fetch active degrees for user assignment
       const response = await degreesAPI.getDegrees({ status: 'active' });
       // Degrees API may return an array or an object like { all: [], degrees: [] }
@@ -127,7 +158,33 @@ const CreateUser: React.FC = () => {
       setDegrees(list);
     } catch (error) {
       console.error('Error fetching degrees:', error);
+      enqueueSnackbar('Failed to load degrees', { variant: 'error' });
       setDegrees([]);
+    } finally {
+      setLoadingDegrees(false);
+    }
+  };
+
+  const fetchDegreesByDepartment = async (departmentCode: string) => {
+    try {
+      setLoadingDegrees(true);
+      // Fetch degrees filtered by department
+      const response = await degreesAPI.getDegrees({ 
+        status: 'active',
+        department_code: departmentCode 
+      });
+      let list: any[] = [];
+      if (Array.isArray(response)) list = response;
+      else if (Array.isArray(response?.data)) list = response.data;
+      else if (Array.isArray(response?.degrees)) list = response.degrees;
+      else if (Array.isArray(response?.all)) list = response.all;
+      if (!Array.isArray(list)) list = [];
+      setDegrees(list);
+    } catch (error) {
+      console.error('Error fetching degrees by department:', error);
+      setDegrees([]);
+    } finally {
+      setLoadingDegrees(false);
     }
   };
 
@@ -324,19 +381,37 @@ const CreateUser: React.FC = () => {
       case 1:
         return (
           <Box display="flex" flexDirection="column" gap={3}>
+            {loadingUser && (
+              <Box display="flex" alignItems="center" gap={2}>
+                <CircularProgress size={20} />
+                <Typography variant="body2" color="text.secondary">
+                  Loading user data...
+                </Typography>
+              </Box>
+            )}
+            
             {(formData.user_type === 'student' || formData.user_type === 'faculty') && (
-              <FormControl fullWidth error={!!errors.department_id}>
+              <FormControl fullWidth error={!!errors.department_id} disabled={loadingDepartments}>
                 <InputLabel>Department</InputLabel>
                 <Select
                   value={formData.department_id}
                   label="Department"
                   onChange={(e) => handleInputChange('department_id', e.target.value)}
+                  startAdornment={loadingDepartments && (
+                    <CircularProgress size={20} sx={{ ml: 1, mr: 1 }} />
+                  )}
                 >
-                  {departments.map((dept) => (
-                    <MenuItem key={dept.code} value={dept.code}>
-                      {dept.name}
-                    </MenuItem>
-                  ))}
+                  {loadingDepartments ? (
+                    <MenuItem disabled>Loading departments...</MenuItem>
+                  ) : departments.length === 0 ? (
+                    <MenuItem disabled>No departments available</MenuItem>
+                  ) : (
+                    departments.map((dept) => (
+                      <MenuItem key={dept.code} value={dept.code}>
+                        {dept.name}
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
                 {errors.department_id && (
                   <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1 }}>
@@ -348,19 +423,36 @@ const CreateUser: React.FC = () => {
             
             {formData.user_type === 'student' && (
               <>
-                <FormControl fullWidth error={!!errors.degree_id}>
+                <FormControl 
+                  fullWidth 
+                  error={!!errors.degree_id}
+                  disabled={!formData.department_id || loadingDegrees}
+                >
                   <InputLabel>Degree</InputLabel>
-                    <Select
-                      value={formData.degree_id}
-                      label="Degree"
-                      onChange={(e) => handleInputChange('degree_id', e.target.value)}
-                    >
-                      {(Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_id) : []).map((degree) => (
-                        <MenuItem key={degree.code} value={degree.code}>
-                          {degree.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
+                  <Select
+                    value={formData.degree_id}
+                    label="Degree"
+                    onChange={(e) => handleInputChange('degree_id', e.target.value)}
+                    startAdornment={loadingDegrees && (
+                      <CircularProgress size={20} sx={{ ml: 1, mr: 1 }} />
+                    )}
+                  >
+                    {!formData.department_id ? (
+                      <MenuItem disabled>Please select a department first</MenuItem>
+                    ) : loadingDegrees ? (
+                      <MenuItem disabled>Loading degrees...</MenuItem>
+                    ) : (
+                      (Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_id) : []).length === 0 ? (
+                        <MenuItem disabled>No degrees available for this department</MenuItem>
+                      ) : (
+                        (Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_id) : []).map((degree) => (
+                          <MenuItem key={degree.code} value={degree.code}>
+                            {degree.name}
+                          </MenuItem>
+                        ))
+                      )
+                    )}
+                  </Select>
                   {errors.degree_id && (
                     <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1 }}>
                       {errors.degree_id}
@@ -460,32 +552,49 @@ const CreateUser: React.FC = () => {
         </Typography>
       </Box>
 
-      <Card>
-        <CardContent>
-          <Box mb={4}>
-            <Stepper activeStep={activeStep} alternativeLabel>
-              {steps.map((label, index) => (
-                <Step key={label}>
-                  <StepLabel 
-                    icon={getStepIcon(index)}
-                    sx={{
-                      '& .MuiStepLabel-label': {
-                        fontSize: '0.875rem',
-                        fontWeight: activeStep === index ? 600 : 400,
-                      }
-                    }}
-                  >
-                    {label}
-                  </StepLabel>
-                </Step>
-              ))}
-            </Stepper>
-          </Box>
+      {loadingUser ? (
+        <Card>
+          <CardContent>
+            <Box display="flex" flexDirection="column" gap={3}>
+              <Box display="flex" alignItems="center" justifyContent="center" py={4}>
+                <CircularProgress size={40} />
+                <Typography variant="h6" sx={{ ml: 2 }}>
+                  Loading user data...
+                </Typography>
+              </Box>
+              <Skeleton variant="rectangular" height={60} />
+              <Skeleton variant="rectangular" height={60} />
+              <Skeleton variant="rectangular" height={60} />
+            </Box>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent>
+            <Box mb={4}>
+              <Stepper activeStep={activeStep} alternativeLabel>
+                {steps.map((label, index) => (
+                  <Step key={label}>
+                    <StepLabel 
+                      icon={getStepIcon(index)}
+                      sx={{
+                        '& .MuiStepLabel-label': {
+                          fontSize: '0.875rem',
+                          fontWeight: activeStep === index ? 600 : 400,
+                        }
+                      }}
+                    >
+                      {label}
+                    </StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
+            </Box>
 
-          <Divider sx={{ mb: 4 }} />
+            <Divider sx={{ mb: 4 }} />
 
-          <Box mb={4}>
-            {renderStepContent(activeStep)}
+            <Box mb={4}>
+              {renderStepContent(activeStep)}
           </Box>
 
           <Divider sx={{ mb: 3 }} />
@@ -513,6 +622,7 @@ const CreateUser: React.FC = () => {
           </Box>
         </CardContent>
       </Card>
+      )}
     </Box>
   );
 };
