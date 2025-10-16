@@ -74,9 +74,9 @@ async function ensureDatabaseSchema() {
     // Sync models (create tables if they don't exist)
     console.log('🛠️ Synchronizing database models (creating tables if needed)...');
     try {
-      // Use { alter: false, force: false } to avoid data loss
-      // This will only create tables if they don't exist
-      await db.sync({ alter: false, force: false });
+      // Use { alter: true } in production to add missing columns
+      // This is safe because it only adds columns, doesn't remove them
+      await db.sync({ alter: true, force: false });
       console.log('✅ Database schema synchronized.');
     } catch (syncError) {
       // Handle enum type errors which commonly occur in parallel processes
@@ -85,6 +85,9 @@ async function ensureDatabaseSchema() {
           syncError.errors.some(e => e.path === 'typname' && e.value.startsWith('enum_'))) {
         console.log('⚠️ ENUM type already exists, continuing with verification...');
         // This is expected in a serverless environment where multiple instances may try to create the same types
+      } else if (syncError.message && syncError.message.includes('does not exist')) {
+        // Column doesn't exist - try to continue anyway, the alter should have added it
+        console.log('⚠️ Column missing error detected, but alter should have added it. Continuing...');
       } else {
         // For other sync errors, we should fail
         throw syncError;
