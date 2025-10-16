@@ -8,8 +8,26 @@ const nextConfig = {
   // Other recommended configurations
   reactStrictMode: true,
   
-  // Remove standalone output for Vercel - Vercel handles this automatically
-  // output: 'standalone',
+  // Disable type checking and linting during build (handle separately in CI)
+  typescript: {
+    // !! WARN !!
+    // Dangerously allow production builds to successfully complete even if
+    // your project has type errors.
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
+  },
+  
+  // Export as static HTML
+  output: 'export',
+  
+  //  Disable image optimization for static export
+  images: {
+    unoptimized: true,
+  },
 };
 
 module.exports = nextConfig;

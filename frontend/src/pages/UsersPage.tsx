@@ -401,3 +401,5 @@ export const UsersPage: React.FC = () => {
     </Box>
   );
 };
+
+export default UsersPage;

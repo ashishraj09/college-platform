@@ -6,6 +6,7 @@ import '../index.css';
 import '../App.css';
 import '../styles/globals.css';
 import { Analytics } from '@vercel/analytics/react';
+import { ClientRouter } from '../components/ClientRouter';
 
 
 import DashboardLayout from '../layouts/DashboardLayout';
@@ -17,10 +18,12 @@ function MyApp({ Component, pageProps }: AppProps) {
   ));
   return (
     <Provider store={store}>
-      <AuthProvider>
-        {getLayout(<Component {...pageProps} />)}
-        <Analytics />
-      </AuthProvider>
+      <ClientRouter>
+        <AuthProvider>
+          {getLayout(<Component {...pageProps} />)}
+          <Analytics />
+        </AuthProvider>
+      </ClientRouter>
     </Provider>
   );
 }

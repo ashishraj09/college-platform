@@ -325,7 +325,7 @@ const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateChec
       if (degreeCodeCandidate) {
         try {
           const r = await enrollmentAPI.getEnrollmentsByDegree(degreeCodeCandidate, { semester });
-          if (r && r.degree && Array.isArray(r.courses)) {
+          if (r && 'degree' in r && r.degree && Array.isArray(r.courses)) {
             response = {
               degree: r.degree,
               courses: r.courses,
