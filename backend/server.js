@@ -49,7 +49,11 @@ const { initializeAssociations } = require('./models/associations');
 // --------------------
 // Startup Initialization
 // --------------------
-const runMode = process.env.RUN_MODE === 'serverless' ? 'serverless' : 'traditional';
+// Auto-detect serverless environment (Vercel, AWS Lambda, etc.)
+const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.RUN_MODE === 'serverless');
+const runMode = isServerless ? 'serverless' : 'traditional';
+console.log(`[Server] Detected run mode: ${runMode}${process.env.VERCEL ? ' (Vercel)' : ''}`);
+
 let initializationPromise = null;
 let isFullyInitialized = false;
 
