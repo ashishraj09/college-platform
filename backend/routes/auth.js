@@ -303,15 +303,21 @@ router.post('/login',
       // Return user without sensitive data, attach department and degree
       const userResponse = sanitizeUser(user, department, degree);
 
-      // Set JWT as HTTP-only cookie, expires in 60 minutes
-      // Secure cross-site cookie settings for production
+      // Set JWT as HTTP-only cookie
+      // For cross-domain Vercel deployments, DO NOT set domain - let browser handle it
+      // SameSite=None with Secure=true is required for cross-site cookies
       const cookieOptions = {
         httpOnly: true,
-        secure: true, // Always secure in production
-        sameSite: 'none', // Always allow cross-site in production
-        maxAge: 60 * 60 * 1000
+        secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain
+        maxAge: 60 * 60 * 1000, // 1 hour
+        path: '/' // Available on all paths
       };
-      if (COOKIE_DOMAIN) cookieOptions.domain = COOKIE_DOMAIN;
+      
+      // Only set domain if explicitly configured (not recommended for Vercel)
+      // Leaving domain undefined allows cookie to work on the current domain
+      // if (COOKIE_DOMAIN) cookieOptions.domain = COOKIE_DOMAIN;
+      
       res.cookie('token', accessToken, cookieOptions);
       res.json({
         message: 'Login successful',
@@ -485,9 +491,15 @@ router.post('/logout',
   authenticateToken, // Enforce authentication
   auditMiddleware('logout', 'system', 'User logout'), // Audit compliance
   (req, res) => {
-    // Clear the auth cookie
-    const clearOpts = { httpOnly: true, secure: true, sameSite: 'none' };
-    if (COOKIE_DOMAIN) clearOpts.domain = COOKIE_DOMAIN;
+    // Clear the auth cookie - no domain set to match login cookie
+    const clearOpts = { 
+      httpOnly: true, 
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    };
+    // Domain commented out to allow cookie clearing on current domain
+    // if (COOKIE_DOMAIN) clearOpts.domain = COOKIE_DOMAIN;
     res.clearCookie('token', clearOpts);
     res.json({ message: 'Logged out successfully' });
   }
