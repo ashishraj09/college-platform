@@ -2,8 +2,6 @@
 import type { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import { store } from '../store/store';
-import '../index.css';
-import '../App.css';
 import '../styles/globals.css';
 import { Analytics } from '@vercel/analytics/react';
 import { ClientRouter } from '../components/ClientRouter';
