@@ -640,7 +640,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   onChange={handleInputChange('code')}
                   error={!!fieldErrors.code}
                   helperText={fieldErrors.code || "e.g., CS101 (uppercase letters and numbers only)"}
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  slotProps={{ 
+                    htmlInput: { style: { textTransform: 'uppercase' } }
+                  }}
                 />
 
                 <TextField
@@ -701,7 +703,10 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   onChange={handleInputChange('credits')}
                   error={!!fieldErrors.credits}
                   helperText={fieldErrors.credits || "1-10 credit hours"}
-                  inputProps={{ min: 1, max: 10 }}
+                  slotProps={{ 
+                    inputLabel: { shrink: true },
+                    htmlInput: { min: 1, max: 10 }
+                  }}
                 />
 
                 <TextField
@@ -712,8 +717,11 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   value={form.semester}
                   onChange={handleInputChange('semester')}
                   error={!!fieldErrors.semester}
-                  helperText={fieldErrors.semester || "Which semester (1-10)"}
-                  inputProps={{ min: 1, max: 10 }}
+                  helperText={fieldErrors.semester || "Which semester (0-10)"}
+                  slotProps={{ 
+                    inputLabel: { shrink: true },
+                    htmlInput: { min: 0, max: 10 }
+                  }}
                 />
 
                 <TextField
@@ -724,7 +732,10 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   onChange={handleInputChange('max_students')}
                   error={!!fieldErrors.max_students}
                   helperText={fieldErrors.max_students || "Maximum enrollment (1-500)"}
-                  inputProps={{ min: 1, max: 500 }}
+                  slotProps={{ 
+                    inputLabel: { shrink: true },
+                    htmlInput: { min: 1, max: 500 }
+                  }}
                 />
               </Box>
 

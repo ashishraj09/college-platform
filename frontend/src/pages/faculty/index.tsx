@@ -364,6 +364,14 @@ useEffect(() => {
           { variant: "success" }
         );
         setEditEntityDialogOpen(false);
+        
+        // Switch to Draft tab to show the new version
+        if (entityToEdit.entityType === "course") {
+          setCourseTab(0); // 0 = Draft tab
+        } else {
+          setDegreeTab(0); // 0 = Draft tab
+        }
+        
         // Always reload both entity lists and stats after version creation
         const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
         setCourses(coursesRes.courses || (Array.isArray(coursesRes) ? coursesRes : []));

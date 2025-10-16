@@ -17,8 +17,9 @@ import {
   Tabs,
   Tab,
   Typography,
+  IconButton,
 } from '@mui/material';
-import { School as SchoolIcon } from '@mui/icons-material';
+import { School as SchoolIcon, Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { degreesAPI, departmentsAPI } from '../../services/api';
 
@@ -241,6 +242,18 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     setError('');
 
     try {
+      // Validate courses_per_semester values
+      if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
+        for (const [semester, data] of Object.entries(form.courses_per_semester)) {
+          const count = Number((data as any).count);
+          if (isNaN(count) || count < 0 || !Number.isInteger(count)) {
+            setError(`Semester ${semester}: Courses per semester must be a non-negative integer`);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+      
       // Remove department object from payload if present, department_code is already in form
       const { department, ...restForm } = form as any;
       const payload = {
@@ -351,7 +364,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                   onChange={handleInputChange('code')}
                   error={!!fieldErrors.code}
                   helperText={fieldErrors.code ? fieldErrors.code : "e.g., MCOM (uppercase letters and numbers only)"}
-                  inputProps={{ style: { textTransform: 'uppercase' } }}
+                  slotProps={{ 
+                    htmlInput: { style: { textTransform: 'uppercase' } }
+                  }}
                   placeholder="e.g., MCOM"
                 />
                 <FormControl fullWidth required error={!!fieldErrors.degree_type}>
@@ -391,7 +406,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                     onChange={handleInputChange('duration_years')}
                     error={!!fieldErrors.duration_years}
                     helperText={fieldErrors.duration_years ? fieldErrors.duration_years : "1+ years"}
-                    inputProps={{ min: 1, max: 10 }}
+                    slotProps={{ 
+                      htmlInput: { min: 1, max: 10 }
+                    }}
                   />
                   <TextField
                     required
@@ -402,7 +419,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                     onChange={handleInputChange('total_credits')}
                     error={!!fieldErrors.total_credits}
                     helperText={fieldErrors.total_credits ? fieldErrors.total_credits : "1+ credits"}
-                    inputProps={{ min: 1, max: 300 }}
+                    slotProps={{ 
+                      htmlInput: { min: 1, max: 300 }
+                    }}
                   />
                 </Box>
                 <Box sx={{ mt: 2 }}>
@@ -413,24 +432,76 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                   {Object.entries(form.courses_per_semester).map(([semester, value]) => (
                     <Box key={semester} sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
                       <Typography sx={{ minWidth: 90 }}>Semester {semester}</Typography>
-                      <TextField
-                        label="Courses"
-                        type="number"
-                        value={String((value as { count: string | number; enrollment_start: string; enrollment_end: string }).count)}
-                        onChange={(e) => {
-                          setForm((prev: any) => ({
-                            ...prev,
-                            courses_per_semester: {
-                              ...prev.courses_per_semester,
-                              [semester]: {
-                                ...(value as { count: string | number; enrollment_start: string; enrollment_end: string }),
-                                count: e.target.value
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const currentValue = Number((value as any).count) || 0;
+                            const newValue = Math.max(0, currentValue - 1);
+                            setForm((prev: any) => ({
+                              ...prev,
+                              courses_per_semester: {
+                                ...prev.courses_per_semester,
+                                [semester]: {
+                                  ...(value as { count: string | number; enrollment_start: string; enrollment_end: string }),
+                                  count: String(newValue)
+                                }
                               }
+                            }));
+                          }}
+                          disabled={Number((value as any).count) <= 0}
+                        >
+                          <RemoveIcon fontSize="small" />
+                        </IconButton>
+                        <TextField
+                          label="Courses"
+                          type="number"
+                          value={String((value as { count: string | number; enrollment_start: string; enrollment_end: string }).count)}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const numValue = Number(inputValue);
+                            
+                            // Prevent negative values
+                            if (inputValue !== '' && (numValue < 0 || !Number.isInteger(numValue))) {
+                              return; // Don't update if negative or not an integer
                             }
-                          }));
-                        }}
-                        sx={{ width: 100 }}
-                      />
+                            
+                            setForm((prev: any) => ({
+                              ...prev,
+                              courses_per_semester: {
+                                ...prev.courses_per_semester,
+                                [semester]: {
+                                  ...(value as { count: string | number; enrollment_start: string; enrollment_end: string }),
+                                  count: inputValue
+                                }
+                              }
+                            }));
+                          }}
+                          slotProps={{ 
+                            htmlInput: { min: 0, step: 1 } 
+                          }}
+                          sx={{ width: 100 }}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const currentValue = Number((value as any).count) || 0;
+                            const newValue = currentValue + 1;
+                            setForm((prev: any) => ({
+                              ...prev,
+                              courses_per_semester: {
+                                ...prev.courses_per_semester,
+                                [semester]: {
+                                  ...(value as { count: string | number; enrollment_start: string; enrollment_end: string }),
+                                  count: String(newValue)
+                                }
+                              }
+                            }));
+                          }}
+                        >
+                          <AddIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
                       <TextField
                         label="Enrollment Start"
                         type="date"
@@ -448,7 +519,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                           }));
                         }}
                         sx={{ width: 170 }}
-                        InputLabelProps={{ shrink: true }}
+                        slotProps={{ 
+                          inputLabel: { shrink: true }
+                        }}
                       />
                       <TextField
                         label="Enrollment End"
@@ -467,7 +540,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                           }));
                         }}
                         sx={{ width: 170 }}
-                        InputLabelProps={{ shrink: true }}
+                        slotProps={{ 
+                          inputLabel: { shrink: true }
+                        }}
                       />
                       <Button color="error" variant="outlined" sx={{ minWidth: 40 }} onClick={() => handleRemoveSemester(semester)}>-</Button>
                     </Box>
