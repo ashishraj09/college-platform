@@ -4,22 +4,21 @@ import { useAppSelector } from '../hooks/redux';
 import { CircularProgress, Box } from '@mui/material';
 
 // Import components (will be created)
-import LoginPage from '../pages/auth/LoginPage';
-import CreateDegreePage from '../pages/CreateDegreePage';
-import ActivateAccountPage from '../pages/auth/ActivateAccountPage';
-import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
-import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
+import LoginPage from '../pages/login';
+import CreateDegreePage from '../pages/create-degree';
+import ActivateAccountPage from '../pages/auth/activate-account';
+import ForgotPasswordPage from '../pages/auth/forgot-password';
+import ResetPasswordPage from '../pages/auth/reset-password';
 import DashboardLayout from '../layouts/DashboardLayout';
-import AdminDashboard from '../pages/admin/AdminDashboard';
-import CreateUser from '../pages/admin/CreateUser';
-import FacultyDashboard from '../pages/faculty/FacultyDashboard';
-import CourseDetailsView from '../pages/faculty/CourseDetailsView';
-// import DegreesPage from '../pages/faculty/DegreesPage';
-import DegreesPage from '../pages/faculty/DegreesPage';
-import DegreeDetailsPage from '../pages/faculty/DegreeDetailsPage';
-import StudentDashboard from '../pages/student/StudentDashboard';
-import StudentDegreesPage from '../pages/student/DegreesPage';
-import OfficeDashboard from '../pages/office/OfficeDashboard';
+import AdminDashboard from '../pages/admin';
+import CreateUser from '../pages/admin/user/create';
+import FacultyDashboard from '../pages/faculty';
+import CourseDetailsView from '../pages/faculty/course-details';
+import DegreesPage from '../pages/faculty/degrees';
+import DegreeDetailsPage from '../pages/faculty/degree-details';
+import StudentDashboard from '../pages/student';
+import StudentDegreesPage from '../pages/student/degrees';
+import OfficeDashboard from '../pages/office';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 
 import HODDashboard from '../pages/hod';

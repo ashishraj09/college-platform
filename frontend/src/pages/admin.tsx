@@ -41,7 +41,7 @@ import {
   LockReset as PasswordResetIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import CreateDepartmentDialog from './admin/DepartmentDialog';
+import CreateDepartmentDialog from './admin/department-dialog';
 import { useRouter } from 'next/router';
 import { usersAPI, departmentsAPI } from '../services/api';
 interface TabPanelProps {

@@ -1,5 +1,5 @@
 import React from 'react';
-import UserFormPage from '../UserFormPage';
+import UserFormPage from '../user-form';
 
 // This page will handle user update for admin: /admin/user/<id>
 export default function AdminUserEditPage() {
