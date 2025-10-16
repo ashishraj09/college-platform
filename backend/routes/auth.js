@@ -304,19 +304,15 @@ router.post('/login',
       const userResponse = sanitizeUser(user, department, degree);
 
       // Set JWT as HTTP-only cookie
-      // For cross-domain Vercel deployments, DO NOT set domain - let browser handle it
-      // SameSite=None with Secure=true is required for cross-site cookies
+      // With Vercel rewrites, frontend and backend appear on same domain
+      // so simple cookie settings work perfectly
       const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax', // 'lax' is fine for same-domain
         maxAge: 60 * 60 * 1000, // 1 hour
-        path: '/' // Available on all paths
+        path: '/'
       };
-      
-      // Only set domain if explicitly configured (not recommended for Vercel)
-      // Leaving domain undefined allows cookie to work on the current domain
-      // if (COOKIE_DOMAIN) cookieOptions.domain = COOKIE_DOMAIN;
       
       res.cookie('token', accessToken, cookieOptions);
       res.json({
@@ -491,15 +487,13 @@ router.post('/logout',
   authenticateToken, // Enforce authentication
   auditMiddleware('logout', 'system', 'User logout'), // Audit compliance
   (req, res) => {
-    // Clear the auth cookie - no domain set to match login cookie
+    // Clear the auth cookie - simple settings for same-domain
     const clearOpts = { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
       path: '/'
     };
-    // Domain commented out to allow cookie clearing on current domain
-    // if (COOKIE_DOMAIN) clearOpts.domain = COOKIE_DOMAIN;
     res.clearCookie('token', clearOpts);
     res.json({ message: 'Logged out successfully' });
   }
