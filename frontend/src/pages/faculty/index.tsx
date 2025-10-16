@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
   TablePagination,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -453,9 +454,9 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <Container maxWidth="xl">
-        <Typography>Loading...</Typography>
-      </Container>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
     );
   }
 
@@ -655,27 +656,27 @@ useEffect(() => {
         )}
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 3 }}>
-        <Button
-          variant="outlined"
-          startIcon={<SchoolIcon />}
-          onClick={() => {
-            setDegreeDialogMode('create');
-            setDegreeDialogData(null);
-            setCreateDegreeDialogOpen(true);
-          }}
-        >
-          Create Degree
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<CourseIcon />}
-          onClick={() => {
-            setEntityToEdit(null);
-            setCreateCourseDialogOpen(true);
-          }}
-        >
-          Create New Course
-        </Button>
+          <Button
+            variant="outlined"
+            startIcon={<SchoolIcon />}
+            onClick={() => {
+              setDegreeDialogMode('create');
+              setDegreeDialogData(null);
+              setCreateDegreeDialogOpen(true);
+            }}
+          >
+            Create Degree
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<CourseIcon />}
+            onClick={() => {
+              setEntityToEdit(null);
+              setCreateCourseDialogOpen(true);
+            }}
+          >
+            Create New Course
+          </Button>
       </Box>
       <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)} sx={{ mb: 3 }}>
         <Tab label="Courses" />
