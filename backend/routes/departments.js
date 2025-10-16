@@ -91,6 +91,7 @@ router.put('/:id', authenticateToken, authorizeRoles('admin'), auditMiddleware('
   try {
     const { name, code, description, status } = req.body;
     
+    const Department = await models.Department();
     const department = await Department.findByPk(req.params.id);
     if (!department) {
       return res.status(404).json({ error: 'Department not found' });
@@ -133,6 +134,7 @@ router.put('/:id', authenticateToken, authorizeRoles('admin'), auditMiddleware('
 // Delete department
 router.delete('/:id', authenticateToken, authorizeRoles('admin'), auditMiddleware('delete', 'department'), async (req, res) => {
   try {
+    const Department = await models.Department();
     const department = await Department.findByPk(req.params.id);
     if (!department) {
       return res.status(404).json({ error: 'Department not found' });
@@ -160,7 +162,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('admin'), auditMiddlewar
 // Get all degrees for a department
 router.get('/:id/degrees', authenticateToken, async (req, res) => {
   try {
-    const { Degree } = require('../models');
+    const Degree = await models.Degree();
     
     const degrees = await Degree.findAll({
       where: {
