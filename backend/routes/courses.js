@@ -12,7 +12,7 @@
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
-const { Course, Department, Degree, User, CourseLecturer } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
@@ -43,6 +43,12 @@ router.get('/',
   authenticateToken,
   async (req, res) => {
     try {
+      // Get models for this request
+      const Course = await models.Course();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
+      const User = await models.User();
+      
       const {
         department_code,
         degree_code,

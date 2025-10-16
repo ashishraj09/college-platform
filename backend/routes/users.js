@@ -34,7 +34,7 @@ const router = express.Router();
 // Unified stats endpoint: returns both degree and course stats for the authenticated user
 router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), async (req, res) => {
   try {
-    const { Degree, Course } = await getModels();
+    const { Degree, Course, Department } = await getModels();
     // Only HOD can filter by userId, otherwise use current user
     let targetUserId = req.user.id;
     if (req.user.is_head_of_department && req.query.userId) {
@@ -47,7 +47,7 @@ router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), asyn
         created_by: targetUserId
       },
       include: [
-        { model: require('../models').Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
+        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
       ]
     });
     // Course stats for the user's department and created_by
@@ -57,7 +57,7 @@ router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), asyn
         created_by: targetUserId
       },
       include: [
-        { model: require('../models').Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
+        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
       ]
     });
     // Aggregate status counts for degrees and courses
