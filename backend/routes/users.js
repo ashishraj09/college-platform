@@ -271,13 +271,8 @@ router.put('/:id',
       }
       // Update user
       await user.update(req.body);
-      // Reload with associations
-      await user.reload({
-        include: [
-          { model: Department, as: 'departmentByCode', attributes: ['code', 'name'] },
-          { model: Degree, as: 'degreeByCode', attributes: ['code', 'name'] },
-        ],
-      });
+      // Reload user to get fresh data (without associations to keep response clean)
+      await user.reload();
       // Exclude sensitive fields
       const { password, password_reset_token, email_verification_token, ...userResponse } = user.toJSON();
       res.json({

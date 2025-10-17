@@ -31,8 +31,8 @@ interface FormData {
   email: string;
   user_type: 'student' | 'faculty' | 'office' | 'admin';
   status: 'active' | 'inactive' | 'pending' | 'suspended';
-  department_id: string;
-  degree_id: string;
+  department_code: string;
+  degree_code: string;
   student_id: string;
   employee_id: string;
   is_head_of_department?: boolean;
@@ -61,8 +61,8 @@ const CreateUser: React.FC = () => {
     email: '',
     user_type: 'student',
     status: 'pending', // Set new users as pending by default
-    department_id: '',
-    degree_id: '',
+    department_code: '',
+    degree_code: '',
     student_id: '',
     employee_id: '',
     is_head_of_department: false,
@@ -94,8 +94,8 @@ const CreateUser: React.FC = () => {
           email: userData.email || '',
           user_type: userData.user_type || 'student',
           status: userData.status || 'pending',
-          department_id: departmentCode,
-          degree_id: degreeCode,
+          department_code: departmentCode,
+          degree_code: degreeCode,
           student_id: userData.student_id || '',
           employee_id: userData.employee_id || '',
           is_head_of_department: !!userData.is_head_of_department,
@@ -121,11 +121,11 @@ const CreateUser: React.FC = () => {
   // Refetch degrees when department changes (for filtering)
   // But only if not in edit mode or if user manually changes department
   useEffect(() => {
-    if (formData.department_id && formData.user_type === 'student' && !loadingUser) {
+    if (formData.department_code && formData.user_type === 'student' && !loadingUser) {
       // Only refetch if we're not loading user data (to avoid overwriting initial load)
-      fetchDegreesByDepartment(formData.department_id);
+      fetchDegreesByDepartment(formData.department_code);
     }
-  }, [formData.department_id, formData.user_type, loadingUser]);
+  }, [formData.department_code, formData.user_type, loadingUser]);
 
   const fetchDepartments = async () => {
     try {
@@ -211,12 +211,12 @@ const CreateUser: React.FC = () => {
         break;
         
       case 1:
-        if ((formData.user_type === 'student' || formData.user_type === 'faculty') && !formData.department_id) {
-          newErrors.department_id = 'Department is required';
+        if ((formData.user_type === 'student' || formData.user_type === 'faculty') && !formData.department_code) {
+          newErrors.department_code = 'Department is required';
         }
         if (formData.user_type === 'student') {
           if (!formData.student_id) newErrors.student_id = 'Student ID is required';
-          if (!formData.degree_id) newErrors.degree_id = 'Degree is required';
+          if (!formData.degree_code) newErrors.degree_code = 'Degree is required';
         }
         if (formData.user_type === 'faculty' || formData.user_type === 'office') {
           if (!formData.employee_id) newErrors.employee_id = 'Employee ID is required';
@@ -260,11 +260,11 @@ const CreateUser: React.FC = () => {
       }
 
       // Conditionally include fields based on user type to avoid clearing existing values
-      if ((formData.user_type === 'student' || formData.user_type === 'faculty') && formData.department_id) {
-        userData.department_id = formData.department_id;
+      if ((formData.user_type === 'student' || formData.user_type === 'faculty') && formData.department_code) {
+        userData.department_code = formData.department_code;
       }
       if (formData.user_type === 'student') {
-        if (formData.degree_id) userData.degree_id = formData.degree_id;
+        if (formData.degree_code) userData.degree_code = formData.degree_code;
         if (formData.student_id) userData.student_id = formData.student_id;
       }
       if (formData.user_type === 'faculty' || formData.user_type === 'office' || formData.user_type === 'admin') {
@@ -391,12 +391,12 @@ const CreateUser: React.FC = () => {
             )}
             
             {(formData.user_type === 'student' || formData.user_type === 'faculty') && (
-              <FormControl fullWidth error={!!errors.department_id} disabled={loadingDepartments}>
+              <FormControl fullWidth error={!!errors.department_code} disabled={loadingDepartments}>
                 <InputLabel>Department</InputLabel>
                 <Select
-                  value={formData.department_id}
+                  value={formData.department_code}
                   label="Department"
-                  onChange={(e) => handleInputChange('department_id', e.target.value)}
+                  onChange={(e) => handleInputChange('department_code', e.target.value)}
                   startAdornment={loadingDepartments && (
                     <CircularProgress size={20} sx={{ ml: 1, mr: 1 }} />
                   )}
@@ -413,9 +413,9 @@ const CreateUser: React.FC = () => {
                     ))
                   )}
                 </Select>
-                {errors.department_id && (
+                {errors.department_code && (
                   <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1 }}>
-                    {errors.department_id}
+                    {errors.department_code}
                   </Typography>
                 )}
               </FormControl>
@@ -425,27 +425,27 @@ const CreateUser: React.FC = () => {
               <>
                 <FormControl 
                   fullWidth 
-                  error={!!errors.degree_id}
-                  disabled={!formData.department_id || loadingDegrees}
+                  error={!!errors.degree_code}
+                  disabled={!formData.department_code || loadingDegrees}
                 >
                   <InputLabel>Degree</InputLabel>
                   <Select
-                    value={formData.degree_id}
+                    value={formData.degree_code}
                     label="Degree"
-                    onChange={(e) => handleInputChange('degree_id', e.target.value)}
+                    onChange={(e) => handleInputChange('degree_code', e.target.value)}
                     startAdornment={loadingDegrees && (
                       <CircularProgress size={20} sx={{ ml: 1, mr: 1 }} />
                     )}
                   >
-                    {!formData.department_id ? (
+                    {!formData.department_code ? (
                       <MenuItem disabled>Please select a department first</MenuItem>
                     ) : loadingDegrees ? (
                       <MenuItem disabled>Loading degrees...</MenuItem>
                     ) : (
-                      (Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_id) : []).length === 0 ? (
+                      (Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_code) : []).length === 0 ? (
                         <MenuItem disabled>No degrees available for this department</MenuItem>
                       ) : (
-                        (Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_id) : []).map((degree) => (
+                        (Array.isArray(degrees) ? degrees.filter(degree => degree.department_code === formData.department_code) : []).map((degree) => (
                           <MenuItem key={degree.code} value={degree.code}>
                             {degree.name}
                           </MenuItem>
@@ -453,9 +453,9 @@ const CreateUser: React.FC = () => {
                       )
                     )}
                   </Select>
-                  {errors.degree_id && (
+                  {errors.degree_code && (
                     <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1 }}>
-                      {errors.degree_id}
+                      {errors.degree_code}
                     </Typography>
                   )}
                 </FormControl>
