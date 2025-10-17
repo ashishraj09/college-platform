@@ -302,7 +302,7 @@ router.get('/degree/:code',
       const Course = await models.Course();
       
       const { code } = req.params;
-      const { semester, academic_year, status } = req.query;
+      const { semester, status } = req.query;
 
       // Normalize and trim the degree code
       const codeStr = String(code || '').trim();
