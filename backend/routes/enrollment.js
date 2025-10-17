@@ -263,24 +263,24 @@ router.post('/reject',
 );
 
 // Helper function for finding degrees with multiple matching strategies
-const findDegreeByCode = async (codeStr) => {
+const findDegreeByCode = async (codeStr, status = 'active') => {
   try {
     // Get the Degree model dynamically
     const Degree = await models.Degree();
     
     // Try exact match first
-    let degree = await Degree.findOne({ where: { code: codeStr } });
+    let degree = await Degree.findOne({ where: { code: codeStr, status } });
 
     // Case-insensitive match
     if (!degree) {
-      degree = await Degree.findOne({ where: { code: { [Op.iLike]: codeStr } } });
+      degree = await Degree.findOne({ where: { code: { [Op.iLike]: codeStr }, status } });
     }
 
     // Fallback: alphanumeric-only match
     if (!degree) {
       const simplifiedCode = codeStr.replace(/[^a-zA-Z0-9]/g, '');
       if (simplifiedCode) {
-        degree = await Degree.findOne({ where: { code: { [Op.iLike]: `%${simplifiedCode}%` } } });
+        degree = await Degree.findOne({ where: { code: { [Op.iLike]: `%${simplifiedCode}%` }, status } });
       }
     }
 
@@ -308,8 +308,8 @@ router.get('/degree/:code',
       const codeStr = String(code || '').trim();
       console.log(`Looking up degree for code: ${codeStr}`);
 
-      // Find degree using multiple strategies
-      let degree = await findDegreeByCode(codeStr);
+      // Find degree using multiple strategies (defaults to active status unless specified)
+      let degree = await findDegreeByCode(codeStr, status || 'active');
 
       // If no degree found, provide suggestions
       if (!degree) {
