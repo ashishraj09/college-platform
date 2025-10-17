@@ -377,8 +377,18 @@ const EnrollmentApprovalsTab: React.FC = () => {
 
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography>Loading pending approvals...</Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '400px',
+        p: 3 
+      }}>
+        <CircularProgress size={60} sx={{ mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Loading pending approvals...
+        </Typography>
       </Box>
     );
   }
