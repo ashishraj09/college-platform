@@ -150,25 +150,26 @@ interface SemesterData {
       return;
     }
     setDraftLoading(true);
-    try {
-      const response = await enrollmentAPI.saveDraft({ enrollment_id: currentDraft?.id || '', course_codes: selectedCourses });
-      enqueueSnackbar('Enrollment draft saved successfully', { variant: 'success' });
-      if (response && response.draft) {
-        setCurrentDraft(response.draft);
-        setDraftEnrollment(response.draft);
-        setHasDraftEnrollment(true);
-        if (Array.isArray(response.draft.course_codes)) {
-          setSelectedCourses(Array.from(new Set(response.draft.course_codes)));
-        } else {
-          setSelectedCourses([]);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving draft:', error);
-      enqueueSnackbar('Failed to save draft', { variant: 'error' });
-    } finally {
+    
+    const response = await enrollmentAPI.saveDraft({ enrollment_id: currentDraft?.id || '', course_codes: selectedCourses });
+    if (response.error) {
+      enqueueSnackbar(response.error, { variant: 'error' });
       setDraftLoading(false);
+      return;
     }
+    
+    enqueueSnackbar('Enrollment draft saved successfully', { variant: 'success' });
+    if (response && response.draft) {
+      setCurrentDraft(response.draft);
+      setDraftEnrollment(response.draft);
+      setHasDraftEnrollment(true);
+      if (Array.isArray(response.draft.course_codes)) {
+        setSelectedCourses(Array.from(new Set(response.draft.course_codes)));
+      } else {
+        setSelectedCourses([]);
+      }
+    }
+    setDraftLoading(false);
   };
 
   // Open confirmation dialog for enrollment submission
@@ -183,56 +184,65 @@ interface SemesterData {
   // Confirm and submit enrollment for approval
   const confirmSubmitEnrollment = async () => {
     setDraftLoading(true);
-    try {
-      // Always save the draft first to ensure latest course selection is persisted
-      const saveResponse = await enrollmentAPI.saveDraft({ 
-        enrollment_id: currentDraft?.id || '', 
-        course_codes: selectedCourses 
-      });
-      
-      // Update the current draft with the saved response
-      if (saveResponse && saveResponse.draft) {
-        setCurrentDraft(saveResponse.draft);
-      }
-      
-      // Now submit for approval
-      const draftId = saveResponse?.draft?.id || currentDraft?.id;
-      if (!draftId) {
-        throw new Error('No draft ID available for submission');
-      }
-      
-      await enrollmentAPI.submitForApproval({ enrollment_id: draftId });
-      enqueueSnackbar('Enrollment submitted successfully', { variant: 'success' });
-      setConfirmationOpen(false);
-      setEnrollmentInitiated(false);
-      setSelectedCourses([]);
-      setCurrentDraft(null);
-      
-      // Reload enrollment data to show the pending status
-      const enrollmentsData = await enrollmentAPI.getAllEnrollments();
-      if (Array.isArray(enrollmentsData)) {
-        setActiveEnrollments(enrollmentsData);
-        
-        const semester = getCurrentSemester();
-        const pendingEnrollments = enrollmentsData.filter((e: any) => 
-          e.semester === semester && 
-          e.enrollment_status !== 'approved' && 
-          e.enrollment_status !== 'draft' && 
-          e.enrollment_status !== 'rejected'
-        );
-        
-        if (pendingEnrollments.length > 0) {
-          setHasActiveEnrollment(true);
-          setHasDraftEnrollment(false);
-          setDraftEnrollment(null);
-        }
-      }
-    } catch (error) {
-      console.error('Error submitting enrollment:', error);
-      enqueueSnackbar('Failed to submit enrollment', { variant: 'error' });
-    } finally {
+    
+    // Always save the draft first to ensure latest course selection is persisted
+    const saveResponse = await enrollmentAPI.saveDraft({ 
+      enrollment_id: currentDraft?.id || '', 
+      course_codes: selectedCourses 
+    });
+    
+    if (saveResponse.error) {
+      enqueueSnackbar(saveResponse.error, { variant: 'error' });
       setDraftLoading(false);
+      return;
     }
+    
+    // Update the current draft with the saved response
+    if (saveResponse && saveResponse.draft) {
+      setCurrentDraft(saveResponse.draft);
+    }
+    
+    // Now submit for approval
+    const draftId = saveResponse?.draft?.id || currentDraft?.id;
+    if (!draftId) {
+      enqueueSnackbar('No draft ID available for submission', { variant: 'error' });
+      setDraftLoading(false);
+      return;
+    }
+    
+    const submitResult = await enrollmentAPI.submitForApproval({ enrollment_id: draftId });
+    if (submitResult.error) {
+      enqueueSnackbar(submitResult.error, { variant: 'error' });
+      setDraftLoading(false);
+      return;
+    }
+    
+    enqueueSnackbar('Enrollment submitted successfully', { variant: 'success' });
+    setConfirmationOpen(false);
+    setEnrollmentInitiated(false);
+    setSelectedCourses([]);
+    setCurrentDraft(null);
+    
+    // Reload enrollment data to show the pending status
+    const enrollmentsData = await enrollmentAPI.getAllEnrollments();
+    if (Array.isArray(enrollmentsData)) {
+      setActiveEnrollments(enrollmentsData);
+      
+      const semester = getCurrentSemester();
+      const pendingEnrollments = enrollmentsData.filter((e: any) => 
+        e.semester === semester && 
+        e.enrollment_status !== 'approved' && 
+        e.enrollment_status !== 'draft' && 
+        e.enrollment_status !== 'rejected'
+      );
+      
+      if (pendingEnrollments.length > 0) {
+        setHasActiveEnrollment(true);
+        setHasDraftEnrollment(false);
+        setDraftEnrollment(null);
+      }
+    }
+    setDraftLoading(false);
   };
 
   // Group courses by semester (for past semesters tab)
@@ -367,67 +377,74 @@ const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateChec
 
   // Fetch draft enrollment
   const fetchDraft = useCallback(async () => {
-    try {
-      if (currentDraft) return;
-      const response = await enrollmentAPI.createDraft({ course_codes: [], semester: getCurrentSemester() } as any);
-      if (response && response.draft) {
-        setCurrentDraft(response.draft);
-        setSelectedCourses(Array.from(new Set(response.draft.course_codes || [])));
-      } else {
-        setCurrentDraft(null);
-        setSelectedCourses([]);
-      }
-    } catch {}
+    if (currentDraft) return;
+    const response = await enrollmentAPI.createDraft({ course_codes: [], semester: getCurrentSemester() } as any);
+    if (response.error) {
+      // Silently fail - draft creation errors are not critical
+      setCurrentDraft(null);
+      setSelectedCourses([]);
+      return;
+    }
+    if (response && response.draft) {
+      setCurrentDraft(response.draft);
+      setSelectedCourses(Array.from(new Set(response.draft.course_codes || [])));
+    } else {
+      setCurrentDraft(null);
+      setSelectedCourses([]);
+    }
   }, [currentDraft, getCurrentSemester]);
 
   // Check active enrollment status and update UI state
   const checkActiveEnrollmentStatus = useCallback(async () => {
-    try {
-      const response = await enrollmentAPI.checkActiveEnrollmentStatus();
-      setActiveEnrollments(response.activeEnrollments || []);
-      const pendingEnrollments = (response.activeEnrollments || []).filter(
-        (e: any) => e.enrollment_status !== 'approved' &&
-          e.enrollment_status !== 'draft' &&
-          e.enrollment_status !== 'rejected'
-      );
-      const hasApproved = (response.activeEnrollments || []).some(
-        (e: any) => e.enrollment_status === 'approved' && e.semester === getCurrentSemester()
-      );
-      if (pendingEnrollments.length > 0) {
-        setHasActiveEnrollment(true);
-        setHasDraftEnrollment(false);
-        setDraftEnrollment(null);
+    const response = await enrollmentAPI.checkActiveEnrollmentStatus();
+    if (response.error) {
+      // Silently fail - enrollment status check errors are handled gracefully
+      return;
+    }
+    
+    setActiveEnrollments(response.activeEnrollments || []);
+    const pendingEnrollments = (response.activeEnrollments || []).filter(
+      (e: any) => e.enrollment_status !== 'approved' &&
+        e.enrollment_status !== 'draft' &&
+        e.enrollment_status !== 'rejected'
+    );
+    const hasApproved = (response.activeEnrollments || []).some(
+      (e: any) => e.enrollment_status === 'approved' && e.semester === getCurrentSemester()
+    );
+    if (pendingEnrollments.length > 0) {
+      setHasActiveEnrollment(true);
+      setHasDraftEnrollment(false);
+      setDraftEnrollment(null);
+      setEnrollmentInitiated(false);
+      setSelectedCourses([]);
+    } else if (response.hasDraft && response.draftEnrollment && !hasApproved) {
+      setHasActiveEnrollment(false);
+      setHasDraftEnrollment(true);
+      setDraftEnrollment(response.draftEnrollment);
+      if (response.draftEnrollment.course_codes && Array.isArray(response.draftEnrollment.course_codes)) {
+        setSelectedCourses(Array.from(new Set(response.draftEnrollment.course_codes)));
+      } else if (response.draftEnrollment.course_ids && Array.isArray(response.draftEnrollment.course_ids)) {
+        const codes = response.draftEnrollment.course_ids
+          .map((id: string) => {
+            const found = Object.values(courseCodeMap).find(c => c.id === id);
+            return found ? found.code : null;
+          })
+          .filter((code: string | null) => !!code);
+        setSelectedCourses(Array.from(new Set(codes)));
+      } else {
+        setSelectedCourses([]);
+      }
+      setEnrollmentInitiated(true);
+      setCurrentDraft(response.draftEnrollment);
+    } else {
+      setHasActiveEnrollment(false);
+      setHasDraftEnrollment(false);
+      setDraftEnrollment(null);
+      if (hasApproved) {
         setEnrollmentInitiated(false);
         setSelectedCourses([]);
-      } else if (response.hasDraft && response.draftEnrollment && !hasApproved) {
-        setHasActiveEnrollment(false);
-        setHasDraftEnrollment(true);
-        setDraftEnrollment(response.draftEnrollment);
-        if (response.draftEnrollment.course_codes && Array.isArray(response.draftEnrollment.course_codes)) {
-          setSelectedCourses(Array.from(new Set(response.draftEnrollment.course_codes)));
-        } else if (response.draftEnrollment.course_ids && Array.isArray(response.draftEnrollment.course_ids)) {
-          const codes = response.draftEnrollment.course_ids
-            .map((id: string) => {
-              const found = Object.values(courseCodeMap).find(c => c.id === id);
-              return found ? found.code : null;
-            })
-            .filter((code: string | null) => !!code);
-          setSelectedCourses(Array.from(new Set(codes)));
-        } else {
-          setSelectedCourses([]);
-        }
-        setEnrollmentInitiated(true);
-        setCurrentDraft(response.draftEnrollment);
-      } else {
-        setHasActiveEnrollment(false);
-        setHasDraftEnrollment(false);
-        setDraftEnrollment(null);
-        if (hasApproved) {
-          setEnrollmentInitiated(false);
-          setSelectedCourses([]);
-        }
       }
-    } catch {}
+    }
   }, [getCurrentSemester]);
 
 // Initial load: fetch degree courses and enrollment status

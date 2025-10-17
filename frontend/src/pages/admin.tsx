@@ -141,16 +141,18 @@ const AdminDashboard: React.FC = () => {
 
   const confirmPasswordReset = async (userId: string) => {
     setPasswordResetLoading(prev => ({ ...prev, [userId]: true }));
-    try {
-      await usersAPI.resetUserPassword(userId);
-      enqueueSnackbar('Password reset successfully! New password sent to user\'s email.', { variant: 'success' });
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      enqueueSnackbar('Failed to reset password', { variant: 'error' });
-    } finally {
+    
+    const result = await usersAPI.resetUserPassword(userId);
+    if (result.error) {
+      enqueueSnackbar(result.error, { variant: 'error' });
       setPasswordResetLoading(prev => ({ ...prev, [userId]: false }));
       setConfirmDialog({ ...confirmDialog, open: false });
+      return;
     }
+    
+    enqueueSnackbar('Password reset successfully! New password sent to user\'s email.', { variant: 'success' });
+    setPasswordResetLoading(prev => ({ ...prev, [userId]: false }));
+    setConfirmDialog({ ...confirmDialog, open: false });
   };
 
   const handleEditDepartment = (department: any) => {
@@ -173,19 +175,19 @@ const AdminDashboard: React.FC = () => {
       return;
     }
     
-    try {
-      setLoading(true);
-      await departmentsAPI.updateDepartment(editingDepartment.id, editFormData);
-      setEditDepartmentOpen(false);
-      setEditingDepartment(null);
-      loadDepartments();
-      enqueueSnackbar('Department updated successfully!', { variant: 'success' });
-    } catch (error) {
-      console.error('Error updating department:', error);
-      enqueueSnackbar('Failed to update department', { variant: 'error' });
-    } finally {
+    setLoading(true);
+    const result = await departmentsAPI.updateDepartment(editingDepartment.id, editFormData);
+    if (result.error) {
+      enqueueSnackbar(result.error, { variant: 'error' });
       setLoading(false);
+      return;
     }
+    
+    setEditDepartmentOpen(false);
+    setEditingDepartment(null);
+    loadDepartments();
+    enqueueSnackbar('Department updated successfully!', { variant: 'success' });
+    setLoading(false);
   };
 
   const handleDeactivateDepartment = (department: any) => {
@@ -202,18 +204,20 @@ const AdminDashboard: React.FC = () => {
 
   const confirmToggleDepartmentStatus = async (departmentId: string, action: string) => {
     setDepartmentActionLoading(prev => ({ ...prev, [departmentId]: true }));
-    try {
-      const newStatus = action === 'activate' ? 'active' : 'inactive';
-      await departmentsAPI.updateDepartment(departmentId, { status: newStatus });
-      loadDepartments();
-      enqueueSnackbar(`Department ${action}d successfully!`, { variant: 'success' });
-    } catch (error) {
-      console.error(`Error ${action}ing department:`, error);
-      enqueueSnackbar(`Failed to ${action} department`, { variant: 'error' });
-    } finally {
+    
+    const newStatus = action === 'activate' ? 'active' : 'inactive';
+    const result = await departmentsAPI.updateDepartment(departmentId, { status: newStatus });
+    if (result.error) {
+      enqueueSnackbar(result.error, { variant: 'error' });
       setDepartmentActionLoading(prev => ({ ...prev, [departmentId]: false }));
       setConfirmDialog({ ...confirmDialog, open: false });
+      return;
     }
+    
+    loadDepartments();
+    enqueueSnackbar(`Department ${action}d successfully!`, { variant: 'success' });
+    setDepartmentActionLoading(prev => ({ ...prev, [departmentId]: false }));
+    setConfirmDialog({ ...confirmDialog, open: false });
   };
 
   const handleDeactivateUser = (user: any) => {
@@ -230,19 +234,21 @@ const AdminDashboard: React.FC = () => {
 
   const confirmToggleUserStatus = async (userId: string, action: string) => {
     setUserActionLoading(prev => ({ ...prev, [userId]: true }));
-    try {
-      const newStatus = action === 'activate' ? 'active' : 'inactive';
-      await usersAPI.updateUser(userId, { status: newStatus });
-      // loadUsers();
-      fetchAllUsers();
-      enqueueSnackbar(`User ${action}d successfully!`, { variant: 'success' });
-    } catch (error) {
-      console.error(`Error ${action}ing user:`, error);
-      enqueueSnackbar(`Failed to ${action} user`, { variant: 'error' });
-    } finally {
+    
+    const newStatus = action === 'activate' ? 'active' : 'inactive';
+    const result = await usersAPI.updateUser(userId, { status: newStatus });
+    if (result.error) {
+      enqueueSnackbar(result.error, { variant: 'error' });
       setUserActionLoading(prev => ({ ...prev, [userId]: false }));
       setConfirmDialog({ ...confirmDialog, open: false });
+      return;
     }
+    
+    // loadUsers();
+    fetchAllUsers();
+    enqueueSnackbar(`User ${action}d successfully!`, { variant: 'success' });
+    setUserActionLoading(prev => ({ ...prev, [userId]: false }));
+    setConfirmDialog({ ...confirmDialog, open: false });
   };
 
   // Update loadUsers to support user_type and pagination

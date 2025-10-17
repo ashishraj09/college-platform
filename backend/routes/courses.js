@@ -18,6 +18,7 @@ const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 const { sendCourseApprovalEmail } = require('../utils/email');
+const { handleCaughtError } = require('../utils/errorHandler');
 
 // Course validation rules
 const courseValidation = [
@@ -64,9 +65,15 @@ router.get('/',
       if (status) whereClause.status = status;
       if (faculty_id) whereClause.faculty_id = faculty_id;
 
-      // For HODs, show all courses in their department
-      if (req.user && req.user.user_type !== 'admin' && !req.user.is_head_of_department) {
-        whereClause.created_by = req.user.id;
+      // Filter by department and ownership for non-admin users
+      if (req.user && req.user.user_type !== 'admin') {
+        // All non-admin users can only see courses from their department
+        whereClause.department_code = req.user.department_code;
+        
+        // Non-HOD users can only see courses they created
+        if (!req.user.is_head_of_department) {
+          whereClause.created_by = req.user.id;
+        }
       }
 
       const offset = (page - 1) * limit;
@@ -117,29 +124,29 @@ router.get('/',
         return true;
       });
 
-      // Batch fetch draft versions for these courses to avoid N+1 queries
-      const parentKeys = new Set();
-      courses.forEach(course => {
-        parentKeys.add(course.id);
-        parentKeys.add(course.parent_course_id || course.id);
-      });
-      const parentKeyArray = Array.from(parentKeys);
-      const drafts = await Course.findAll({
+      // Batch fetch pending versions for these courses to avoid N+1 queries
+      const courseIds = courses.map(c => c.id);
+      
+      // Find all pending versions that are children of courses in our list
+      const pendingVersions = await Course.findAll({
         where: {
-          parent_course_id: { [Op.in]: parentKeyArray },
-          status: 'draft'
+          parent_course_id: { [Op.in]: courseIds },
+          status: { [Op.notIn]: ['active', 'archived'] }
         },
-        attributes: ['parent_course_id'],
+        attributes: ['parent_course_id', 'id'],
       });
-      const draftParentSet = new Set(drafts.map(d => d.parent_course_id));
-      const coursesWithDraftFlag = courses.map(course => {
-        const keys = [course.id, course.parent_course_id || course.id];
-        course.dataValues.hasDraftVersion = keys.some(k => draftParentSet.has(k));
+      
+      // Create a set of course IDs that have pending child versions
+      const coursesWithPendingChildren = new Set(pendingVersions.map(v => v.parent_course_id));
+      
+      const coursesWithPendingFlag = courses.map(course => {
+        // Check if there's a child pending version of this course
+        course.dataValues.hasNewPendingVersion = coursesWithPendingChildren.has(course.id);
         return course;
       });
 
       // Remap departmentByCode -> department, degreeByCode -> degree
-      const coursesRemapped = coursesWithDraftFlag.map(course => {
+      const coursesRemapped = coursesWithPendingFlag.map(course => {
         const obj = { ...course.dataValues };
         if (obj.departmentByCode) {
           obj.department = obj.departmentByCode;
@@ -165,8 +172,7 @@ router.get('/',
         pagination
       });
     } catch (error) {
-      console.error('Error fetching courses:', error);
-      res.status(500).json({ error: 'Failed to fetch courses' });
+      handleCaughtError(res, error, 'Failed to fetch courses');
     }
   }
 );
@@ -254,12 +260,12 @@ router.get('/my-courses',
       include: [
         {
           model: Department,
-          as: 'department',
+          as: 'departmentByCode',
           attributes: ['id', 'name', 'code']
         },
         {
           model: Degree,
-          as: 'degree',
+          as: 'degreeByCode',
           attributes: ['id', 'name', 'code']
         },
         {
@@ -334,29 +340,26 @@ router.get('/my-courses',
       course.faculty_details = await resolveInstructorNames(course.faculty_details);
     }
 
-    // For each active course, check if a draft version exists for the same parent_course_id
-    const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
-      let hasDraftVersion = false;
-      if (course.status === 'active') {
-        const draft = await Course.findOne({
-          where: {
-            parent_course_id: course.id,
-            status: 'draft'
-          }
-        });
-        hasDraftVersion = !!draft;
-      }
-      course.dataValues.hasDraftVersion = hasDraftVersion;
+    // For each course (except active and archived), check if a pending version exists
+    const coursesWithPendingFlag = await Promise.all(courses.map(async course => {
+      // Check if there's a child pending version
+      const pendingVersion = await Course.findOne({
+        where: {
+          parent_course_id: course.id,
+          status: { [Op.notIn]: ['active', 'archived'] }
+        }
+      });
+      course.dataValues.hasNewPendingVersion = !!pendingVersion;
       return course;
     }));
 
     // Categorize courses by status
     const categorized = {
-      draft: coursesWithDraftFlag.filter(course => course.status === 'draft'),
-      pending_approval: coursesWithDraftFlag.filter(course => ['submitted', 'pending_approval'].includes(course.status)),
-      approved: coursesWithDraftFlag.filter(course => course.status === 'approved'),
-      active: coursesWithDraftFlag.filter(course => course.status === 'active'),
-      others: coursesWithDraftFlag.filter(course => !['draft', 'submitted', 'pending_approval', 'approved', 'active'].includes(course.status))
+      draft: coursesWithPendingFlag.filter(course => course.status === 'draft'),
+      pending_approval: coursesWithPendingFlag.filter(course => ['submitted', 'pending_approval'].includes(course.status)),
+      approved: coursesWithPendingFlag.filter(course => course.status === 'approved'),
+      active: coursesWithPendingFlag.filter(course => course.status === 'active'),
+      others: coursesWithPendingFlag.filter(course => !['draft', 'submitted', 'pending_approval', 'approved', 'active'].includes(course.status))
     };
 
     const summary = {
@@ -374,8 +377,7 @@ router.get('/my-courses',
       summary
     });
   } catch (error) {
-    console.error('Error fetching faculty courses:', error);
-    res.status(500).json({ error: 'Failed to fetch faculty courses' });
+    handleCaughtError(res, error, 'Failed to fetch faculty courses');
   }
 });
 
@@ -411,12 +413,12 @@ router.get('/department-courses',
       include: [
         {
           model: Department,
-          as: 'department',
+          as: 'departmentByCode',
           attributes: ['id', 'name', 'code']
         },
         {
           model: Degree,
-          as: 'degree',
+          as: 'degreeByCode',
           attributes: ['id', 'name', 'code']
         },
         {
@@ -465,8 +467,7 @@ router.get('/department-courses',
       }
     });
   } catch (error) {
-    console.error('Error fetching department courses:', error);
-    res.status(500).json({ error: 'Failed to fetch department courses' });
+    handleCaughtError(res, error, 'Failed to fetch department courses');
   }
 });
 
@@ -483,8 +484,8 @@ router.get('/:id',
       
       const course = await Course.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'departmentByCode' },
+          { model: Degree, as: 'degreeByCode' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
@@ -607,8 +608,7 @@ router.get('/:id',
 
       res.json({ course });
     } catch (error) {
-      console.error('Error fetching course:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to fetch course');
     }
   }
 );
@@ -730,8 +730,7 @@ router.get('/:id/edit',
       }
       res.json({ course: courseObj });
     } catch (error) {
-      console.error('Error fetching course for editing:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to fetch course for editing');
     }
   }
 );
@@ -802,12 +801,12 @@ router.post('/',
         include: [
           {
             model: Department,
-            as: 'department',
+            as: 'departmentByCode',
             attributes: ['id', 'name', 'code']
           },
           {
             model: Degree,
-            as: 'degree',
+            as: 'degreeByCode',
             attributes: ['id', 'name', 'code']
           },
           {
@@ -821,29 +820,26 @@ router.post('/',
         order: [['created_at', 'DESC']]
       });
 
-      // For each active course, check if a draft version exists
-      const coursesWithDraftFlag = await Promise.all(courses.map(async course => {
-        if (course.status === 'active') {
-          const draft = await Course.findOne({
-            where: {
-              parent_course_id: course.id,
-              status: 'draft'
-            }
-          });
-          course.dataValues.hasDraftVersion = !!draft;
-        } else {
-          course.dataValues.hasDraftVersion = false;
-        }
+      // For each course, check if a pending child version exists
+      const coursesWithPendingFlag = await Promise.all(courses.map(async course => {
+        // Check if there's a child version that's not active/archived
+        const pendingVersion = await Course.findOne({
+          where: {
+            parent_course_id: course.id,
+            status: { [Op.notIn]: ['active', 'archived'] }
+          }
+        });
+        course.dataValues.hasNewPendingVersion = !!pendingVersion;
         return course;
       }));
 
-      res.json(coursesWithDraftFlag);
+      res.json(coursesWithPendingFlag);
 
       // Fetch course with associations
       const createdCourse = await Course.findByPk(course.id, {
         include: [
-          { model: Department, as: 'department' },
-          { model: Degree, as: 'degree' },
+          { model: Department, as: 'departmentByCode' },
+          { model: Degree, as: 'degreeByCode' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'lecturers', attributes: ['id', 'first_name', 'last_name', 'email', 'user_type'], through: { attributes: ['role', 'responsibilities'] } },
         ],
@@ -854,20 +850,7 @@ router.post('/',
         course: createdCourse,
       });
     } catch (error) {
-      console.error('Error creating course:', error);
-      
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json({ error: 'Course with this code already exists' });
-      }
-      
-      if (error.name === 'SequelizeValidationError') {
-        return res.status(400).json({
-          error: 'Validation error',
-          details: error.errors.map(e => ({ field: e.path, message: e.message })),
-        });
-      }
-
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to create course');
     }
   }
 );
@@ -1042,13 +1025,7 @@ router.post('/:id/create-version',
         version: nextVersion
       });
     } catch (error) {
-      console.error('Error creating course version:', error);
-      
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json({ error: 'Course version with this code already exists' });
-      }
-
-      res.status(500).json({ error: 'Internal server error', details: error.message });
+      handleCaughtError(res, error, 'Failed to create course version');
     }
   }
 );
@@ -1134,8 +1111,7 @@ router.get('/:id/can-edit',
         }))
       });
     } catch (error) {
-      console.error('Error checking if course can be edited:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to check if course can be edited');
     }
   }
 );
@@ -1227,8 +1203,7 @@ router.patch('/:id/submit',
         course,
       });
     } catch (error) {
-      console.error('Error submitting course:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to submit course for approval');
     }
   }
 );
@@ -1304,8 +1279,7 @@ router.patch('/:id/approve',
       });
     } catch (error) {
       if (transaction) await transaction.rollback();
-      console.error('Error approving course:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to approve course');
     }
   }
 );
@@ -1360,8 +1334,7 @@ router.patch('/:id/reject',
         course,
       });
     } catch (error) {
-      console.error('Error rejecting course:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to reject course');
     }
   }
 );
@@ -1380,7 +1353,7 @@ router.patch('/:id/publish',
       
       const course = await Course.findByPk(req.params.id, {
         include: [
-          { model: Department, as: 'department' },
+          { model: Department, as: 'departmentByCode' },
           { model: User, as: 'creator' },
         ],
       });
@@ -1389,16 +1362,16 @@ router.patch('/:id/publish',
         return res.status(404).json({ error: 'Course not found' });
       }
 
-      // For development/testing when authentication is disabled
+      // Use authenticated user from middleware
       const user = req.user || { 
         id: req.body.userId,
-        department_id: req.body.departmentId, 
+        department_code: req.body.departmentCode || req.body.department_code,
         user_type: 'faculty' 
       };
 
       // Validate that we have user context
-      if (!user.id || !user.department_id) {
-        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      if (!user.id) {
+        return res.status(401).json({ error: 'Authentication required' });
       }
 
       // Only course creator or faculty in the same department can publish
@@ -1450,8 +1423,7 @@ router.patch('/:id/publish',
         course,
       });
     } catch (error) {
-      console.error('Error publishing course:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to publish course');
     }
   }
 );
@@ -1556,20 +1528,7 @@ router.put('/:id',
         course: courseObj,
       });
     } catch (error) {
-      console.error('Error updating course:', error);
-      
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json({ error: 'Course with this code already exists' });
-      }
-      
-      if (error.name === 'SequelizeValidationError') {
-        return res.status(400).json({
-          error: 'Validation error',
-          details: error.errors.map(e => ({ field: e.path, message: e.message })),
-        });
-      }
-
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to update course');
     }
   }
 );
@@ -1587,25 +1546,23 @@ router.delete('/:id',
       const Department = await models.Department();
       
       const course = await Course.findByPk(req.params.id, {
-        include: [{ model: Department, as: 'department' }]
+        include: [{ model: Department, as: 'departmentByCode' }]
       });
 
       if (!course) {
         return res.status(404).json({ error: 'Course not found' });
       }
 
-      // For development/testing when authentication is disabled
-
-      // Accept departmentId from request body for consistency
+      // Use authenticated user from middleware, or fallback to request body for development
       const user = req.user || { 
         id: req.body.userId,
-        department_id: req.body.departmentId, 
+        department_code: req.body.departmentCode || req.body.department_code,
         user_type: 'faculty' 
       };
 
       // Validate that we have user context
-      if (!user.id || !user.department_id) {
-        return res.status(400).json({ error: 'User context required - missing userId or departmentId in request body' });
+      if (!user.id) {
+        return res.status(401).json({ error: 'Authentication required' });
       }
 
       // Only course creator or admin can delete
@@ -1613,8 +1570,8 @@ router.delete('/:id',
         return res.status(403).json({ error: 'Only course creator or admin can delete this course' });
       }
 
-      // Faculty can only delete courses in their own department (temporarily bypassed for testing)
-      if (user.user_type !== 'admin' && user.department_id !== course.department_id) {
+      // Faculty can only delete courses in their own department
+      if (user.user_type !== 'admin' && user.department_code && course.department_code && user.department_code !== course.department_code) {
         return res.status(403).json({ error: 'Can only delete courses in your own department' });
       }
 
@@ -1630,8 +1587,7 @@ router.delete('/:id',
 
       res.json({ message: 'Course deleted successfully' });
     } catch (error) {
-      console.error('Error deleting course:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to delete course');
     }
   }
 );

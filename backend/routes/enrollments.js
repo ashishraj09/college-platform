@@ -6,6 +6,7 @@ const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { isEnrollmentOpen } = require('../utils/enrollment');
+const { handleCaughtError } = require('../utils/errorHandler');
 
 // Base route for all enrollments with flexible filtering
 router.get('/',
@@ -159,8 +160,7 @@ router.get('/',
         res.json(shapedEnrollments);
       }
     } catch (error) {
-      console.error('Error fetching enrollments:', error);
-      res.status(500).json({ error: 'Failed to fetch enrollments' });
+      handleCaughtError(res, error, 'Failed to fetch enrollments');
     }
   }
 );
@@ -189,8 +189,7 @@ router.get('/draft',
 
       res.json({ exists: true, draft });
     } catch (error) {
-      console.error('Error fetching enrollment draft:', error);
-      res.status(500).json({ error: 'Failed to fetch enrollment draft' });
+      handleCaughtError(res, error, 'Failed to fetch enrollment draft');
     }
   }
 );
@@ -301,8 +300,7 @@ router.put('/draft',
       }
   res.json({ message: 'Draft saved successfully', draft: draftPlain, id: draft.id });
     } catch (error) {
-      console.error('Error saving enrollment draft:', error);
-      res.status(500).json({ error: 'Failed to save enrollment draft' });
+      handleCaughtError(res, error, 'Failed to save enrollment draft');
     }
   }
 );
@@ -504,8 +502,7 @@ router.post('/draft/submit',
 
       res.json({ message: 'Enrollment submitted for HOD approval', id: draft.id });
     } catch (error) {
-      console.error('Error submitting enrollment:', error);
-      res.status(500).json({ error: 'Failed to submit enrollment' });
+      handleCaughtError(res, error, 'Failed to submit enrollment');
     }
   }
 );

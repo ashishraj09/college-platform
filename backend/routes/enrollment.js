@@ -7,6 +7,7 @@ const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { isEnrollmentOpen } = require('../utils/enrollment');
+const { handleCaughtError } = require('../utils/errorHandler');
 
 // Get user's draft enrollments
 router.get('/drafts',
@@ -26,8 +27,7 @@ router.get('/drafts',
       // Just return the draft with course_codes
       res.json(drafts.map(draft => draft.toJSON()));
     } catch (error) {
-      console.error('Error fetching drafts:', error);
-      res.status(500).json({ error: 'Failed to fetch drafts' });
+      handleCaughtError(res, error, 'Failed to fetch enrollment drafts');
     }
   }
 );
@@ -136,8 +136,7 @@ router.post('/approve',
         enrollments: updatedEnrollments.map(e => e.updated)
       });
     } catch (error) {
-      console.error('Error approving enrollments:', error);
-      res.status(500).json({ error: 'Failed to approve enrollments' });
+      handleCaughtError(res, error, 'Failed to approve enrollments');
     }
   }
 );
@@ -258,8 +257,7 @@ router.post('/reject',
         enrollments: updatedEnrollments.map(e => e.updated)
       });
     } catch (error) {
-      console.error('Error rejecting enrollments:', error);
-      res.status(500).json({ error: 'Failed to reject enrollments' });
+      handleCaughtError(res, error, 'Failed to reject enrollments');
     }
   }
 );
@@ -383,8 +381,7 @@ router.get('/degree/:code',
         courses: courses
       });
     } catch (error) {
-      console.error('Error fetching enrollments by degree code:', error);
-      res.status(500).json({ error: 'Failed to fetch enrollments for degree' });
+      handleCaughtError(res, error, 'Failed to fetch enrollments for degree');
     }
   }
 );

@@ -66,7 +66,14 @@ const LoginPage: React.FC = () => {
         setLoading(false);
         return;
       }
+      
       const profile = await authAPI.getProfile();
+      if (profile.error) {
+        setError(profile.error);
+        setLoading(false);
+        return;
+      }
+      
       dispatch(setUser(profile));
   const userObj = profile.user ? profile.user : profile;
   const dashboardRoute = getDashboardRoute(userObj.user_type, userObj.is_head_of_department);

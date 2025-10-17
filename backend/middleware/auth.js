@@ -15,7 +15,7 @@ const jwt = require('jsonwebtoken');
 const getModel = require('../utils/getModel');
 
 const authenticateToken = async (req, res, next) => {
-  // Authenticates user by JWT token in cookie
+  // Authenticates user by JWT token in cookie only
   // Dev mode bypass: if header X-Dev-Bypass-Auth is true, skip auth
   if (process.env.NODE_ENV === 'development' && req.headers['x-dev-bypass-auth'] === 'true') {
     return next();

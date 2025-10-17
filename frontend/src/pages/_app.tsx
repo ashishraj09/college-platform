@@ -5,7 +5,7 @@ import { store } from '../store/store';
 import '../styles/globals.css';
 import { Analytics } from '@vercel/analytics/react';
 import { ClientRouter } from '../components/ClientRouter';
-
+import { SnackbarProvider } from 'notistack';
 
 import DashboardLayout from '../layouts/DashboardLayout';
 import { AuthProvider } from '../contexts/AuthContext';
@@ -16,12 +16,20 @@ function MyApp({ Component, pageProps }: AppProps) {
   ));
   return (
     <Provider store={store}>
-      <ClientRouter>
-        <AuthProvider>
-          {getLayout(<Component {...pageProps} />)}
-          <Analytics />
-        </AuthProvider>
-      </ClientRouter>
+      <SnackbarProvider 
+        maxSnack={3}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <ClientRouter>
+          <AuthProvider>
+            {getLayout(<Component {...pageProps} />)}
+            <Analytics />
+          </AuthProvider>
+        </ClientRouter>
+      </SnackbarProvider>
     </Provider>
   );
 }

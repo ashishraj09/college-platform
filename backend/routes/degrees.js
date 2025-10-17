@@ -13,6 +13,7 @@ const express = require('express');
 const { body, query } = require('express-validator');
 const models = require('../utils/models');
 const { Op } = require('sequelize');
+const { handleCaughtError } = require('../utils/errorHandler');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
@@ -64,8 +65,7 @@ router.patch(
       });
       res.json({ message: 'Degree change requested', degree });
     } catch (error) {
-      console.error('Error rejecting degree:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to request degree change');
     }
   }
 );
@@ -198,8 +198,7 @@ router.post(
         validation: dataValidation,
       });
     } catch (error) {
-      console.error('Error creating degree version:', error);
-      res.status(500).json({ error: 'Failed to create degree version', details: error.message });
+      handleCaughtError(res, error, 'Failed to create degree version');
     }
   }
 );
@@ -240,14 +239,16 @@ router.get(
       const whereClause = {};
       if (department_code) whereClause['$departmentByCode.code$'] = department_code;
       if (status) whereClause.status = status;
-      // Only filter by created_by for non-admin/non-HOD users when status is not 'active'
-      if (
-        req.user &&
-        req.user.user_type !== 'admin' &&
-        !req.user.is_head_of_department &&
-        whereClause.status !== 'active'
-      ) {
-        whereClause.created_by = req.user.id;
+      
+      // Filter by department and ownership for non-admin users
+      if (req.user && req.user.user_type !== 'admin') {
+        // All non-admin users can only see degrees from their department
+        whereClause.department_code = req.user.department_code;
+        
+        // Non-HOD users can only see degrees they created
+        if (!req.user.is_head_of_department) {
+          whereClause.created_by = req.user.id;
+        }
       }
       const offset = (page - 1) * limit;
       // Use findAndCountAll for pagination meta
@@ -264,24 +265,22 @@ router.get(
         offset: parseInt(offset),
         order: [['created_at', 'DESC']],
       });
-      // For each degree, check if a draft version exists for this degree or its parent
-      const degreesWithDraftFlag = await Promise.all(
+      // For each degree, check if a pending child version exists
+      const degreesWithPendingFlag = await Promise.all(
         degrees.map(async (degree) => {
-          const draft = await Degree.findOne({
+          // Check if there's a child version that's not active/archived
+          const pendingVersion = await Degree.findOne({
             where: {
-              [Op.or]: [
-                { parent_degree_id: degree.id },
-                { parent_degree_id: degree.parent_degree_id || degree.id },
-              ],
-              status: 'draft',
+              parent_degree_id: degree.id,
+              status: { [Op.notIn]: ['active', 'archived'] },
             },
           });
-          degree.dataValues.hasDraftVersion = !!draft;
+          degree.dataValues.hasNewPendingVersion = !!pendingVersion;
           return degree;
         })
       );
       // Remap departmentByCode -> department
-      const degreesRemapped = degreesWithDraftFlag.map((degree) => {
+      const degreesRemapped = degreesWithPendingFlag.map((degree) => {
         const obj = { ...degree.dataValues };
         if (obj.departmentByCode) {
           obj.department = obj.departmentByCode;
@@ -298,8 +297,7 @@ router.get(
       };
       res.json({ degrees: degreesRemapped, pagination });
     } catch (error) {
-      console.error('Error fetching degrees:', error);
-      res.status(500).json({ error: 'Failed to fetch degrees' });
+      handleCaughtError(res, error, 'Failed to fetch degrees');
     }
   }
 );
@@ -362,17 +360,7 @@ router.post(
         degree: createdDegree,
       });
     } catch (error) {
-      console.error('Error creating degree:', error);
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json({ error: 'Degree with this code already exists' });
-      }
-      if (error.name === 'SequelizeValidationError') {
-        return res.status(400).json({
-          error: 'Validation error',
-          details: error.errors.map((e) => ({ field: e.path, message: e.message })),
-        });
-      }
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to create degree');
     }
   }
 );
@@ -409,7 +397,7 @@ router.get(
         // Lookup by primary key (query id overrides path param)
         degree = await Degree.findByPk(idToUse, {
           include: [
-            { model: Department, as: 'department' },
+            { model: Department, as: 'departmentByCode' },
             {
               model: Course,
               as: 'courses',
@@ -435,7 +423,7 @@ router.get(
         degree = await Degree.findOne({
           where: whereClause,
           include: [
-            { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+            { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
             { model: Course, as: 'courses' },
             { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name'] },
           ],
@@ -458,8 +446,7 @@ router.get(
       }
       res.json({ degree });
     } catch (error) {
-      console.error('Error fetching degree:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to fetch degree');
     }
   }
 );
@@ -551,17 +538,7 @@ router.put(
 
       res.json({ data: sanitized, message: 'Degree updated successfully' });
     } catch (error) {
-      console.error('Error in PUT /degrees/:id:', error);
-      if (error && error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json({ error: 'Degree with this code already exists' });
-      }
-      if (error && error.name === 'SequelizeValidationError') {
-        return res.status(400).json({
-          error: 'Validation error',
-          details: error.errors.map((e) => ({ field: e.path, message: e.message })),
-        });
-      }
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to update degree');
     }
   }
 );
@@ -634,8 +611,7 @@ router.patch(
 
       res.json({ message: 'Degree submitted for approval', degree: updated });
     } catch (error) {
-      console.error('Error submitting degree:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to submit degree for approval');
     }
   }
 );
@@ -708,8 +684,7 @@ router.patch(
       res.json({ message: 'Degree approved', degree: updated });
     } catch (error) {
       if (transaction) await transaction.rollback();
-      console.error('Error approving degree:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to approve degree');
     }
   }
 );
@@ -753,25 +728,67 @@ router.delete(
         return res.status(403).json({ error: 'Can only delete degrees from your own department' });
       }
 
-      // Can't delete degrees with students or courses
-      const [studentCount, courseCount] = await Promise.all([
-        User.count({ where: { degree_code: degree.code, user_type: 'student' } }),
-        Course.count({ where: { degree_code: degree.code } }),
-      ]);
+      // Can't delete degrees with students
+      const studentCount = await User.count({ 
+        where: { degree_code: degree.code, user_type: 'student' } 
+      });
 
       if (studentCount > 0) {
         return res.status(400).json({ error: 'Cannot delete degree with enrolled students' });
       }
 
-      if (courseCount > 0) {
-        return res.status(400).json({ error: 'Cannot delete degree with associated courses' });
+      // Check if there are associated courses
+      const associatedCourses = await Course.findAll({ 
+        where: { degree_code: degree.code } 
+      });
+
+      if (associatedCourses.length > 0) {
+        // Check if there's an active version of this degree
+        const activeDegree = await Degree.findOne({
+          where: {
+            code: degree.code,
+            status: 'active'
+          }
+        });
+
+        // If no active degree exists, don't allow deletion
+        if (!activeDegree) {
+          return res.status(400).json({ 
+            error: 'Cannot delete degree with associated courses when no active version exists' 
+          });
+        }
+
+        // Check if all associated courses have active versions
+        const coursesWithoutActiveVersions = [];
+        for (const course of associatedCourses) {
+          const activeCourse = await Course.findOne({
+            where: {
+              code: course.code,
+              status: 'active'
+            }
+          });
+          if (!activeCourse) {
+            coursesWithoutActiveVersions.push(course.name);
+          }
+        }
+
+        // If any course doesn't have an active version, don't allow deletion
+        if (coursesWithoutActiveVersions.length > 0) {
+          return res.status(400).json({ 
+            error: `Cannot delete degree. The following courses don't have active versions: ${coursesWithoutActiveVersions.join(', ')}` 
+          });
+        }
+
+        // All checks passed - delete all associated courses first
+        for (const course of associatedCourses) {
+          await course.destroy();
+        }
       }
 
       await degree.destroy();
       res.json({ message: 'Degree deleted successfully' });
     } catch (error) {
-      console.error('Error deleting degree:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to delete degree');
     }
   }
 );
@@ -840,8 +857,7 @@ router.patch('/:id/publish',
 
       res.json({ message: 'Degree published and is now active', degree});
     } catch (error) {
-      console.error('Error publishing degree:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to publish degree');
     }
   }
 );

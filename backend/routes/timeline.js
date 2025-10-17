@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const models = require('../utils/models');
+const { handleCaughtError } = require('../utils/errorHandler');
 
 // GET /api/timeline/:entityType/:entityId
 router.get('/:entityType/:entityId', async (req, res) => {
@@ -52,8 +53,7 @@ router.get('/:entityType/:entityId', async (req, res) => {
     }));
     res.json({ audit, messages: messagesArr });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch timeline' });
+    handleCaughtError(res, err, 'Failed to fetch timeline');
   }
 });
 

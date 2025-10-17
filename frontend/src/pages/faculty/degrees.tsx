@@ -66,7 +66,7 @@ interface Degree {
     name: string;
     code: string;
   };
-  hasDraftVersion?: boolean;
+  hasNewPendingVersion?: boolean;
 }
 
 const DegreesPage: React.FC = () => {
@@ -127,10 +127,10 @@ const DegreesPage: React.FC = () => {
       } else if (degreesData?.data) {
         degrees = Array.isArray(degreesData.data) ? degreesData.data : degreesData.data.all || [];
       }
-      // Ensure hasDraftVersion is present for each degree
+      // Ensure hasNewPendingVersion is present for each degree
       const mappedDegrees = degrees.map((deg: any) => ({
         ...deg,
-        hasDraftVersion: deg.hasDraftVersion ?? false
+        hasNewPendingVersion: deg.hasNewPendingVersion ?? false
       }));
       console.log('Degrees loaded:', mappedDegrees);
       setDegrees(mappedDegrees);

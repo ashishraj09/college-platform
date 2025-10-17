@@ -28,9 +28,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       dispatch(setLoading(true));
       dispatch(setError(null));
-      await authAPI.login({ email, password });
+      
+      const loginResponse = await authAPI.login({ email, password });
+      if (loginResponse.error) {
+        dispatch(setError(loginResponse.error));
+        throw new Error(loginResponse.error);
+      }
+      
       // After login, fetch user profile
       const profile = await authAPI.getProfile();
+      if (profile.error) {
+        dispatch(setError(profile.error));
+        throw new Error(profile.error);
+      }
+      
       dispatch(setUser(profile));
     } catch (error) {
       console.error('Login error:', error);

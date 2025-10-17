@@ -17,6 +17,7 @@ export interface Course {
   version: number;
   parent_course_id?: string;
   is_latest_version: boolean;
+  hasNewPendingVersion?: boolean;
   createdAt: string;
   updatedAt: string;
   department?: { name: string; code: string; id: string };
@@ -31,6 +32,7 @@ export interface Degree {
   name: string;
   code: string;
   status: string;
+  hasNewPendingVersion?: boolean;
   department?: { name: string; code: string };
   rejection_reason?: string;
   createdAt: string;

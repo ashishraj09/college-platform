@@ -444,10 +444,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     setLoading(true);
     setError('');
 
-    try {
-      // Find selected degree and department objects
-      const selectedDegree = degrees.find(d => d.id === form.degree_code || d.code === form.degree_code);
-      const selectedDepartment = user?.department || null;
+    // Find selected degree and department objects
+    const selectedDegree = degrees.find(d => d.id === form.degree_code || d.code === form.degree_code);
+    const selectedDepartment = user?.department || null;
 
       // Filter out empty values and set correct UUIDs
       const cleanedForm = {
@@ -473,69 +472,60 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       if (mode === 'edit' && course?.id) {
         // Check if course is approved or active
         if (course.status === 'approved' || course.status === 'active') {
-          try {
-            // Create a new version instead of updating directly
-            const response = await coursesAPI.createCourseVersion(course.id);
-            const data = response;
-            enqueueSnackbar(`New version created. You will be redirected to edit the draft.`, { variant: 'success' });
-            // Return the new course ID for potential redirection
-            onSuccess(data.course?.id);
-          } catch (error: any) {
-            throw error;
+          // Create a new version instead of updating directly
+          const response = await coursesAPI.createCourseVersion(course.id);
+          if (response.error) {
+            enqueueSnackbar(response.error, { variant: 'error' });
+            setLoading(false);
+            return;
           }
+          const data = response;
+          enqueueSnackbar(`New version created. You will be redirected to edit the draft.`, { variant: 'success' });
+          // Return the new course ID for potential redirection
+          onSuccess(data.course?.id);
         } else {
           // Update draft or pending courses directly
           if (user?.department?.code && cleanedForm.degree_code) {
             // Find the selected degree object
             const selectedDegree = degrees.find(d => d.id === cleanedForm.degree_code || d.code === cleanedForm.degree_code);
             // Send department_code and degree_code (short code) in the payload
-            await coursesAPI.updateCourse(course.id, {
+            const updateResult = await coursesAPI.updateCourse(course.id, {
               ...cleanedForm,
               department_code: user.department.code,
               degree_code: selectedDegree?.code || cleanedForm.degree_code,
             });
+            if (updateResult.error) {
+              enqueueSnackbar(updateResult.error, { variant: 'error' });
+              setLoading(false);
+              return;
+            }
             enqueueSnackbar('Course updated successfully!', { variant: 'success' });
             onSuccess();
           } else {
-            throw new Error('Department code or Degree code is missing');
+            enqueueSnackbar('Department code or Degree code is missing', { variant: 'error' });
+            setLoading(false);
+            return;
           }
         }
       } else {
         if (user?.id && user?.department?.id) {
-          await coursesAPI.createCourse(cleanedForm, user.id, user.department.id);
+          const createResult = await coursesAPI.createCourse(cleanedForm, user.id, user.department.id);
+          if (createResult.error) {
+            enqueueSnackbar(createResult.error, { variant: 'error' });
+            setLoading(false);
+            return;
+          }
           enqueueSnackbar('Course created successfully!', { variant: 'success' });
           onSuccess();
         } else {
-          throw new Error('User ID or Department ID is missing');
+          enqueueSnackbar('User ID or Department ID is missing', { variant: 'error' });
+          setLoading(false);
+          return;
         }
       }
       
       handleClose();
-    } catch (error: any) {
-      let errorMsg = `Failed to ${mode === 'edit' ? 'update' : 'create'} course`;
-      if (error && typeof error === 'object') {
-        if ('response' in error && error.response?.data?.error) {
-          const backendError = error.response.data.error;
-          errorMsg = typeof backendError === 'string' ? backendError : 'An unknown error occurred';
-        } else if ('message' in error && typeof error.message === 'string') {
-          errorMsg = error.message;
-        } else if (error instanceof Error && error.message) {
-          errorMsg = error.message;
-        } else {
-          console.error('CreateCourseDialog error:', error);
-          errorMsg = 'An unknown error occurred';
-        }
-      } else if (typeof error === 'string') {
-        errorMsg = error;
-      } else {
-        console.error('CreateCourseDialog error:', error);
-        errorMsg = 'An unknown error occurred';
-      }
-      setError(errorMsg);
-      enqueueSnackbar(errorMsg, { variant: 'error' });
-    } finally {
       setLoading(false);
-    }
   };
 
   const handleClose = () => {

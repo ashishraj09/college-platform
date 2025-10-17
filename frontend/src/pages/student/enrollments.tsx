@@ -69,17 +69,16 @@ const EnrollmentPage: React.FC = () => {
   }, []);
 
   const fetchEnrollments = async () => {
-    try {
-      setLoading(true);
-      const data = await enrollmentAPI.getAllEnrollments();
-      setEnrollments(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch enrollments');
-      console.error('Error fetching enrollments:', err);
-    } finally {
+    setLoading(true);
+    const data = await enrollmentAPI.getAllEnrollments();
+    if (data.error) {
+      setError(data.error);
       setLoading(false);
+      return;
     }
+    setEnrollments(data);
+    setError(null);
+    setLoading(false);
   };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -92,18 +91,18 @@ const EnrollmentPage: React.FC = () => {
   };
 
   const confirmSubmit = async () => {
-    try {
-      setLoading(true);
-      await enrollmentAPI.submitForApproval({ enrollment_id: selectedEnrollment.id });
-      setConfirmDialog(false);
-      await fetchEnrollments();
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit enrollment');
-      console.error('Error submitting enrollment:', err);
-    } finally {
+    setLoading(true);
+    const result = await enrollmentAPI.submitForApproval({ enrollment_id: selectedEnrollment.id });
+    if (result.error) {
+      setError(result.error);
       setLoading(false);
+      return;
     }
+    
+    setConfirmDialog(false);
+    await fetchEnrollments();
+    setError(null);
+    setLoading(false);
   };
 
   // Filter enrollments based on isCurrent flag

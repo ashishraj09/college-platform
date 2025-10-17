@@ -3,6 +3,7 @@ const router = express.Router();
 const models = require('../utils/models');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { auditMiddleware } = require('../middleware/audit');
+const { handleCaughtError } = require('../utils/errorHandler');
 
 // Get all departments (now requires authentication)
 router.get('/', authenticateToken, async (req, res) => {
@@ -13,11 +14,7 @@ router.get('/', authenticateToken, async (req, res) => {
     });
     res.json(departments);
   } catch (error) {
-    console.error('Error fetching departments:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch departments',
-      message: error.message 
-    });
+    handleCaughtError(res, error, 'Failed to fetch departments');
   }
 });
 
@@ -31,11 +28,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
     res.json(department);
   } catch (error) {
-    console.error('Error fetching department:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch department',
-      message: error.message 
-    });
+    handleCaughtError(res, error, 'Failed to fetch department');
   }
 });
 
@@ -79,10 +72,7 @@ router.post('/', authenticateToken, authorizeRoles('admin'), auditMiddleware('cr
       });
     }
 
-    res.status(500).json({ 
-      error: 'Failed to create department',
-      message: error.message 
-    });
+    handleCaughtError(res, error, 'Failed to create department');
   }
 });
 
@@ -124,10 +114,7 @@ router.put('/:id', authenticateToken, authorizeRoles('admin'), auditMiddleware('
       });
     }
 
-    res.status(500).json({ 
-      error: 'Failed to update department',
-      message: error.message 
-    });
+    handleCaughtError(res, error, 'Failed to update department');
   }
 });
 
@@ -143,19 +130,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('admin'), auditMiddlewar
     await department.destroy();
     res.json({ message: 'Department deleted successfully' });
   } catch (error) {
-    console.error('Error deleting department:', error);
-    
-    if (error.name === 'SequelizeForeignKeyConstraintError') {
-      return res.status(409).json({ 
-        error: 'Cannot delete department',
-        message: 'This department is referenced by other records and cannot be deleted' 
-      });
-    }
-
-    res.status(500).json({ 
-      error: 'Failed to delete department',
-      message: error.message 
-    });
+    handleCaughtError(res, error, 'Failed to delete department');
   }
 });
 
@@ -174,11 +149,7 @@ router.get('/:id/degrees', authenticateToken, async (req, res) => {
     
     res.json({ degrees });
   } catch (error) {
-    console.error('Error fetching department degrees:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch department degrees',
-      message: error.message 
-    });
+    handleCaughtError(res, error, 'Failed to fetch department degrees');
   }
 });
 

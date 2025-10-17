@@ -250,62 +250,51 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     setLoading(true);
     setError('');
 
-    try {
-      // Validate courses_per_semester values
-      if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
-        for (const [semester, data] of Object.entries(form.courses_per_semester)) {
-          const count = Number((data as any).count);
-          if (isNaN(count) || count < 0 || !Number.isInteger(count)) {
-            setError(`Semester ${semester}: Courses per semester must be a non-negative integer`);
-            setLoading(false);
-            return;
-          }
+    // Validate courses_per_semester values
+    if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
+      for (const [semester, data] of Object.entries(form.courses_per_semester)) {
+        const count = Number((data as any).count);
+        if (isNaN(count) || count < 0 || !Number.isInteger(count)) {
+          setError(`Semester ${semester}: Courses per semester must be a non-negative integer`);
+          setLoading(false);
+          return;
         }
       }
-      
-      // Remove department object from payload if present, department_code is already in form
-      const { department, ...restForm } = form as any;
-      const payload = {
-        ...restForm,
-        department_code: user?.department?.code,
-      };
-      if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
-        payload.courses_per_semester = form.courses_per_semester;
-      }
-      if (mode === 'edit' && degree && degree.id) {
-        await degreesAPI.updateDegree(degree.id, payload);
-        enqueueSnackbar('Degree updated successfully!', { variant: 'success' });
-      } else {
-        await degreesAPI.createDegree(payload);
-        enqueueSnackbar('Degree created successfully!', { variant: 'success' });
-      }
-      onSuccess();
-      handleClose();
-    } catch (error: any) {
-      let errorMsg = 'Failed to save degree';
-      if (error && typeof error === 'object') {
-        if ('response' in error && error.response?.data?.error) {
-          const backendError = error.response.data.error;
-          errorMsg = typeof backendError === 'string' ? backendError : 'An unknown error occurred';
-        } else if ('message' in error && typeof error.message === 'string') {
-          errorMsg = error.message;
-        } else if (error instanceof Error && error.message) {
-          errorMsg = error.message;
-        } else {
-          console.error('DegreeDialog error:', error);
-          errorMsg = 'An unknown error occurred';
-        }
-      } else if (typeof error === 'string') {
-        errorMsg = error;
-      } else {
-        console.error('DegreeDialog error:', error);
-        errorMsg = 'An unknown error occurred';
-      }
-      setError(errorMsg);
-      enqueueSnackbar(errorMsg, { variant: 'error' });
-    } finally {
-      setLoading(false);
     }
+    
+    // Remove department object from payload if present, department_code is already in form
+    const { department, ...restForm } = form as any;
+    const payload = {
+      ...restForm,
+      department_code: user?.department?.code,
+    };
+    if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
+      payload.courses_per_semester = form.courses_per_semester;
+    }
+    
+    let result;
+    if (mode === 'edit' && degree && degree.id) {
+      result = await degreesAPI.updateDegree(degree.id, payload);
+      if (result.error) {
+        enqueueSnackbar(result.error, { variant: 'error' });
+        setError(result.error);
+        setLoading(false);
+        return;
+      }
+      enqueueSnackbar('Degree updated successfully!', { variant: 'success' });
+    } else {
+      result = await degreesAPI.createDegree(payload);
+      if (result.error) {
+        enqueueSnackbar(result.error, { variant: 'error' });
+        setError(result.error);
+        setLoading(false);
+        return;
+      }
+      enqueueSnackbar('Degree created successfully!', { variant: 'success' });
+    }
+    onSuccess();
+    handleClose();
+    setLoading(false);
   };
 
   const handleClose = () => {

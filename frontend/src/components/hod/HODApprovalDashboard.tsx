@@ -221,25 +221,27 @@ const HODApprovalDashboard: React.FC = () => {
     if (!selectedItem) return;
 
     setActionLoading(true);
-    try {
-      if (selectedItem.type === 'course') {
-        await coursesAPI.approveCourse(selectedItem.id);
-      } else {
-        await degreesAPI.approveDegree(selectedItem.id);
-      }
-      
-      enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} approved successfully!`, { 
-        variant: 'success' 
-      });
-      
-      handleCloseDialog();
-      loadPendingItems();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to approve item';
-      enqueueSnackbar(errorMessage, { variant: 'error' });
-    } finally {
-      setActionLoading(false);
+    
+    let result;
+    if (selectedItem.type === 'course') {
+      result = await coursesAPI.approveCourse(selectedItem.id);
+    } else {
+      result = await degreesAPI.approveDegree(selectedItem.id);
     }
+    
+    if (result.error) {
+      enqueueSnackbar(result.error, { variant: 'error' });
+      setActionLoading(false);
+      return;
+    }
+    
+    enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} approved successfully!`, { 
+      variant: 'success' 
+    });
+    
+    handleCloseDialog();
+    loadPendingItems();
+    setActionLoading(false);
   };
 
   const handleReject = async () => {
@@ -264,25 +266,27 @@ const HODApprovalDashboard: React.FC = () => {
     }
 
     setActionLoading(true);
-    try {
-      if (selectedItem.type === 'course') {
-        await coursesAPI.rejectCourse(selectedItem.id, trimmedReason);
-      } else {
-        await degreesAPI.rejectDegree(selectedItem.id, { reason: trimmedReason, userId: userId || undefined });
-      }
-      
-      enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected with feedback sent to faculty`, { 
-        variant: 'success' 
-      });
-      
-      handleCloseDialog();
-      loadPendingItems();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to reject item';
-      enqueueSnackbar(errorMessage, { variant: 'error' });
-    } finally {
-      setActionLoading(false);
+    
+    let result;
+    if (selectedItem.type === 'course') {
+      result = await coursesAPI.rejectCourse(selectedItem.id, trimmedReason);
+    } else {
+      result = await degreesAPI.rejectDegree(selectedItem.id, { reason: trimmedReason, userId: userId || undefined });
     }
+    
+    if (result.error) {
+      enqueueSnackbar(result.error, { variant: 'error' });
+      setActionLoading(false);
+      return;
+    }
+    
+    enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected with feedback sent to faculty`, { 
+      variant: 'success' 
+    });
+    
+    handleCloseDialog();
+    loadPendingItems();
+    setActionLoading(false);
   };
 
   const handleEnrollmentSelection = (enrollmentId: string) => {

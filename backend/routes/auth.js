@@ -57,6 +57,7 @@ const {
   sendPasswordResetEmail
 } = require('../utils/email');
 const { authenticateToken } = require('../middleware/auth');
+const { handleCaughtError } = require('../utils/errorHandler');
 
 // Helper: Exclude sensitive fields from user object
 function sanitizeUser(user, department, degree) {
@@ -227,8 +228,7 @@ router.post('/register',
         user: userResponse,
       });
     } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to register user');
     }
   }
 );
@@ -304,12 +304,12 @@ router.post('/login',
       const userResponse = sanitizeUser(user, department, degree);
 
       // Set JWT as HTTP-only cookie
-      // With Vercel rewrites, frontend and backend appear on same domain
-      // so simple cookie settings work perfectly
+      // Development: Both on localhost (different ports) - use 'lax' (browsers treat localhost as same-site)
+      // Production: Vercel rewrites make frontend and backend appear on same domain - use 'lax'
       const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax', // 'lax' is fine for same-domain
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'lax', // 'lax' works for localhost in dev and same-domain in prod
         maxAge: 60 * 60 * 1000, // 1 hour
         path: '/'
       };
@@ -320,8 +320,7 @@ router.post('/login',
         user: userResponse,
       });
     } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Login failed');
     }
   }
 );
@@ -374,8 +373,7 @@ router.post('/forgot-password',
         message: 'If an account with that email exists, a password reset link has been sent.' 
       });
     } catch (error) {
-      console.error('Password reset request error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to process password reset request');
     }
   }
 );
@@ -435,8 +433,7 @@ router.post('/reset-password',
 
       res.json({ message: 'Password reset successfully' });
     } catch (error) {
-      console.error('Password reset error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to reset password');
     }
   }
 );
@@ -469,8 +466,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
     const userResponse = sanitizeUser(user, department, degree);
     res.json({ user: userResponse });
   } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleCaughtError(res, error, 'Failed to get user profile');
   }
 });
 
@@ -546,8 +542,6 @@ router.get('/me', authenticateToken, async (req, res) => {
     console.error('Error fetching user profile:', error);
     if (error && error.stack) {
       console.error('Stack trace:', error.stack);
-    } else {
-      console.error('Error object:', error);
     }
     if (error && error.user) {
       console.error('[auth/me] error.user:', error.user);
@@ -558,17 +552,14 @@ router.get('/me', authenticateToken, async (req, res) => {
     if (error && error.degree) {
       console.error('[auth/me] error.degree:', error.degree);
     }
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error.message || String(error),
-      stack: error.stack || null,
-      debug: {
-        userId,
-        user: user ? user.toJSON() : user,
-        department_code: user && user.department_code,
-        degree_code: user && user.degree_code
-      }
+    // Log debug info for troubleshooting
+    console.error('[auth/me] Debug:', {
+      userId,
+      user: user ? user.toJSON() : user,
+      department_code: user && user.department_code,
+      degree_code: user && user.degree_code
     });
+    handleCaughtError(res, error, 'Failed to fetch user profile');
   }
 });
 

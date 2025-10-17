@@ -15,6 +15,7 @@ const { Op } = require('sequelize');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validation');
 const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
+const { handleCaughtError } = require('../utils/errorHandler');
 
 // Helper to get models for serverless/non-serverless environments
 // Ensures fresh model instances for each request (important for serverless)
@@ -79,8 +80,7 @@ router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), asyn
     };
     res.json({ degrees: degreeStatusCounts, courses: courseStatusCounts });
   } catch (error) {
-    console.error('Unified stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch unified stats' });
+    handleCaughtError(res, error, 'Failed to fetch unified stats');
   }
 });
 
@@ -178,8 +178,7 @@ router.get('/',
         },
       });
     } catch (error) {
-      console.error('Get users error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to fetch users');
     }
   }
 );
@@ -221,8 +220,7 @@ router.get('/:id',
 
       res.json({ user });
     } catch (error) {
-      console.error('Get user error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to fetch user');
     }
   }
 );
@@ -287,8 +285,7 @@ router.put('/:id',
         user: userResponse,
       });
     } catch (error) {
-      console.error('Update user error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to update user');
     }
   }
 );
@@ -321,8 +318,7 @@ router.delete('/:id',
       await user.destroy();
       res.json({ message: 'User deleted successfully' });
     } catch (error) {
-      console.error('Delete user error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to delete user');
     }
   }
 );
@@ -375,8 +371,7 @@ router.get('/department/:code',
       });
       res.json({ users: usersRemapped });
     } catch (error) {
-      console.error('Get department users error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to fetch department users');
     }
   }
 );
@@ -435,8 +430,7 @@ router.post('/:id/reset-password',
         });
       }
     } catch (error) {
-      console.error('Password reset error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      handleCaughtError(res, error, 'Failed to reset password');
     }
   }
 );

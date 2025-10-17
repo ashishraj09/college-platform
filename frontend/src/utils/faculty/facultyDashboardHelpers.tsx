@@ -15,6 +15,7 @@ export interface Entity {
   is_elective?: boolean;
   rejection_reason?: string;
   version: number;
+  hasNewPendingVersion?: boolean; // True if a newer version exists in draft, pending_approval, or approved state (not active/archived)
   createdAt?: string;
   updatedAt?: string;
   department?: { name: string; code: string };
@@ -51,7 +52,13 @@ export const getAvailableEntityActions = (entity: Entity, type: EntityType, isHO
     case 'pending_approval':
     case 'submitted':
       actions.push(
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
+        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false },
+        { 
+          action: 'edit', 
+          label: `Edit ${type}`, 
+          icon: <EditIcon />, 
+          disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true)
+        }
       );
       if (isHOD && entity.status === 'pending_approval') {
         actions.push(
@@ -61,7 +68,12 @@ export const getAvailableEntityActions = (entity: Entity, type: EntityType, isHO
       break;
     case 'approved':
       actions.push(
-        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon />, disabled: false },
+        { 
+          action: 'edit', 
+          label: `Edit ${type}`, 
+          icon: <EditIcon />, 
+          disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true)
+        },
         { action: 'publish', label: 'Publish', icon: <PublishIcon />, disabled: false },
         { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
       );
@@ -72,7 +84,7 @@ export const getAvailableEntityActions = (entity: Entity, type: EntityType, isHO
           action: 'edit',
           label: `Edit ${type}`,
           icon: <EditIcon />,
-          disabled: (type === 'course' && entity.hasDraftVersion === true) || (type === 'degree' && entity.hasDraftVersion === true)
+          disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true)
         },
         { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
       );

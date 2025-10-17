@@ -22,7 +22,6 @@ const api = axios.create({
 });
 
 // Request interceptor to add dev bypass header only
-// Centralized request interceptor to attach JWT access token
 api.interceptors.request.use(
   (config) => {
     // Add dev bypass header if enabled
@@ -31,11 +30,6 @@ api.interceptors.request.use(
       process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true'
     ) {
       config.headers['X-Dev-Bypass-Auth'] = 'true';
-    }
-    // Attach JWT access token if present
-    const accessToken = localStorage.getItem('accessToken');
-    if (accessToken) {
-      config.headers['Authorization'] = `Bearer ${accessToken}`;
     }
     return config;
   },
@@ -201,11 +195,17 @@ export const coursesAPI = {
   getCourses: async (params?: any) => {
     try {
       const { data } = await api.get('/courses', { params });
-      if (Array.isArray(data)) return data;
-      if (data && Array.isArray(data.courses)) return data.courses;
-      return [];
+      // Return the full response object with pagination metadata
+      if (data && data.courses && data.pagination) {
+        return data;
+      }
+      // Fallback for array response (older API format)
+      if (Array.isArray(data)) return { courses: data, pagination: { total: data.length, pages: 1 } };
+      if (data && Array.isArray(data.courses)) return { courses: data.courses, pagination: { total: data.courses.length, pages: 1 } };
+      return { courses: [], pagination: { total: 0, pages: 1 } };
     } catch (err: any) {
-      return handleApiError(err);
+      const error = handleApiError(err);
+      return { courses: [], pagination: { total: 0, pages: 1 }, error: error.error };
     }
   },
   getCourseById: async (id: string) => {
@@ -341,11 +341,17 @@ export const degreesAPI = {
   getDegrees: async (params?: any) => {
     try {
       const { data } = await api.get('/degrees', { params });
-      if (Array.isArray(data)) return data;
-      if (data && Array.isArray(data.degrees)) return data.degrees;
-      return [];
+      // Return the full response object with pagination metadata
+      if (data && data.degrees && data.pagination) {
+        return data;
+      }
+      // Fallback for array response (older API format)
+      if (Array.isArray(data)) return { degrees: data, pagination: { total: data.length, pages: 1 } };
+      if (data && Array.isArray(data.degrees)) return { degrees: data.degrees, pagination: { total: data.degrees.length, pages: 1 } };
+      return { degrees: [], pagination: { total: 0, pages: 1 } };
     } catch (err: any) {
-      return handleApiError(err);
+      const error = handleApiError(err);
+      return { degrees: [], pagination: { total: 0, pages: 1 }, error: error.error };
     }
   },
   getDegreeById: async (id: string) => {
