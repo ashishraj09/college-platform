@@ -265,6 +265,9 @@ router.post('/reject',
 // Helper function for finding degrees with multiple matching strategies
 const findDegreeByCode = async (codeStr) => {
   try {
+    // Get the Degree model dynamically
+    const Degree = await models.Degree();
+    
     // Try exact match first
     let degree = await Degree.findOne({ where: { code: codeStr } });
 
