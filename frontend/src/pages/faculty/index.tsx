@@ -38,6 +38,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import CreateCourseDialog from '../../components/faculty/CreateCourseDialog';
 import EditEntityConfirmationDialog from '../../components/faculty/EditEntityConfirmationDialog';
 import SubmitForApprovalDialog from '../../components/common/SubmitForApprovalDialog';
+import LoadingButton from '../../components/common/LoadingButton';
 import {
   getAvailableEntityActions,
   handleEntityAction,
@@ -106,6 +107,11 @@ const FacultyDashboard: React.FC = () => {
   const [courseToSubmit, setCourseToSubmit] = useState<Entity | null>(null);
   const [submitDegreeDialogOpen, setSubmitDegreeDialogOpen] = useState(false);
   const [degreeToSubmit, setDegreeToSubmit] = useState<Entity | null>(null);
+  // Publish confirmation dialog state
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [entityToPublish, setEntityToPublish] = useState<Entity | null>(null);
+  const [publishType, setPublishType] = useState<EntityType | null>(null);
+  const [publishLoading, setPublishLoading] = useState(false);
   // Add create dialogs
   const [createCourseDialogOpen, setCreateCourseDialogOpen] = useState(false);
   const [createDegreeDialogOpen, setCreateDegreeDialogOpen] = useState(false);
@@ -457,50 +463,10 @@ useEffect(() => {
       return;
     }
     if (action === 'publish') {
-      try {
-        if (type === 'course') {
-          const result = await coursesAPI.publishCourse(entity.id);
-          if (result.error) {
-            enqueueSnackbar(result.error, { variant: 'error' });
-            return;
-          }
-          enqueueSnackbar('Course published and is now active!', { variant: 'success' });
-        } else {
-          const result = await degreesAPI.publishDegree(entity.id);
-          if (result.error) {
-            enqueueSnackbar(result.error, { variant: 'error' });
-            return;
-          }
-          enqueueSnackbar('Degree published and is now active!', { variant: 'success' });
-        }
-        // Always reload both entity lists and stats after publish
-        const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-        setCourses(coursesRes.courses || []);
-        setCoursesPagination(prev => ({
-          ...prev,
-          total: coursesRes.pagination?.total || 0,
-          pages: coursesRes.pagination?.pages || 1,
-        }));
-        const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-        setDegrees(degreesRes.degrees || []);
-        setDegreesPagination(prev => ({
-          ...prev,
-          total: degreesRes.pagination?.total || 0,
-          pages: degreesRes.pagination?.pages || 1,
-        }));
-        await reloadStats();
-      } catch (err) {
-        let errorMsg = 'Failed to publish';
-        if (typeof err === 'object' && err !== null) {
-          if ('message' in err && typeof (err as any).message === 'string') {
-            errorMsg = (err as any).message;
-          }
-          if ('response' in err && (err as any).response?.data?.error) {
-            errorMsg = (err as any).response.data.error;
-          }
-        }
-        enqueueSnackbar(errorMsg, { variant: 'error' });
-      }
+      // Show confirmation dialog before publishing
+      setEntityToPublish({ ...entity, entityType: type });
+      setPublishType(type);
+      setPublishDialogOpen(true);
       return;
     }
     if (action === 'view') {
@@ -650,6 +616,86 @@ useEffect(() => {
       enqueueSnackbar(errorMsg, { variant: "error" });
     }
     setEditEntityLoading(false);
+  };
+
+  // Handle publish confirmation
+  const handlePublishConfirm = async () => {
+    if (!entityToPublish || !publishType) return;
+
+    setPublishLoading(true);
+    try {
+      if (publishType === 'course') {
+        const result = await coursesAPI.publishCourse(entityToPublish.id);
+        if (result.error) {
+          enqueueSnackbar(result.error, { variant: 'error' });
+          setPublishLoading(false);
+          return;
+        }
+        enqueueSnackbar('Course published and is now active!', { variant: 'success' });
+      } else {
+        const result = await degreesAPI.publishDegree(entityToPublish.id);
+        if (result.error) {
+          enqueueSnackbar(result.error, { variant: 'error' });
+          setPublishLoading(false);
+          return;
+        }
+        enqueueSnackbar('Degree published and is now active!', { variant: 'success' });
+      }
+      
+      // Get current status filters from tabs
+      const tabConfigs = [
+        { key: 'draft' },
+        { key: 'pending_approval' },
+        { key: 'approved' },
+        { key: 'active' },
+      ];
+      const courseStatusFilter = tabConfigs[courseTab]?.key;
+      const degreeStatusFilter = tabConfigs[degreeTab]?.key;
+      
+      // Reload data and stats
+      const coursesRes = await coursesAPI.getCourses({ 
+        page: coursesPagination.page, 
+        limit: coursesPagination.limit, 
+        status: courseStatusFilter 
+      });
+      setCourses(coursesRes.courses || []);
+      setCoursesPagination(prev => ({
+        ...prev,
+        total: coursesRes.pagination?.total || 0,
+        pages: coursesRes.pagination?.pages || 1,
+      }));
+      
+      const degreesRes = await degreesAPI.getDegrees({ 
+        page: degreesPagination.page, 
+        limit: degreesPagination.limit, 
+        status: degreeStatusFilter 
+      });
+      setDegrees(degreesRes.degrees || []);
+      setDegreesPagination(prev => ({
+        ...prev,
+        total: degreesRes.pagination?.total || 0,
+        pages: degreesRes.pagination?.pages || 1,
+      }));
+      
+      await reloadStats();
+      
+      // Close dialog
+      setPublishDialogOpen(false);
+      setEntityToPublish(null);
+      setPublishType(null);
+    } catch (err) {
+      let errorMsg = 'Failed to publish';
+      if (typeof err === 'object' && err !== null) {
+        if ('message' in err && typeof (err as any).message === 'string') {
+          errorMsg = (err as any).message;
+        }
+        if ('response' in err && (err as any).response?.data?.error) {
+          errorMsg = (err as any).response.data.error;
+        }
+      }
+      enqueueSnackbar(errorMsg, { variant: 'error' });
+    }
+    setPublishLoading(false);
   };
 
   if (loading) {
@@ -1171,6 +1217,58 @@ useEffect(() => {
           setSubmittingDegree(false);
         }}
       />
+
+      {/* Publish Confirmation Dialog */}
+      <Dialog
+        open={publishDialogOpen}
+        onClose={() => !publishLoading && setPublishDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Confirm Publish</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Publishing will make this {publishType} active and visible to all users. This action cannot be undone.
+          </Alert>
+          {entityToPublish && (
+            <Box>
+              <Typography variant="body1" gutterBottom>
+                <strong>Title:</strong> {entityToPublish.title || entityToPublish.name}
+              </Typography>
+              {entityToPublish.code && (
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Code:</strong> {entityToPublish.code}
+                </Typography>
+              )}
+              {entityToPublish.version && (
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Version:</strong> {entityToPublish.version}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setPublishDialogOpen(false);
+              setEntityToPublish(null);
+              setPublishType(null);
+            }}
+            disabled={publishLoading}
+          >
+            Cancel
+          </Button>
+          <LoadingButton
+            onClick={handlePublishConfirm}
+            variant="contained"
+            color="primary"
+            loading={publishLoading}
+          >
+            Publish
+          </LoadingButton>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

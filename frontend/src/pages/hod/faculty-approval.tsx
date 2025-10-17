@@ -19,6 +19,7 @@ import {
   Tabs,
   Alert,
   Divider,
+  CircularProgress,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -105,8 +106,13 @@ const FacultyApprovalPage: React.FC = () => {
         coursesAPI.getCourses({ status: 'pending_approval' }),
         degreesAPI.getDegrees({ status: 'pending_approval' })
       ]);
+      
+      // Extract courses array from response (API now returns { courses: [...], pagination: {...} })
+      const coursesArray = coursesResponse.courses || [];
+      const degreesArray = degreesResponse.degrees || [];
+      
       // Transform courses to match ApprovalItem interface
-      const transformedCourses = coursesResponse.map((course: any) => ({
+      const transformedCourses = coursesArray.map((course: any) => ({
         ...course,
         type: 'course' as const,
         description: course.overview,
@@ -116,8 +122,9 @@ const FacultyApprovalPage: React.FC = () => {
           email: course.creator.email
         } : null
       }));
+      
       // Transform degrees to match ApprovalItem interface  
-      const transformedDegrees = degreesResponse.map((degree: any) => ({
+      const transformedDegrees = degreesArray.map((degree: any) => ({
         ...degree,
         type: 'degree' as const,
         faculty: degree.creator ? {
@@ -126,6 +133,7 @@ const FacultyApprovalPage: React.FC = () => {
           email: degree.creator.email
         } : null
       }));
+      
       setPendingCourses(transformedCourses);
       setPendingDegrees(transformedDegrees);
     } catch (error) {
@@ -331,7 +339,9 @@ const FacultyApprovalPage: React.FC = () => {
   if (loading) {
     return (
       <Container maxWidth="xl">
-        <Typography>Loading...</Typography>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+          <CircularProgress size={60} />
+        </Box>
       </Container>
     );
   }
