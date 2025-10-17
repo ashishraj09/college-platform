@@ -10,17 +10,18 @@ const isEnrollmentOpen = async (user) => {
   }
 
   try {
-    const { Degree } = require('../models');
+    const models = require('./models');
+    const Degree = await models.Degree();
     let degree = null;
 
     if (degreeId) {
-      degree = await Degree.findByPk(degreeId);
+      degree = await Degree.findOne({ where: { id: degreeId, status: 'active' } });
     } else if (degreeCode) {
-      degree = await Degree.findOne({ where: { code: degreeCode } });
+      degree = await Degree.findOne({ where: { code: degreeCode, status: 'active' } });
     }
 
     if (!degree) {
-      console.log('isEnrollmentOpen: Degree not found for degree_id/code', degreeId, degreeCode);
+      console.log('isEnrollmentOpen: Active degree not found for degree_id/code', degreeId, degreeCode);
       return false;
     }
 
