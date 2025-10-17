@@ -1214,8 +1214,8 @@ router.patch('/:id/approve',
   authorizeRoles('faculty', 'admin'),
   auditMiddleware('update', 'course', 'Course approved'),
   async (req, res) => {
-    const { Sequelize } = require('sequelize');
-    const sequelize = require('../config/database').sequelize;
+    const { getSequelize } = require('../config/database');
+    const sequelize = await getSequelize();
     const transaction = await sequelize.transaction();
     try {
       // Get models for this request

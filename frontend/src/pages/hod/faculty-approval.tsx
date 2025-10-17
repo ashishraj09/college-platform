@@ -210,15 +210,15 @@ const FacultyApprovalPage: React.FC = () => {
     const trimmedReason = actionMessage.trim();
     // Validation
     if (!trimmedReason) {
-      enqueueSnackbar('Please provide a rejection reason to help faculty understand what needs improvement', { variant: 'error' });
+      enqueueSnackbar('Please provide a reason to help faculty understand what needs improvement', { variant: 'error' });
       return;
     }
     if (trimmedReason.length < 10) {
-      enqueueSnackbar('Rejection reason must be at least 10 characters to provide meaningful feedback', { variant: 'error' });
+      enqueueSnackbar('Reason must be at least 10 characters to provide meaningful feedback', { variant: 'error' });
       return;
     }
     if (trimmedReason.length > 500) {
-      enqueueSnackbar('Rejection reason cannot exceed 500 characters', { variant: 'error' });
+      enqueueSnackbar('Reason cannot exceed 500 characters', { variant: 'error' });
       return;
     }
     setActionLoading(true);
@@ -228,7 +228,7 @@ const FacultyApprovalPage: React.FC = () => {
       } else {
         await degreesAPI.rejectDegree(selectedItem.id, { reason: trimmedReason, userId: userId || undefined });
       }
-      enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected with feedback sent to faculty`, { 
+      enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} change requested. Sent to faculty`, { 
         variant: 'success' 
       });
       handleCloseDialog();
@@ -508,13 +508,13 @@ const FacultyApprovalPage: React.FC = () => {
                   fullWidth
                   multiline
                   rows={4}
-                  label="Message / Feedback (required for rejection, optional for approval)"
+                  label="Message / Feedback (required for change requests, optional for approval)"
                   value={actionMessage}
                   onChange={(e) => setActionMessage(e.target.value)}
-                  placeholder="Provide feedback for approval or rejection..."
+                  placeholder="Provide feedback for approval or change request..."
                   helperText={
                     actionMessage.trim().length < 10 && actionMessage.trim().length > 0
-                      ? `Minimum 10 characters required for rejection (${actionMessage.length}/10)`
+                      ? `Minimum 10 characters required for change requests (${actionMessage.length}/10)`
                       : `${actionMessage.length}/500 characters - This feedback will be sent to the faculty`
                   }
                   error={actionMessage.length > 500}

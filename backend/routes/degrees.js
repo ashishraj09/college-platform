@@ -633,7 +633,8 @@ router.patch(
   auditMiddleware('update', 'degree', 'Degree approved'),
   async (req, res) => {
     const { Degree, Message } = await models.getMany('Degree', 'Message');
-    const sequelize = require('../config/database').sequelize;
+    const { getSequelize } = require('../config/database');
+    const sequelize = await getSequelize();
     const transaction = await sequelize.transaction();
     try {
       const degree = await Degree.findByPk(req.params.id, { transaction });

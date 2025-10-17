@@ -251,17 +251,17 @@ const HODApprovalDashboard: React.FC = () => {
     
     // Validation
     if (!trimmedReason) {
-      enqueueSnackbar('Please provide a rejection reason to help faculty understand what needs improvement', { variant: 'error' });
+      enqueueSnackbar('Please provide a reason to help faculty understand what needs improvement', { variant: 'error' });
       return;
     }
     
     if (trimmedReason.length < 10) {
-      enqueueSnackbar('Rejection reason must be at least 10 characters to provide meaningful feedback', { variant: 'error' });
+      enqueueSnackbar('Reason must be at least 10 characters to provide meaningful feedback', { variant: 'error' });
       return;
     }
     
     if (trimmedReason.length > 500) {
-      enqueueSnackbar('Rejection reason cannot exceed 500 characters', { variant: 'error' });
+      enqueueSnackbar('Reason cannot exceed 500 characters', { variant: 'error' });
       return;
     }
 
@@ -280,7 +280,7 @@ const HODApprovalDashboard: React.FC = () => {
       return;
     }
     
-    enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} rejected with feedback sent to faculty`, { 
+    enqueueSnackbar(`${selectedItem.type === 'course' ? 'Course' : 'Degree'} change requested. Sent to faculty`, { 
       variant: 'success' 
     });
     
@@ -326,13 +326,13 @@ const HODApprovalDashboard: React.FC = () => {
 
   const handleRejectEnrollments = async () => {
     if (selectedEnrollments.length === 0) {
-      enqueueSnackbar('Please select at least one enrollment to reject', { variant: 'warning' });
+      enqueueSnackbar('Please select at least one enrollment', { variant: 'warning' });
       return;
     }
 
     const trimmedReason = rejectReason.trim();
     if (!trimmedReason) {
-      enqueueSnackbar('Please provide a rejection reason', { variant: 'error' });
+      enqueueSnackbar('Please provide a reason for requesting changes', { variant: 'error' });
       return;
     }
 
@@ -344,7 +344,7 @@ const HODApprovalDashboard: React.FC = () => {
         rejection_reason: trimmedReason
       });
 
-      enqueueSnackbar(`${selectedEnrollments.length} enrollment(s) rejected successfully`, { 
+      enqueueSnackbar(`${selectedEnrollments.length} enrollment change(s) requested. Students notified`, { 
         variant: 'success' 
       });
       
@@ -352,7 +352,7 @@ const HODApprovalDashboard: React.FC = () => {
       setRejectReason('');
       loadPendingItems();
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to reject enrollments';
+      const errorMessage = error.message || 'Failed to process enrollments';
       enqueueSnackbar(errorMessage, { variant: 'error' });
     } finally {
       setActionLoading(false);
@@ -501,7 +501,7 @@ const HODApprovalDashboard: React.FC = () => {
                       </Button>
                       <TextField
                         size="small"
-                        placeholder="Rejection reason (required for reject)"
+                        placeholder="Change request reason (required)"
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
                         sx={{ minWidth: 250 }}
@@ -513,7 +513,7 @@ const HODApprovalDashboard: React.FC = () => {
                         onClick={handleRejectEnrollments}
                         disabled={selectedEnrollments.length === 0 || actionLoading || !rejectReason.trim()}
                       >
-                        Reject Selected
+                        Request Changes
                       </Button>
                     </Box>
                   </Box>
@@ -645,7 +645,7 @@ const HODApprovalDashboard: React.FC = () => {
                 fullWidth
                 multiline
                 rows={4}
-                label="Rejection Reason (Required for rejection)"
+                label="Change Request Reason (Required)"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Please provide specific feedback on what needs to be improved..."
@@ -678,7 +678,7 @@ const HODApprovalDashboard: React.FC = () => {
                 disabled={actionLoading || rejectReason.trim().length < 10}
                 startIcon={<RejectIcon />}
               >
-                Reject
+                Request Changes
               </Button>
               <Button 
                 onClick={handleApprove}
