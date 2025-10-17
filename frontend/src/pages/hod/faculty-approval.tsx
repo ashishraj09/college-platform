@@ -339,8 +339,14 @@ const FacultyApprovalPage: React.FC = () => {
   if (loading) {
     return (
       <Container maxWidth="xl">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-          <CircularProgress size={60} />
+        <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="80vh">
+          <CircularProgress size={60} sx={{ mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">
+            Loading submissions...
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Please wait while we fetch pending approvals
+          </Typography>
         </Box>
       </Container>
     );

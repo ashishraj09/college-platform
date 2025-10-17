@@ -196,8 +196,14 @@ export const UsersPage: React.FC = () => {
 
   if (loading && users.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="400px">
-        <CircularProgress />
+      <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="400px">
+        <CircularProgress size={60} sx={{ mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Loading users...
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Please wait while we fetch user data
+        </Typography>
       </Box>
     );
   }

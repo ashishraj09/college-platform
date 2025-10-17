@@ -294,7 +294,17 @@ const DepartmentManagementPage: React.FC = () => {
                 </select>
               </Box>
               {(() => {
-                if (loadingDegrees) return <CircularProgress />;
+                if (loadingDegrees) return (
+                  <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" py={8}>
+                    <CircularProgress size={60} sx={{ mb: 2 }} />
+                    <Typography variant="h6" color="text.secondary">
+                      Loading degrees...
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Please wait while we fetch degree data
+                    </Typography>
+                  </Box>
+                );
                 // UI filtering
                 const filteredDegrees = filterByStatus(degrees, departmentId, statusFilter);
                 return (
@@ -351,7 +361,17 @@ const DepartmentManagementPage: React.FC = () => {
                 </select>
               </Box>
               {(() => {
-                if (loadingCourses) return <CircularProgress />;
+                if (loadingCourses) return (
+                  <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" py={8}>
+                    <CircularProgress size={60} sx={{ mb: 2 }} />
+                    <Typography variant="h6" color="text.secondary">
+                      Loading courses...
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Please wait while we fetch course data
+                    </Typography>
+                  </Box>
+                );
                 // UI filtering
                 const filteredCourses = filterByStatus(courses, departmentId, statusFilter);
                 return (

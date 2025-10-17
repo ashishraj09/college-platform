@@ -700,8 +700,14 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-        <CircularProgress />
+      <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress size={60} sx={{ mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Loading dashboard...
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Please wait while we fetch your degrees and courses
+        </Typography>
       </Box>
     );
   }
@@ -996,8 +1002,11 @@ useEffect(() => {
           {courseTabsConfig[courseTab].count === 0 ? (
             <Alert severity="info">No courses in {courseTabsConfig[courseTab].label.toLowerCase()} status.</Alert>
           ) : coursesLoading ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-              <CircularProgress />
+            <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="200px">
+              <CircularProgress size={50} sx={{ mb: 2 }} />
+              <Typography variant="body1" color="text.secondary">
+                Loading courses...
+              </Typography>
             </Box>
           ) : (
             <>
@@ -1055,8 +1064,11 @@ useEffect(() => {
           {degreeTabsConfig[degreeTab].count === 0 ? (
             <Alert severity="info">No degrees in {degreeTabsConfig[degreeTab].label.toLowerCase()} status.</Alert>
           ) : degreesLoading ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-              <CircularProgress />
+            <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="200px">
+              <CircularProgress size={50} sx={{ mb: 2 }} />
+              <Typography variant="body1" color="text.secondary">
+                Loading degrees...
+              </Typography>
             </Box>
           ) : (
             <>

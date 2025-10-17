@@ -111,8 +111,14 @@ const EnrollmentPage: React.FC = () => {
 
   if (loading && enrollments.length === 0) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
-        <CircularProgress />
+      <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 5, minHeight: '300px' }}>
+        <CircularProgress size={60} sx={{ mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Loading enrollments...
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Please wait while we fetch your enrollment history
+        </Typography>
       </Box>
     );
   }

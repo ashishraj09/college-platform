@@ -166,8 +166,14 @@ const CourseDetailsView: React.FC = () => {
 
   if (loading) {
     return (
-      <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
+      <Container sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <CircularProgress size={60} sx={{ mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Loading course details...
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Please wait while we fetch course information
+        </Typography>
       </Container>
     );
   }
