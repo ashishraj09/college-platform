@@ -297,6 +297,10 @@ router.get('/degree/:code',
   require('../middleware/audit').auditMiddleware('read', 'enrollment', 'Fetched enrollments by degree'),
   async (req, res) => {
     try {
+      // Get models dynamically
+      const Degree = await models.Degree();
+      const Course = await models.Course();
+      
       const { code } = req.params;
       const { semester, academic_year, status } = req.query;
 
