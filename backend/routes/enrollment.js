@@ -15,7 +15,10 @@ router.get('/drafts',
   require('../middleware/audit').auditMiddleware('read', 'enrollment', 'Fetched enrollment drafts'),
   async (req, res) => {
     try {
-      const drafts = await Enrollment.findAll({
+      // Get Enrollment model dynamically
+      const EnrollmentModel = await models.Enrollment();
+      
+      const drafts = await EnrollmentModel.findAll({
         where: {
           student_id: req.user.id,
           enrollment_status: 'draft'
@@ -47,12 +50,17 @@ router.post('/approve',
         return res.status(403).json({ error: 'Only department heads can approve enrollments' });
       }
       const { enrollment_ids } = req.body;
-      const enrollments = await Enrollment.findAll({
+      
+      // Get models dynamically
+      const EnrollmentModel = await models.Enrollment();
+      const UserModel = await models.User();
+      
+      const enrollments = await EnrollmentModel.findAll({
         where: {
           id: { [Op.in]: enrollment_ids },
           enrollment_status: 'pending_hod_approval'
         },
-        include: [{ model: User, as: 'student' }]
+        include: [{ model: UserModel, as: 'student' }]
       });
       // Filter enrollments to only those in HOD's department
       const validEnrollments = enrollments.filter(e => e.student.department_code === req.user.department_code);
@@ -69,7 +77,8 @@ router.post('/approve',
             hod_approved_at: new Date()
           });
           // Fetch course details
-          const courses = await Course.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
+          const CourseModel = await models.Course();
+          const courses = await CourseModel.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
           
           // Format courses for email with name, code, and credits
           const coursesForEmail = courses.map(c => ({
@@ -159,13 +168,17 @@ router.post('/reject',
       
       const { enrollment_ids, rejection_reason } = req.body;
       
+      // Get models dynamically
+      const EnrollmentModel = await models.Enrollment();
+      const UserModel = await models.User();
+      
       // Fetch all enrollments to reject
-      const enrollments = await Enrollment.findAll({
+      const enrollments = await EnrollmentModel.findAll({
         where: { 
           id: { [Op.in]: enrollment_ids },
           enrollment_status: 'pending_hod_approval'
         },
-        include: [{ model: User, as: 'student' }]
+        include: [{ model: UserModel, as: 'student' }]
       });
       
       // Check if all enrollments belong to the HOD's department
@@ -191,7 +204,8 @@ router.post('/reject',
             hod_approved_at: new Date()
           });
           // Fetch course details
-          const courses = await Course.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
+          const CourseModel = await models.Course();
+          const courses = await CourseModel.findAll({ where: { code: { [Op.in]: enrollment.course_codes } } });
           
           // Format courses for email with name, code, and credits
           const coursesForEmail = courses.map(c => ({

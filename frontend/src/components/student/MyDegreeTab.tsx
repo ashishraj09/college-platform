@@ -582,8 +582,14 @@ useEffect(() => {
   // Show loading spinner while fetching data
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 4, minHeight: '300px' }}>
+        <CircularProgress size={60} />
+        <Typography variant="h6" sx={{ mt: 3, color: 'text.secondary' }}>
+          Loading your degree information...
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+          Please wait while we fetch your course enrollments
+        </Typography>
       </Box>
     );
   }
