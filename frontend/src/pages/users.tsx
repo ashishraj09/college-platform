@@ -34,7 +34,6 @@ import {
   Lock as PasswordResetIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { useNavigate } from 'react-router-dom';
 import { usersAPI } from '../services/api';
 
 interface User {

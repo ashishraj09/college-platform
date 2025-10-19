@@ -153,4 +153,25 @@ router.get('/:id/degrees', authenticateToken, async (req, res) => {
   }
 });
 
+// Public endpoint: Get department by code (no authentication required)
+router.get('/public/:code', async (req, res) => {
+  try {
+    const Department = await models.Department();
+    const department = await Department.findOne({
+      where: { 
+        code: req.params.code.toUpperCase(),
+        status: 'active' // Only return active departments
+      }
+    });
+    
+    if (!department) {
+      return res.status(404).json({ error: 'Department not found' });
+    }
+    
+    res.json({ department });
+  } catch (error) {
+    handleCaughtError(res, error, 'Failed to fetch department');
+  }
+});
+
 module.exports = router;

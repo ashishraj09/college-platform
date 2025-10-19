@@ -28,7 +28,6 @@ import {
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { usersAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 
@@ -46,7 +45,7 @@ interface User {
 }
 
 const UsersPage: React.FC = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
@@ -103,7 +102,7 @@ const UsersPage: React.FC = () => {
   };
 
   const handleEditClick = (user: User) => {
-    navigate(`/admin/edit-user/${user.id}`);
+  router.push(`/admin/edit-user/${user.id}`);
   };
 
   const handleDeleteClick = async (userId: string) => {
@@ -152,7 +151,7 @@ const UsersPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => navigate('/admin/create-user')}
+            onClick={() => router.push('/admin/create-user')}
             sx={{ ml: 1 }}
           >
             Create User

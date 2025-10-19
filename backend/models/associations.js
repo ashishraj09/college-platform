@@ -89,10 +89,11 @@ async function initializeAssociations() {
   // Course.belongsTo(Department, { foreignKey: 'department_id', as: 'department', onDelete: 'CASCADE', onUpdate: 'CASCADE' }); // DB integrity (removed)
   Course.belongsTo(Department, { foreignKey: 'department_code', targetKey: 'code', as: 'departmentByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE', constraints: false }); // Code-based
   Course.belongsTo(Degree, { foreignKey: 'degree_code', targetKey: 'code', as: 'degreeByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE', constraints: false }); // Code-based
-  // Each course has a creator, updater, and approver (User)
+  // Each course has a creator, updater, approver, and primary instructor (User)
   Course.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
   Course.belongsTo(User, { foreignKey: 'updated_by', as: 'updater', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
   Course.belongsTo(User, { foreignKey: 'approved_by', as: 'approver', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
+  Course.belongsTo(User, { foreignKey: 'primary_instructor', as: 'primaryInstructor', onDelete: 'SET NULL', onUpdate: 'CASCADE' });
   // --------------------
   // Enrollment associations
   // --------------------

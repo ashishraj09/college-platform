@@ -38,8 +38,7 @@ const Course = defineModel('Course', {
       isUppercase: true,
     },
   },
-  overview: {
-  // Course overview/description
+  description: {
     type: DataTypes.TEXT,
     allowNull: false,
     validate: {
@@ -47,21 +46,33 @@ const Course = defineModel('Course', {
       len: [10, 2000],
     },
   },
-  study_details: {
-  // JSON: study plan, syllabus, etc.
-    type: DataTypes.JSON,
-    allowNull: false,
-    validate: {
-      notEmpty: true,
-    },
+  prerequisites: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  learning_objectives: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  course_outcomes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  assessment_methods: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  textbooks: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  references: {
+    type: DataTypes.TEXT,
+    allowNull: true,
   },
   faculty_details: {
-  // JSON: faculty info, assignments, etc.
-    type: DataTypes.JSON,
-    allowNull: false,
-    validate: {
-      notEmpty: true,
-    },
+    type: DataTypes.TEXT,
+    allowNull: true,
   },
   credits: {
   // Number of credits
@@ -175,6 +186,15 @@ const Course = defineModel('Course', {
     allowNull: true,
     references: {
       model: 'courses',
+      key: 'id',
+    },
+  },
+  primary_instructor: {
+    // The primary instructor for the course (user id)
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'users',
       key: 'id',
     },
   },

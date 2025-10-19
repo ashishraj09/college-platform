@@ -32,9 +32,15 @@ const DegreesPage: React.FC = () => {
 
   useEffect(() => {
     const fetchDegrees = async () => {
-      // Only fetch active degrees
-      const data = await degreesAPI.getDegrees();
-      setDegrees(data);
+      try {
+        // Use public API - no authentication required, only active degrees
+        const data = await degreesAPI.getPublicDegrees();
+        const degreesArray = data?.degrees || [];
+        setDegrees(degreesArray);
+      } catch (error) {
+        console.error('Error fetching degrees:', error);
+        setDegrees([]);
+      }
     };
     fetchDegrees();
   }, []);

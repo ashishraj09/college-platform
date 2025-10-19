@@ -22,6 +22,166 @@ const router = express.Router();
 
 
 /**
+ * GET /degrees/public
+ * Purpose: Get all active degrees with courses (public endpoint, no authentication required)
+ * Access: Public (no authentication)
+ * Query Params:
+ *   - department_code (string, optional): Filter by department code
+ * Response: { degrees: [...] }
+ */
+router.get('/public', async (req, res) => {
+  try {
+    const { Degree, Department, Course } = await models.getMany('Degree', 'Department', 'Course');
+    const { department_code } = req.query;
+    
+    const whereClause = { status: 'active' };
+    if (department_code) {
+      whereClause.department_code = department_code;
+    }
+
+    const degrees = await Degree.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Department,
+          as: 'departmentByCode',
+          attributes: ['id', 'name', 'code'],
+        },
+        {
+          model: Course,
+          as: 'courses',
+          where: { status: 'active' },
+          required: false,
+          attributes: ['id', 'name', 'code', 'credits', 'semester'],
+        },
+      ],
+      order: [['name', 'ASC']],
+      attributes: [
+        'id', 'name', 'code', 'description', 'duration_years', 'status', 'department_code',
+        'specializations', 'career_prospects', 'admission_requirements', 'accreditation', 'fees',
+        'entry_requirements', 'learning_outcomes', 'assessment_methods', 'contact_information',
+        'application_deadlines', 'application_process'
+      ],
+    });
+
+    // Format the response to be cleaner
+    const formattedDegrees = degrees.map(degree => ({
+      id: degree.id,
+      name: degree.name,
+      code: degree.code,
+      description: degree.description,
+      duration_years: degree.duration_years,
+      status: degree.status,
+      department: degree.departmentByCode ? {
+        name: degree.departmentByCode.name,
+        code: degree.departmentByCode.code,
+      } : null,
+      courses: degree.courses || [],
+      total_credits: degree.courses ? degree.courses.reduce((sum, c) => sum + (c.credits || 0), 0) : 0,
+      specializations: degree.specializations,
+      career_prospects: degree.career_prospects,
+      admission_requirements: degree.admission_requirements,
+      accreditation: degree.accreditation,
+      fees: degree.fees,
+      entry_requirements: degree.entry_requirements,
+      learning_outcomes: degree.learning_outcomes,
+      assessment_methods: degree.assessment_methods,
+      contact_information: degree.contact_information,
+      application_deadlines: degree.application_deadlines,
+      application_process: degree.application_process,
+    }));
+
+    res.json({ degrees: formattedDegrees });
+  } catch (error) {
+    handleCaughtError(res, error, 'Failed to fetch public degrees');
+  }
+});
+
+
+/**
+ * GET /degrees/public/:code
+ * Purpose: Get single active degree by code with courses (public endpoint, no authentication required)
+ * Access: Public (no authentication)
+ * Params: code (degree code)
+ * Response: { degree: {...} }
+ */
+router.get('/public/:code', async (req, res) => {
+  try {
+    const { Degree, Department, Course } = await models.getMany('Degree', 'Department', 'Course');
+    const { code } = req.params;
+
+    const degree = await Degree.findOne({
+      where: { 
+        code: code.toUpperCase(),
+        status: 'active' 
+      },
+      include: [
+        {
+          model: Department,
+          as: 'departmentByCode',
+          attributes: ['id', 'name', 'code'],
+        },
+        {
+          model: Course,
+          as: 'courses',
+          where: { status: 'active' },
+          required: false,
+          attributes: ['id', 'name', 'code', 'credits', 'semester'],
+        },
+      ],
+    });
+
+    if (!degree) {
+      return res.status(404).json({ error: 'Degree programme not found or not active' });
+    }
+
+    // Group courses by semester for course_structure
+    let course_structure = {};
+    if (degree.courses && Array.isArray(degree.courses)) {
+      for (const course of degree.courses) {
+        const sem = course.semester || 0;
+        if (!course_structure[sem]) course_structure[sem] = [];
+        course_structure[sem].push(course);
+      }
+    }
+
+    const formattedDegree = {
+      id: degree.id,
+      name: degree.name,
+      code: degree.code,
+      description: degree.description,
+      duration_years: degree.duration_years,
+      status: degree.status,
+      department: degree.departmentByCode ? {
+        id: degree.departmentByCode.id,
+        name: degree.departmentByCode.name,
+        code: degree.departmentByCode.code,
+      } : null,
+      prerequisites: Array.isArray(degree.prerequisites) ? degree.prerequisites : [],
+      study_details: typeof degree.study_details === 'object' && degree.study_details !== null ? degree.study_details : {},
+      faculty_details: typeof degree.faculty_details === 'object' && degree.faculty_details !== null ? degree.faculty_details : {},
+      course_structure: course_structure,
+      total_credits: degree.courses ? degree.courses.reduce((sum, c) => sum + (c.credits || 0), 0) : 0,
+      specializations: degree.specializations,
+      career_prospects: degree.career_prospects,
+      admission_requirements: degree.admission_requirements,
+      accreditation: degree.accreditation,
+      fees: degree.fees,
+      entry_requirements: degree.entry_requirements,
+      learning_outcomes: degree.learning_outcomes,
+      assessment_methods: degree.assessment_methods,
+      contact_information: degree.contact_information,
+      application_deadlines: degree.application_deadlines,
+      application_process: degree.application_process,
+    };
+
+    return res.json({ degree: formattedDegree });
+  } catch (error) {
+    handleCaughtError(res, error, 'Failed to fetch degree details');
+  }
+});
+
+/**
  * PATCH /degrees/:id/reject
  * Purpose: Reject a degree (HOD only)
  * Access: Authenticated HOD (Head of Department)
@@ -209,7 +369,6 @@ const degreeValidation = [
   body('code').trim().isLength({ min: 2, max: 10 }).withMessage('Degree code must be 2-10 characters'),
   body('duration_years').isInt({ min: 1, max: 10 }).withMessage('Duration must be between 1-10 years'),
   body('department_code').trim().isLength({ min: 2, max: 10 }).withMessage('Department code must be 2-10 characters'),
-  body('description').optional().trim().isLength({ max: 1000 }).withMessage('Description must be less than 1000 characters'),
 ];
 
 // Get all degrees with optional filtering
@@ -286,6 +445,18 @@ router.get(
           obj.department = obj.departmentByCode;
           delete obj.departmentByCode;
         }
+        // Add all rich text fields explicitly for frontend
+        obj.specializations = degree.specializations;
+        obj.career_prospects = degree.career_prospects;
+        obj.admission_requirements = degree.admission_requirements;
+        obj.accreditation = degree.accreditation;
+        obj.fees = degree.fees;
+        obj.entry_requirements = degree.entry_requirements;
+        obj.learning_outcomes = degree.learning_outcomes;
+        obj.assessment_methods = degree.assessment_methods;
+        obj.contact_information = degree.contact_information;
+        obj.application_deadlines = degree.application_deadlines;
+        obj.application_process = degree.application_process;
         return obj;
       });
       // Pagination object
@@ -444,6 +615,20 @@ router.get(
           return res.status(403).json({ error: 'Access denied: You do not have permission to view this degree' });
         }
       }
+      // Add all rich text fields explicitly for frontend
+      if (degree) {
+        degree.dataValues.specializations = degree.specializations;
+        degree.dataValues.career_prospects = degree.career_prospects;
+        degree.dataValues.admission_requirements = degree.admission_requirements;
+        degree.dataValues.accreditation = degree.accreditation;
+        degree.dataValues.fees = degree.fees;
+        degree.dataValues.entry_requirements = degree.entry_requirements;
+        degree.dataValues.learning_outcomes = degree.learning_outcomes;
+        degree.dataValues.assessment_methods = degree.assessment_methods;
+        degree.dataValues.contact_information = degree.contact_information;
+        degree.dataValues.application_deadlines = degree.application_deadlines;
+        degree.dataValues.application_process = degree.application_process;
+      }
       res.json({ degree });
     } catch (error) {
       handleCaughtError(res, error, 'Failed to fetch degree');
@@ -506,6 +691,18 @@ router.put(
         'updated_by',
         'approved_by',
         'department_code',
+        // Add all rich text fields
+        'specializations',
+        'career_prospects',
+        'admission_requirements',
+        'accreditation',
+        'fees',
+        'entry_requirements',
+        'learning_outcomes',
+        'assessment_methods',
+        'contact_information',
+        'application_deadlines',
+        'application_process',
       ]);
 
       const updates = {};
@@ -519,7 +716,7 @@ router.put(
       if (updates.department_code) {
         const dept = await Department.findOne({ where: { code: updates.department_code } });
         if (!dept) return res.status(400).json({ error: 'Invalid department_code' });
-        updates.department_id = dept.id; // keep both for integrity
+
       }
 
       // Apply updates

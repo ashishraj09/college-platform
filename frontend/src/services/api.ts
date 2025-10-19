@@ -56,8 +56,15 @@ api.interceptors.response.use(
     // Handle 401 errors (unauthorized)
     if (error.response && error.response.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
-      if (window.location.pathname !== '/login') {
-        console.log('Authentication failed, redirecting to login');
+      // Only redirect to login if we're on a protected page (not on public pages)
+      const publicPages = ['/', '/homepage', '/login', '/forgot-password', '/reset-password'];
+      const isPublicPage = publicPages.includes(window.location.pathname) || 
+                          window.location.pathname.startsWith('/department/') ||
+                          window.location.pathname.startsWith('/degree/') ||
+                          window.location.pathname.startsWith('/course/');
+      
+      if (!isPublicPage && window.location.pathname !== '/login') {
+        console.log('Authentication failed on protected page, redirecting to login');
         window.location.href = '/login';
       }
     }
@@ -192,6 +199,15 @@ export const usersAPI = {
 
 // --- Courses API (backwards-compatible) ---
 export const coursesAPI = {
+  // Public endpoint - get course by code
+  getPublicCourseByCode: async (code: string) => {
+    try {
+      const { data } = await api.get(`/courses/public/${code}`);
+      return data; // Returns { course: {...} }
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
   getCourses: async (params?: any) => {
     try {
       const { data } = await api.get('/courses', { params });
@@ -338,6 +354,26 @@ export const coursesAPI = {
 
 // --- Degrees API (backwards-compatible) ---
 export const degreesAPI = {
+  // Public endpoint - no authentication required
+  getPublicDegrees: async (params?: any) => {
+    try {
+      const { data } = await api.get('/degrees/public', { params });
+      return data; // Returns { degrees: [...] }
+    } catch (err: any) {
+      const error = handleApiError(err);
+      return { degrees: [], error: error.error };
+    }
+  },
+  // Public endpoint - get degree by code
+  getPublicDegreeByCode: async (code: string) => {
+    try {
+      const { data } = await api.get(`/degrees/public/${code}`);
+      return data; // Returns { degree: {...} }
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  // Authenticated endpoint - requires login, filtered by user access
   getDegrees: async (params?: any) => {
     try {
       const { data } = await api.get('/degrees', { params });
@@ -502,6 +538,20 @@ export const departmentsAPI = {
   deleteDepartment: async (id: string, payload?: any) => {
     try {
       return (await api.delete(`/departments/${id}`, { data: payload })).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  getDepartmentByCode: async (code: string) => {
+    try {
+      return (await api.get(`/departments/code/${code}`)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  getPublicDepartmentByCode: async (code: string) => {
+    try {
+      return (await api.get(`/departments/public/${code}`)).data;
     } catch (err: any) {
       return handleApiError(err);
     }

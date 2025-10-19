@@ -15,8 +15,8 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authAPI } from '../../services/api';
+import { useRouter } from 'next/router';
 
 // Validation schema
 const resetPasswordSchema = yup.object().shape({
@@ -46,9 +46,8 @@ const ResetPasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tokenValid, setTokenValid] = useState<boolean | null>(null);
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const router = useRouter();
+  const token = router.query.token as string | undefined;
 
   const {
     control,
@@ -135,7 +134,7 @@ const ResetPasswordPage: React.FC = () => {
               <Button
                 fullWidth
                 variant="contained"
-                onClick={() => navigate('/forgot-password')}
+                onClick={() => router.push('/forgot-password')}
                 sx={{ mb: 2 }}
               >
                 Request New Reset Link
@@ -144,7 +143,7 @@ const ResetPasswordPage: React.FC = () => {
               <Button
                 fullWidth
                 variant="outlined"
-                onClick={() => navigate('/login')}
+                onClick={() => router.push('/login')}
               >
                 Back to Sign In
               </Button>
@@ -188,7 +187,7 @@ const ResetPasswordPage: React.FC = () => {
               <Button
                 fullWidth
                 variant="contained"
-                onClick={() => navigate('/login')}
+                onClick={() => router.push('/login')}
               >
                 Sign In
               </Button>
@@ -308,7 +307,7 @@ const ResetPasswordPage: React.FC = () => {
               <Button
                 fullWidth
                 variant="outlined"
-                onClick={() => navigate('/login')}
+                onClick={() => router.push('/login')}
               >
                 Back to Sign In
               </Button>

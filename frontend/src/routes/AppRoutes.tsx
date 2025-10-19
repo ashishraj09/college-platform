@@ -20,6 +20,10 @@ import StudentDashboard from '../pages/student';
 import StudentDegreesPage from '../pages/student/degrees';
 import OfficeDashboard from '../pages/office';
 import ProtectedRoute from '../components/common/ProtectedRoute';
+import Homepage from '../pages/homepage';
+import DegreeDetail from '../pages/degree/[id]';
+import CourseDetail from '../pages/course/[id]';
+import DepartmentDetail from '../pages/department/[code]';
 
 import HODDashboard from '../pages/hod';
 import FacultyApprovalPage from '../pages/hod/faculty-approval';
@@ -72,15 +76,21 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
+      {/* Public Routes - No Authentication Required */}
+      <Route path="/homepage" element={<Homepage />} />
+      <Route path="/degree/:id" element={<DegreeDetail />} />
+      <Route path="/course/:id" element={<CourseDetail />} />
+      <Route path="/department/:code" element={<DepartmentDetail />} />
+      
       {/* Create Degree Page (all users) */}
       <Route path="/degrees/create" element={<CreateDegreePage />} />
-      {/* Test Route removed: TestPage does not exist */}
-      {/* Public Routes */}
+      
+      {/* Authentication Routes */}
       <Route 
         path="/login" 
         element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <LoginPage />} 
       />
-      
+         
       {/* Password Reset Routes */}
       <Route 
         path="/forgot-password" 
@@ -184,7 +194,7 @@ const AppRoutes: React.FC = () => {
           isAuthenticated ? (
             <Navigate to={getDashboardRoute()} replace />
           ) : (
-            <Navigate to="/login" replace />
+            <Navigate to="/homepage" replace />
           )
         }
       />

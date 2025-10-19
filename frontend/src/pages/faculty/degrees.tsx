@@ -21,7 +21,6 @@ import {
   Assignment as RequirementIcon,
   VerifiedUser as AccreditationIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { degreesAPI, coursesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';

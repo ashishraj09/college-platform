@@ -12,9 +12,9 @@ import {
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useNavigate } from 'react-router-dom';
 import { ArrowBack } from '@mui/icons-material';
 import { authAPI } from '../../services/api';
+import { useRouter } from 'next/router';
 
 // Validation schema
 const forgotPasswordSchema = yup.object().shape({
@@ -32,7 +32,7 @@ const ForgotPasswordPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const {
     control,
@@ -99,7 +99,7 @@ const ForgotPasswordPage: React.FC = () => {
                 fullWidth
                 variant="outlined"
                 startIcon={<ArrowBack />}
-                onClick={() => navigate('/login')}
+                onClick={() => router.push('/login')}
                 sx={{ mb: 2 }}
               >
                 Back to Sign In
@@ -192,7 +192,7 @@ const ForgotPasswordPage: React.FC = () => {
                 fullWidth
                 variant="outlined"
                 startIcon={<ArrowBack />}
-                onClick={() => navigate('/login')}
+                onClick={() => router.push('/login')}
               >
                 Back to Sign In
               </Button>

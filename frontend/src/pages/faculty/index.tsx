@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
 import StatusOverview from '../../components/StatusOverview';
-import api from '../../services/api';
 import {
   Container,
   Typography,
@@ -41,8 +41,6 @@ import SubmitForApprovalDialog from '../../components/common/SubmitForApprovalDi
 import LoadingButton from '../../components/common/LoadingButton';
 import {
   getAvailableEntityActions,
-  handleEntityAction,
-  getStatusIcon,
   EntityType,
   Entity,
 } from '../../utils/faculty/facultyDashboardHelpers';
@@ -53,6 +51,9 @@ import { timelineAPI } from '../../services/api';
 const FacultyDashboard: React.FC = () => {
   // Helper to reload stats after entity actions
   const reloadStats = async () => {
+    console.log('[DEBUG] reloadStats called');
+    const error = new Error();
+    console.log('[DEBUG] reloadStats stack:', error.stack);
     const statsRes = await usersAPI.getStats();
     if (statsRes.error) {
       enqueueSnackbar('Error loading stats', { variant: 'error' });
@@ -123,33 +124,14 @@ const FacultyDashboard: React.FC = () => {
   const [degreePage, setDegreePage] = useState(1);
   const [degreeTotalPages, setDegreeTotalPages] = useState(1);
 
-/**
- * EFFICIENT DATA LOADING STRATEGY:
- * ================================
- * 
- * 1. On Mount: Call /users/stats ONCE
- *    - Returns counts for ALL statuses: { courses: { draft: 2, pending: 1, approved: 1, active: 19 }, degrees: {...} }
- *    - These counts populate the badge numbers on each tab
- * 
- * 2. On Tab Click: Call /courses or /degrees with status filter
- *    - Example: /courses?status=active&page=1&limit=10
- *    - Returns ONLY the courses/degrees for that specific status
- *    - We do NOT load all statuses, only the currently selected tab
- * 
- * 3. On Pagination: Call /courses or /degrees with new page number
- *    - Example: /courses?status=active&page=2&limit=10
- * 
- * Total API calls on page load: 3 calls
- *   - 1x /users/stats (for all counts)
- *   - 1x /courses?status=draft (initial tab)
- *   - 1x /degrees?status=draft (initial tab)
- * 
- * NOT 8 calls (4 statuses × 2 entity types)
- */
-
 // Load stats only once on mount/user change
 useEffect(() => {
+  // Only run if user is defined and has an id (or a unique property)
+  if (!user || !user.id) return;
+  let didRun = false;
   const loadStats = async () => {
+    if (didRun) return;
+    didRun = true;
     setLoading(true); // Only for initial page load
     try {
       console.log('📊 [STATS] Loading stats (should only happen once on mount)...');
@@ -169,178 +151,88 @@ useEffect(() => {
     }
   };
   loadStats();
-}, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [user && user.id]);
 
-// Load courses only when coursesPagination or courseTab changes
-useEffect(() => {
-  const loadCourses = async () => {
-    setCoursesLoading(true); // Use separate loading state for courses
+// Centralized function to fetch entities (courses or degrees) with status
+const fetchEntities = async (entityType, page, limit, statusKey, caller = '') => {
+
+    console.log(`[DEBUG] fetchEntities called from: ${caller}`);
+    console.log(`[DEBUG] entityType: ${entityType}, page: ${page}, limit: ${limit}, status: ${statusKey}`);
+
+  if (entityType === 'degree') {
+    setDegreesLoading(true);
     try {
-      // Get the status for the current tab - using inline to avoid dependency issues
-      const tabConfigs = [
-        { key: 'draft' },
-        { key: 'pending_approval' },
-        { key: 'approved' },
-        { key: 'active' },
-      ];
-      const statusFilter = tabConfigs[courseTab]?.key;
-      console.log('🔍 [COURSES] Loading tab:', courseTab, '| Status filter:', statusFilter);
-      console.log('🔍 [COURSES] Params:', { 
-        page: coursesPagination.page, 
-        limit: coursesPagination.limit,
-        status: statusFilter 
-      });
-      
-      const coursesRes = await coursesAPI.getCourses({ 
-        page: coursesPagination.page, 
-        limit: coursesPagination.limit,
-        status: statusFilter 
-      });
-      
-      console.log('📦 [COURSES] API response:', {
-        coursesCount: coursesRes.courses?.length,
-        paginationTotal: coursesRes.pagination?.total,
-        paginationPages: coursesRes.pagination?.pages,
-        hasError: !!coursesRes.error
-      });
-      console.log('📊 [COURSES] Stats from /users/stats:', stats?.courses);
-      
-      // Validation: Check if we're making efficient calls
-      if (statusFilter) {
-        console.log('✅ [COURSES] Efficient: Loading ONLY', statusFilter, 'courses (not all statuses)');
-      } else {
-        console.warn('⚠️ [COURSES] Inefficient: Loading ALL courses instead of filtering by status');
+      const res = await degreesAPI.getDegrees({ page, limit, status: statusKey || 'draft' });
+
+        console.log('[DEBUG] degreesAPI.getDegrees response:', res);
+
+      if (res.error) {
+        enqueueSnackbar(res.error, { variant: 'error' });
+        setDegrees([]);
+        return;
       }
-      
-      // Check for error in response
-      if (coursesRes.error) {
-        enqueueSnackbar(coursesRes.error, { variant: 'error' });
+      setDegrees(res.degrees || []);
+      setDegreesPagination(prev => ({
+        ...prev,
+        total: res.pagination?.total || 0,
+        pages: res.pagination?.pages || 1,
+      }));
+    } catch (err) {
+      enqueueSnackbar('Error loading degrees', { variant: 'error' });
+      setDegrees([]);
+    } finally {
+      setDegreesLoading(false);
+    }
+  } else if (entityType === 'course') {
+    setCoursesLoading(true);
+    try {
+      const res = await coursesAPI.getCourses({ page, limit, status: statusKey || 'draft' });
+
+        console.log('[DEBUG] coursesAPI.getCourses response:', res);
+
+      if (res.error) {
+        enqueueSnackbar(res.error, { variant: 'error' });
         setCourses([]);
         return;
       }
-      
-      setCourses(coursesRes.courses || []);
+      setCourses(res.courses || []);
       setCoursesPagination(prev => ({
         ...prev,
-        total: coursesRes.pagination?.total || 0,
-        pages: coursesRes.pagination?.pages || 1,
+        total: res.pagination?.total || 0,
+        pages: res.pagination?.pages || 1,
       }));
-      
-      // Debug: Check if hasNewPendingVersion is being returned
-      const coursesWithPendingVersion = coursesRes.courses?.filter((c: any) => c.hasNewPendingVersion === true);
-      if (coursesWithPendingVersion && coursesWithPendingVersion.length > 0) {
-        console.log('🔒 [COURSES] Courses with pending versions (edit disabled):', coursesWithPendingVersion.map((c: any) => ({ code: c.code, version: c.version, hasNewPendingVersion: c.hasNewPendingVersion })));
-      }
-      
-      // Validation: Check if stats match actual data
-      const statsCount = stats?.courses?.[statusFilter];
-      const actualTotal = coursesRes.pagination?.total;
-      if (statsCount !== undefined && actualTotal !== undefined && statsCount !== actualTotal) {
-        console.warn('⚠️ [COURSES] Mismatch detected!');
-        console.warn('   Stats API shows:', statsCount, statusFilter, 'courses');
-        console.warn('   Courses API shows:', actualTotal, statusFilter, 'courses');
-        console.warn('   This could mean:');
-        console.warn('   1. Stats are cached/stale');
-        console.warn('   2. Stats show system-wide data, API shows user-specific data');
-        console.warn('   3. Data changed between API calls');
-      } else if (statsCount === actualTotal) {
-        console.log('✅ [COURSES] Stats match actual data:', statsCount, '=', actualTotal);
-      }
     } catch (err) {
-      console.error('❌ [COURSES] Error loading courses:', err);
       enqueueSnackbar('Error loading courses', { variant: 'error' });
       setCourses([]);
     } finally {
-      setCoursesLoading(false); // Course loading complete
+      setCoursesLoading(false);
     }
-  };
-  loadCourses();
+  }
+};
+
+// Load courses only when coursesPagination or courseTab changes
+useEffect(() => {
+  const tabConfigs = [
+    { key: 'draft' },
+    { key: 'pending_approval' },
+    { key: 'approved' },
+    { key: 'active' },
+  ];
+  const statusFilter = tabConfigs[courseTab]?.key;
+  fetchEntities('course', coursesPagination.page, coursesPagination.limit, statusFilter, 'courses useEffect');
 }, [coursesPagination.page, coursesPagination.limit, courseTab]);
 
 // Load degrees only when degreesPagination or degreeTab changes
 useEffect(() => {
-  const loadDegrees = async () => {
-    setDegreesLoading(true); // Use separate loading state for degrees
-    try {
-      // Get the status for the current tab - using inline to avoid dependency issues
-      const tabConfigs = [
-        { key: 'draft' },
-        { key: 'pending_approval' },
-        { key: 'approved' },
-        { key: 'active' },
-      ];
-      const statusFilter = tabConfigs[degreeTab]?.key;
-      console.log('🎓 [DEGREES] Loading tab:', degreeTab, '| Status filter:', statusFilter);
-      console.log('🎓 [DEGREES] Params:', { 
-        page: degreesPagination.page, 
-        limit: degreesPagination.limit,
-        status: statusFilter 
-      });
-      
-      const degreesRes = await degreesAPI.getDegrees({ 
-        page: degreesPagination.page, 
-        limit: degreesPagination.limit,
-        status: statusFilter 
-      });
-      
-      console.log('📦 [DEGREES] API response:', {
-        degreesCount: degreesRes.degrees?.length,
-        paginationTotal: degreesRes.pagination?.total,
-        paginationPages: degreesRes.pagination?.pages,
-        hasError: !!degreesRes.error
-      });
-      console.log('📊 [DEGREES] Stats from /users/stats:', stats?.degrees);
-      
-      // Validation: Check if we're making efficient calls
-      if (statusFilter) {
-        console.log('✅ [DEGREES] Efficient: Loading ONLY', statusFilter, 'degrees (not all statuses)');
-      } else {
-        console.warn('⚠️ [DEGREES] Inefficient: Loading ALL degrees instead of filtering by status');
-      }
-      
-      // Check for error in response
-      if (degreesRes.error) {
-        enqueueSnackbar(degreesRes.error, { variant: 'error' });
-        setDegrees([]);
-        return;
-      }
-      
-      setDegrees(degreesRes.degrees || []);
-      setDegreesPagination(prev => ({
-        ...prev,
-        total: degreesRes.pagination?.total || 0,
-        pages: degreesRes.pagination?.pages || 1,
-      }));
-      
-      // Debug: Check if hasNewPendingVersion is being returned
-      const degreesWithPendingVersion = degreesRes.degrees?.filter((d: any) => d.hasNewPendingVersion === true);
-      if (degreesWithPendingVersion && degreesWithPendingVersion.length > 0) {
-        console.log('🔒 [DEGREES] Degrees with pending versions (edit disabled):', degreesWithPendingVersion.map((d: any) => ({ code: d.code, version: d.version, hasNewPendingVersion: d.hasNewPendingVersion })));
-      }
-      
-      // Validation: Check if stats match actual data
-      const statsCount = stats?.degrees?.[statusFilter];
-      const actualTotal = degreesRes.pagination?.total;
-      if (statsCount !== undefined && actualTotal !== undefined && statsCount !== actualTotal) {
-        console.warn('⚠️ [DEGREES] Mismatch detected!');
-        console.warn('   Stats API shows:', statsCount, statusFilter, 'degrees');
-        console.warn('   Degrees API shows:', actualTotal, statusFilter, 'degrees');
-        console.warn('   This could mean:');
-        console.warn('   1. Stats are cached/stale');
-        console.warn('   2. Stats show system-wide data, API shows user-specific data');
-        console.warn('   3. Data changed between API calls');
-      } else if (statsCount === actualTotal) {
-        console.log('✅ [DEGREES] Stats match actual data:', statsCount, '=', actualTotal);
-      }
-    } catch (err) {
-      console.error('❌ [DEGREES] Error loading degrees:', err);
-      enqueueSnackbar('Error loading degrees', { variant: 'error' });
-      setDegrees([]);
-    } finally {
-      setDegreesLoading(false); // Degree loading complete
-    }
-  };
-  loadDegrees();
+  const tabConfigs = [
+    { key: 'draft' },
+    { key: 'pending_approval' },
+    { key: 'approved' },
+    { key: 'active' },
+  ];
+  const statusFilter = tabConfigs[degreeTab]?.key;
+  fetchEntities('degree', degreesPagination.page, degreesPagination.limit, statusFilter, 'degrees useEffect');
 }, [degreesPagination.page, degreesPagination.limit, degreeTab]);
 
   // Handlers for TablePagination (Degrees)
@@ -450,7 +342,7 @@ useEffect(() => {
         return;
       }
       // Prevent creating a new version if one already exists in draft, pending, or approved state
-      if ((type === 'course' || type === 'degree') && !['draft'].includes(entity.status) && entity.hasNewPendingVersion === true) {
+      if ((type === 'course' || type === 'degree') && entity.hasNewPendingVersion === true) {
         const entityTypeName = type === 'course' ? 'course' : 'degree';
         enqueueSnackbar(
           `Cannot create a new version of this ${entityTypeName}. A newer version already exists in draft, pending approval, or approved state. Please complete or delete the existing version first.`,
@@ -498,7 +390,7 @@ useEffect(() => {
         } else {
           data = await degreesAPI.createDegreeVersion(entityToEdit.id);
         }
-        
+
         // Check if response contains an error
         if (data.error) {
           enqueueSnackbar(data.error, { variant: "error" });
@@ -506,35 +398,35 @@ useEffect(() => {
           setEditEntityDialogOpen(false);
           return;
         }
-        
+
         enqueueSnackbar(
           `New version created successfully. You can now edit the draft.`,
           { variant: "success" }
         );
         setEditEntityDialogOpen(false);
-        
+
         // Switch to Draft tab to show the new version
         if (entityToEdit.entityType === "course") {
           setCourseTab(0); // 0 = Draft tab
         } else {
           setDegreeTab(0); // 0 = Draft tab
         }
-        
+
         // Always reload both entity lists and stats after version creation
-        const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-        setCourses(coursesRes.courses || []);
-        setCoursesPagination(prev => ({
-          ...prev,
-          total: coursesRes.pagination?.total || 0,
-          pages: coursesRes.pagination?.pages || 1,
-        }));
-        const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-        setDegrees(degreesRes.degrees || []);
-        setDegreesPagination(prev => ({
-          ...prev,
-          total: degreesRes.pagination?.total || 0,
-          pages: degreesRes.pagination?.pages || 1,
-        }));
+        await fetchEntities(
+          'course',
+          coursesPagination.page,
+          coursesPagination.limit,
+          courseTabsConfig[courseTab]?.key,
+          'version creation (course)'
+        );
+        await fetchEntities(
+          'degree',
+          degreesPagination.page,
+          degreesPagination.limit,
+          degreeTabsConfig[degreeTab]?.key,
+          'version creation (degree)'
+        );
         await reloadStats();
       } else {
         // For drafts or pending approval, open the edit dialog/modal and only update after user confirms
@@ -557,37 +449,37 @@ useEffect(() => {
           enqueueSnackbar("Entity updated successfully!", { variant: "success" });
           setEditEntityDialogOpen(false);
           // Always reload both entity lists and stats after edit
-          const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-          setCourses(coursesRes.courses || []);
-          setCoursesPagination(prev => ({
-            ...prev,
-            total: coursesRes.pagination?.total || 0,
-            pages: coursesRes.pagination?.pages || 1,
-          }));
-          const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-          setDegrees(degreesRes.degrees || []);
-          setDegreesPagination(prev => ({
-            ...prev,
-            total: degreesRes.pagination?.total || 0,
-            pages: degreesRes.pagination?.pages || 1,
-          }));
+          await fetchEntities(
+            'course',
+            coursesPagination.page,
+            coursesPagination.limit,
+            courseTabsConfig[courseTab]?.key,
+            'entity edit (course)'
+          );
+          await fetchEntities(
+            'degree',
+            degreesPagination.page,
+            degreesPagination.limit,
+            degreeTabsConfig[degreeTab]?.key,
+            'entity edit (degree)'
+          );
           await reloadStats();
                 if (deleteType === 'course') {
-                  const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-                  setCourses(coursesRes.courses || []);
-                  setCoursesPagination(prev => ({
-                    ...prev,
-                    total: coursesRes.pagination?.total || 0,
-                    pages: coursesRes.pagination?.pages || 1,
-                  }));
+                  await fetchEntities(
+                    'course',
+                    coursesPagination.page,
+                    coursesPagination.limit,
+                    courseTabsConfig[courseTab]?.key,
+                    'delete (course)'
+                  );
                 } else {
-                  const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-                  setDegrees(degreesRes.degrees || []);
-                  setDegreesPagination(prev => ({
-                    ...prev,
-                    total: degreesRes.pagination?.total || 0,
-                    pages: degreesRes.pagination?.pages || 1,
-                  }));
+                  await fetchEntities(
+                    'degree',
+                    degreesPagination.page,
+                    degreesPagination.limit,
+                    degreeTabsConfig[degreeTab]?.key,
+                    'delete (degree)'
+                  );
                 }
                 await reloadStats();
         }
@@ -653,30 +545,8 @@ useEffect(() => {
       const degreeStatusFilter = tabConfigs[degreeTab]?.key;
       
       // Reload data and stats
-      const coursesRes = await coursesAPI.getCourses({ 
-        page: coursesPagination.page, 
-        limit: coursesPagination.limit, 
-        status: courseStatusFilter 
-      });
-      setCourses(coursesRes.courses || []);
-      setCoursesPagination(prev => ({
-        ...prev,
-        total: coursesRes.pagination?.total || 0,
-        pages: coursesRes.pagination?.pages || 1,
-      }));
-      
-      const degreesRes = await degreesAPI.getDegrees({ 
-        page: degreesPagination.page, 
-        limit: degreesPagination.limit, 
-        status: degreeStatusFilter 
-      });
-      setDegrees(degreesRes.degrees || []);
-      setDegreesPagination(prev => ({
-        ...prev,
-        total: degreesRes.pagination?.total || 0,
-        pages: degreesRes.pagination?.pages || 1,
-      }));
-      
+      await fetchEntities('course', coursesPagination.page, coursesPagination.limit, courseStatusFilter, 'publish confirm (course)');
+      await fetchEntities('degree', degreesPagination.page, degreesPagination.limit, degreeStatusFilter, 'publish confirm (degree)');
       await reloadStats();
       
       // Close dialog
@@ -756,9 +626,14 @@ useEffect(() => {
             Degree: {item.degree.name}
           </Typography>
         )}
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {item.overview || item.description}
-        </Typography>
+        <Box sx={{ mb: 2 }}>
+          <div
+            style={{ color: '#616161', fontSize: '1rem', lineHeight: 1.6 }}
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(item.overview || item.description || '')
+            }}
+          />
+        </Box>
         {item.rejection_reason && item.status === 'draft' && (
           <Alert severity="error" variant="outlined" sx={{ mb: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
@@ -872,13 +747,13 @@ useEffect(() => {
                   }
                   enqueueSnackbar('Course deleted successfully!', { variant: 'success' });
                   // Reload courses after deletion
-                  const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-                  setCourses(coursesRes.courses || []);
-                  setCoursesPagination(prev => ({
-                    ...prev,
-                    total: coursesRes.pagination?.total || 0,
-                    pages: coursesRes.pagination?.pages || 1,
-                  }));
+                  await fetchEntities(
+                    'course',
+                    coursesPagination.page,
+                    coursesPagination.limit,
+                    courseTabsConfig[courseTab]?.key,
+                    'delete dialog (course)'
+                  );
                 } else {
                   const result = await degreesAPI.deleteDegree(entityToDelete.id);
                   // Check if response contains an error
@@ -890,13 +765,13 @@ useEffect(() => {
                   }
                   enqueueSnackbar('Degree deleted successfully!', { variant: 'success' });
                   // Reload degrees after deletion
-                  const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-                  setDegrees(degreesRes.degrees || []);
-                  setDegreesPagination(prev => ({
-                    ...prev,
-                    total: degreesRes.pagination?.total || 0,
-                    pages: degreesRes.pagination?.pages || 1,
-                  }));
+                  await fetchEntities(
+                    'degree',
+                    degreesPagination.page,
+                    degreesPagination.limit,
+                    degreeTabsConfig[degreeTab]?.key,
+                    'delete dialog (degree)'
+                  );
                 }
                 // Reload stats after deletion
                 await reloadStats();
@@ -1099,11 +974,11 @@ useEffect(() => {
       )}
       {/* Create Course Dialog */}
       <CreateCourseDialog
-  open={createCourseDialogOpen}
-  onClose={() => setCreateCourseDialogOpen(false)}
-  onSuccess={() => setCreateCourseDialogOpen(false)}
-  mode={createCourseDialogOpen && (!entityToEdit || entityToEdit.entityType !== 'course' || entityToEdit.status !== 'draft') ? 'create' : 'edit'}
-  course={createCourseDialogOpen && entityToEdit && entityToEdit.entityType === 'course' && entityToEdit.status === 'draft' ? entityToEdit : undefined}
+        open={createCourseDialogOpen}
+        onClose={() => setCreateCourseDialogOpen(false)}
+        onSuccess={() => setCreateCourseDialogOpen(false)}
+        mode={createCourseDialogOpen && (!entityToEdit || entityToEdit.entityType !== 'course' || entityToEdit.status !== 'draft') ? 'create' : 'edit'}
+        course={createCourseDialogOpen && entityToEdit && entityToEdit.entityType === 'course' && entityToEdit.status === 'draft' ? entityToEdit : undefined}
       />
       {/* Generic Edit Entity Confirmation Dialog */}
       <EditEntityConfirmationDialog
@@ -1121,13 +996,13 @@ useEffect(() => {
           setCreateDegreeDialogOpen(false);
           // Reload degrees only
           const reloadDegrees = async () => {
-            const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-            setDegrees(degreesRes.degrees || []);
-            setDegreesPagination(prev => ({
-              ...prev,
-              total: degreesRes.pagination?.total || 0,
-              pages: degreesRes.pagination?.pages || 1,
-            }));
+            await fetchEntities(
+              'degree',
+              degreesPagination.page,
+              degreesPagination.limit,
+              degreeTabsConfig[degreeTab]?.key,
+              'create degree dialog'
+            );
             await reloadStats();
           };
           reloadDegrees();
@@ -1171,13 +1046,13 @@ useEffect(() => {
           setCourseApprovalMessage('');
           
           // Reload courses only
-          const coursesRes = await coursesAPI.getCourses({ page: coursesPagination.page, limit: coursesPagination.limit });
-          setCourses(coursesRes.courses || []);
-          setCoursesPagination(prev => ({
-            ...prev,
-            total: coursesRes.pagination?.total || 0,
-            pages: coursesRes.pagination?.pages || 1,
-          }));
+          await fetchEntities(
+            'course',
+            coursesPagination.page,
+            coursesPagination.limit,
+            courseTabsConfig[courseTab]?.key,
+            'submit dialog (course)'
+          );
           await reloadStats();
           setSubmittingCourse(false);
         }}
@@ -1218,13 +1093,13 @@ useEffect(() => {
           setDegreeApprovalMessage('');
           
           // Reload degrees only
-          const degreesRes = await degreesAPI.getDegrees({ page: degreesPagination.page, limit: degreesPagination.limit });
-          setDegrees(degreesRes.degrees || []);
-          setDegreesPagination(prev => ({
-            ...prev,
-            total: degreesRes.pagination?.total || 0,
-            pages: degreesRes.pagination?.pages || 1,
-          }));
+          await fetchEntities(
+            'degree',
+            degreesPagination.page,
+            degreesPagination.limit,
+            degreeTabsConfig[degreeTab]?.key,
+            'submit dialog (degree)'
+          );
           await reloadStats();
           setSubmittingDegree(false);
         }}

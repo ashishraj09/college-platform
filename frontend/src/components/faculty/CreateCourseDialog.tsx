@@ -25,6 +25,8 @@ import { Add as AddIcon, Delete as DeleteIcon, MenuBook as CourseIcon } from '@m
 import { useSnackbar } from 'notistack';
 import { coursesAPI, degreesAPI, usersAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import dynamic from 'next/dynamic';
+const RichTextEditor = dynamic(() => import('../common/RichTextEditor'), { ssr: false });
 
 export interface CreateCourseDialogProps {
   open: boolean;
@@ -37,27 +39,21 @@ export interface CreateCourseDialogProps {
 interface CourseForm {
   name: string;
   code: string;
-  overview: string;
+  description: string;
   credits: number;
   semester: number;
   department_code: string;
   degree_code: string;
   is_elective: boolean;
   max_students: number;
-  prerequisites: string[];
-  study_details: {
-    learning_objectives: string[];
-    course_outcomes: string[];
-    assessment_methods: string[];
-    textbooks: string[];
-    references: string[];
-  };
-  faculty_details: {
-    primary_instructor: string;
-    co_instructors: string[];
-    guest_lecturers: string[];
-    lab_instructors: string[];
-  };
+  prerequisites: string;
+  faculty_details: string;
+  learning_objectives: string;
+  course_outcomes: string;
+  assessment_methods: string;
+  textbooks: string;
+  references: string;
+  primary_instructor: string;
 }
 
 const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({ 
@@ -75,27 +71,21 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const defaultForm: CourseForm = {
     name: '',
     code: '',
-    overview: '',
+    description: '',
     credits: 3,
     semester: 1,
     department_code: '',
     degree_code: '',
     is_elective: false,
     max_students: 50,
-    prerequisites: [],
-    study_details: {
-      learning_objectives: [''],
-      course_outcomes: [''],
-      assessment_methods: [''],
-      textbooks: [''],
-      references: [''],
-    },
-    faculty_details: {
-      primary_instructor: '',
-      co_instructors: [],
-      guest_lecturers: [],
-      lab_instructors: [],
-    },
+    prerequisites: '',
+    learning_objectives: '',
+    course_outcomes: '',
+    assessment_methods: '',
+    textbooks: '',
+    references: '',
+  primary_instructor: '',
+  faculty_details: '',
   };
 
   // State management
@@ -112,19 +102,22 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   
   // Field validation errors
   const [fieldErrors, setFieldErrors] = useState<{
-    name?: string;
-    code?: string;
-    overview?: string;
-    credits?: string;
-    semester?: string;
-    max_students?: string;
-    degree_code?: string;
-    learning_objectives?: string;
-    course_outcomes?: string;
-    assessment_methods?: string;
-    textbooks?: string;
-    references?: string;
-  }>({});
+  name?: string;
+  code?: string;
+  description?: string;
+  credits?: string;
+  semester?: string;
+  max_students?: string;
+  degree_code?: string;
+  prerequisites?: string;
+  learning_objectives?: string;
+  course_outcomes?: string;
+  assessment_methods?: string;
+  textbooks?: string;
+  references?: string;
+  primary_instructor?: string;
+  faculty_details?: string;
+}>({});
 
   // Load degrees and faculty when dialog opens
   useEffect(() => {
@@ -181,16 +174,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
             setForm({
               ...defaultForm,
               ...courseData,
-              degree_code: courseData.degree?.id ?? courseData.degree_code ?? '',
+              degree_code: courseData.degree?.code ?? courseData.degree_code ?? '',
               department_code: courseData.department?.code ?? courseData.department_code ?? '',
-              study_details: {
-                ...defaultForm.study_details,
-                ...courseData.study_details,
-              },
-              faculty_details: {
-                ...defaultForm.faculty_details,
-                ...courseData.faculty_details,
-              },
+              primary_instructor: courseData.primary_instructor ?? '',
             });
           } catch (err) {
             setError('Failed to load course for editing');
@@ -213,38 +199,60 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
 
   // Validation functions
   const validateField = (fieldName: string, value: any): string | undefined => {
-    switch (fieldName) {
-      case 'name':
-        if (!value?.trim()) return 'Course name is required';
-        if (value.trim().length < 3) return 'Course name must be at least 3 characters';
-        if (value.trim().length > 100) return 'Course name cannot exceed 100 characters';
-        break;
-      case 'code':
-        if (!value?.trim()) return 'Course code is required';
-        if (value.trim().length < 3) return 'Course code must be at least 3 characters';
-        if (value.trim().length > 10) return 'Course code cannot exceed 10 characters';
-        if (!/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
-        break;
-      case 'overview':
-        if (!value?.trim()) return 'Course overview is required';
-        if (value.trim().length < 10) return 'Overview must be at least 10 characters';
-        if (value.trim().length > 2000) return 'Overview cannot exceed 2000 characters';
-        break;
-      case 'credits':
-        if (value < 1 || value > 10) return 'Credits must be between 1 and 10';
-        break;
-      case 'semester':
-        if (value < 1 || value > 10) return 'Semester must be between 1 and 10';
-        break;
-      case 'max_students':
-        if (value < 1 || value > 500) return 'Max students must be between 1 and 500';
-        break;
-      case 'degree_code':
-        if (!value) return 'Degree selection is required';
-        break;
-    }
-    return undefined;
-  };
+  switch (fieldName) {
+    case 'name':
+      if (!value?.trim()) return 'Course name is required';
+      if (value.trim().length < 3) return 'Course name must be at least 3 characters';
+      if (value.trim().length > 100) return 'Course name cannot exceed 100 characters';
+      break;
+    case 'code':
+      if (!value?.trim()) return 'Course code is required';
+      if (value.trim().length < 3) return 'Course code must be at least 3 characters';
+      if (value.trim().length > 10) return 'Course code cannot exceed 10 characters';
+      if (!/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
+      break;
+    case 'description':
+      if (!value?.trim()) return 'Course description is required';
+      break;
+    case 'prerequisites':
+      if (!value?.trim()) return 'Prerequisites are required';
+      break;
+    case 'learning_objectives':
+      if (!value?.trim()) return 'Learning objective is required';
+      break;
+    case 'course_outcomes':
+      if (!value?.trim()) return 'Course outcome is required';
+      break;
+    case 'assessment_methods':
+      if (!value?.trim()) return 'Assessment method is required';
+      break;
+    case 'textbooks':
+      if (!value?.trim()) return 'Textbook is required';
+      break;
+    case 'references':
+      if (!value?.trim()) return 'Reference is required';
+      break;
+    case 'faculty_details':
+      if (!value?.trim()) return 'Faculty details are required';
+      break;
+    case 'credits':
+      if (value < 1 || value > 10) return 'Credits must be between 1 and 10';
+      break;
+    case 'semester':
+      if (value < 1 || value > 10) return 'Semester must be between 1 and 10';
+      break;
+    case 'max_students':
+      if (value < 1 || value > 500) return 'Max students must be between 1 and 500';
+      break;
+    case 'degree_code':
+      if (!value) return 'Degree selection is required';
+      break;
+    case 'primary_instructor':
+      if (!value || !value.trim()) return 'Primary instructor is required';
+      break;
+  }
+  return undefined;
+};
 
   const updateFieldError = (fieldName: string, value: any) => {
     const error = validateField(fieldName, value);
@@ -256,14 +264,11 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
 
   // Event handlers
   const handleInputChange = (field: keyof CourseForm) => (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { value: string } }
   ) => {
+    // Accept both standard and RichTextEditor event shapes
     const value = event.target.value ?? '';
-    setForm({
-      ...form,
-      [field]: value,
-    });
-    // Real-time validation
+    setForm((prev: CourseForm) => ({ ...prev, [field]: value }));
     updateFieldError(field, value);
     setError('');
   };
@@ -279,57 +284,6 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     // Real-time validation
     updateFieldError(field, value);
     setError('');
-  };
-
-  const handleStudyDetailChange = (section: keyof CourseForm['study_details'], index: number, value: string) => {
-    const updatedDetails = { ...form.study_details };
-    updatedDetails[section][index] = value;
-    setForm({
-      ...form,
-      study_details: updatedDetails,
-    });
-  };
-
-  const addStudyDetailItem = (section: keyof CourseForm['study_details']) => {
-    const updatedDetails = { ...form.study_details };
-    updatedDetails[section].push('');
-    setForm({
-      ...form,
-      study_details: updatedDetails,
-    });
-  };
-
-  const removeStudyDetailItem = (section: keyof CourseForm['study_details'], index: number) => {
-    const updatedDetails = { ...form.study_details };
-    updatedDetails[section].splice(index, 1);
-    setForm({
-      ...form,
-      study_details: updatedDetails,
-    });
-  };
-
-  const handlePrerequisiteAdd = () => {
-    setForm({
-      ...form,
-      prerequisites: [...form.prerequisites, ''],
-    });
-  };
-
-  const handlePrerequisiteChange = (index: number, value: string) => {
-    const updatedPrereqs = [...form.prerequisites];
-    updatedPrereqs[index] = value;
-    setForm({
-      ...form,
-      prerequisites: updatedPrereqs,
-    });
-  };
-
-  const handlePrerequisiteRemove = (index: number) => {
-    const updatedPrereqs = form.prerequisites.filter((_, i) => i !== index);
-    setForm({
-      ...form,
-      prerequisites: updatedPrereqs,
-    });
   };
 
   const validateForm = (): boolean => {
@@ -363,14 +317,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       hasError = true;
     }
 
-    if (!form.overview.trim()) {
-      newFieldErrors.overview = 'Course overview is required';
-      hasError = true;
-    } else if (form.overview.trim().length < 10) {
-      newFieldErrors.overview = 'Overview must be at least 10 characters';
-      hasError = true;
-    } else if (form.overview.trim().length > 2000) {
-      newFieldErrors.overview = 'Overview cannot exceed 2000 characters';
+    if (!form.description.trim()) {
+      newFieldErrors.description = 'Course description is required';
       hasError = true;
     }
 
@@ -394,29 +342,41 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       hasError = true;
     }
 
-    // Check study details
-    if (form.study_details.learning_objectives.filter(obj => obj.trim()).length === 0) {
-      newFieldErrors.learning_objectives = 'At least one learning objective is required';
+    // Check study details (now flat fields)
+    if (!(form.learning_objectives ?? '').trim()) {
+      newFieldErrors.learning_objectives = 'Learning objective is required';
+      hasError = true;
+    }
+    if (!(form.course_outcomes ?? '').trim()) {
+      newFieldErrors.course_outcomes = 'Course outcome is required';
+      hasError = true;
+    }
+    if (!(form.assessment_methods ?? '').trim()) {
+      newFieldErrors.assessment_methods = 'Assessment method is required';
+      hasError = true;
+    }
+    if (!(form.textbooks ?? '').trim()) {
+      newFieldErrors.textbooks = 'Textbook is required';
       hasError = true;
     }
 
-    if (form.study_details.course_outcomes.filter(outcome => outcome.trim()).length === 0) {
-      newFieldErrors.course_outcomes = 'At least one course outcome is required';
+    if (!(form.references ?? '').trim()) {
+      newFieldErrors.references = 'Reference is required';
       hasError = true;
     }
 
-    if (form.study_details.assessment_methods.filter(method => method.trim()).length === 0) {
-      newFieldErrors.assessment_methods = 'At least one assessment method is required';
+    if (!(form.prerequisites ?? '').trim()) {
+      newFieldErrors.prerequisites = 'Prerequisites are required';
       hasError = true;
     }
 
-    if (form.study_details.textbooks.filter(book => book.trim()).length === 0) {
-      newFieldErrors.textbooks = 'At least one textbook is required';
+    if (!(form.primary_instructor ?? '').trim()) {
+      newFieldErrors.primary_instructor = 'Primary instructor is required';
       hasError = true;
     }
 
-    if (form.study_details.references.filter(ref => ref.trim()).length === 0) {
-      newFieldErrors.references = 'At least one reference is required';
+    if (!(form.faculty_details ?? '').trim()) {
+      newFieldErrors.faculty_details = 'Faculty details are required';
       hasError = true;
     }
 
@@ -429,9 +389,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       // If there are validation errors, show an error message
       setError('Please correct the errors before submitting');
       // Show the tab with errors
-      if (fieldErrors.name || fieldErrors.code || fieldErrors.overview || 
-          fieldErrors.credits || fieldErrors.semester || fieldErrors.degree_code || 
-          fieldErrors.max_students) {
+      if (fieldErrors.name || fieldErrors.code || fieldErrors.description || 
+      fieldErrors.credits || fieldErrors.semester || fieldErrors.degree_code || 
+      fieldErrors.max_students) {
         setActiveTab(0);
       } else if (fieldErrors.learning_objectives || fieldErrors.course_outcomes || 
                 fieldErrors.assessment_methods || fieldErrors.textbooks || 
@@ -449,25 +409,14 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     const selectedDepartment = user?.department || null;
 
       // Filter out empty values and set correct UUIDs
-      const cleanedForm = {
-        ...form,
-        department_id: selectedDepartment?.id ?? '',
-        degree_id: selectedDegree?.id ?? '',
-        prerequisites: form.prerequisites.filter(p => p.trim()),
-        study_details: {
-          learning_objectives: form.study_details.learning_objectives.filter(obj => obj.trim()),
-          course_outcomes: form.study_details.course_outcomes.filter(outcome => outcome.trim()),
-          assessment_methods: form.study_details.assessment_methods.filter(method => method.trim()),
-          textbooks: form.study_details.textbooks.filter(book => book.trim()),
-          references: form.study_details.references.filter(ref => ref.trim()),
-        },
-        faculty_details: {
-          primary_instructor: form.faculty_details.primary_instructor,
-          co_instructors: form.faculty_details.co_instructors.filter(instructor => instructor.trim()),
-          guest_lecturers: form.faculty_details.guest_lecturers.filter(lecturer => lecturer.trim()),
-          lab_instructors: form.faculty_details.lab_instructors.filter(instructor => instructor.trim()),
-        },
-      };
+      const cleanedForm = { ...form };
+
+      if ('department_id' in cleanedForm) {
+        delete cleanedForm.department_id;
+      }
+      if ('degree_id' in cleanedForm) {
+        delete cleanedForm.degree_id;
+      }
 
       if (mode === 'edit' && course?.id) {
         // Check if course is approved or active
@@ -541,54 +490,13 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     setActiveTab(newValue);
   };
 
-  const renderStudyDetailSection = (title: string, section: keyof CourseForm['study_details']) => (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="subtitle2" gutterBottom>
-        {title}
-      </Typography>
-      {form.study_details[section].map((item, index) => {
-        // Only show error for the first empty item in required fields
-        const showError = !!fieldErrors[section] && (!item.trim() && index === 0);
-        return (
-          <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1 }}>
-            <TextField
-              fullWidth
-              size="small"
-              value={item}
-              onChange={(e) => handleStudyDetailChange(section, index, e.target.value)}
-              placeholder={`Enter ${title.toLowerCase()}`}
-              error={showError}
-              helperText={showError ? fieldErrors[section] : ''}
-              sx={showError ? { backgroundColor: '#fff3e0' } : {}}
-            />
-            <IconButton
-              size="small"
-              onClick={() => removeStudyDetailItem(section, index)}
-              disabled={form.study_details[section].length === 1}
-            >
-              <DeleteIcon />
-            </IconButton>
-          </Box>
-        );
-      })}
-      <Button
-        size="small"
-        startIcon={<AddIcon />}
-        onClick={() => addStudyDetailItem(section)}
-      >
-        Add {title}
-      </Button>
-    </Box>
-  );
-
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
         <CourseIcon color="primary" />
         {mode === 'edit' ? 'Edit Course' : 'Create New Course'}
       </DialogTitle>
-      
-      <DialogContent dividers sx={{ height: '70vh', overflow: 'hidden', p: 0 }}>
+      <DialogContent dividers sx={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', p: 0 }}>
         {initialLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
             <CircularProgress size={60} />
@@ -603,13 +511,13 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 You must be assigned to a department to create courses. Please contact your administrator.
               </Alert>
             )}
-            
+
             {error && (
               <Alert severity="error" sx={{ m: 2 }}>
                 {error}
               </Alert>
             )}
-            
+
             <Tabs 
               value={activeTab} 
               onChange={handleTabChange}
@@ -617,37 +525,38 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
             >
               <Tab label="Basic Information" />
               <Tab label="Study Details" />
-              <Tab label="Faculty Details" />
             </Tabs>
-            
+
             <Box sx={{ p: 3, height: 'calc(100% - 48px)', overflowY: 'auto' }}>
               {/* Tab 0: Basic Information */}
               {activeTab === 0 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-                <TextField
-                  required
-                  fullWidth
-                  label="Course Name"
-                  value={form.name ?? ''}
-                  onChange={handleInputChange('name')}
-                  error={!!fieldErrors.name}
-                  helperText={fieldErrors.name || "Enter the full name of the course"}
-                />
-                
-                <TextField
-                  required
-                  fullWidth
-                  label="Course Code"
-                  value={form.code ?? ''}
-                  onChange={handleInputChange('code')}
-                  error={!!fieldErrors.code}
-                  helperText={fieldErrors.code || "e.g., CS101 (uppercase letters and numbers only)"}
-                  slotProps={{ 
-                    htmlInput: { style: { textTransform: 'uppercase' } }
-                  }}
-                />
-
+                  <TextField
+                    required
+                    fullWidth
+                    label="Course Name"
+                    value={form.name ?? ''}
+                    onChange={handleInputChange('name')}
+                    error={!!fieldErrors.name}
+                    helperText={fieldErrors.name || "Enter the full name of the course"}
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                  <TextField
+                    required
+                    fullWidth
+                    label="Course Code"
+                    value={form.code ?? ''}
+                    onChange={handleInputChange('code')}
+                    error={!!fieldErrors.code}
+                    helperText={fieldErrors.code || "e.g., CS101 (uppercase letters and numbers only)"}
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                    slotProps={{ 
+                      htmlInput: { style: { textTransform: 'uppercase' } }
+                    }}
+                  />
                 <TextField
                   fullWidth
                   label="Department"
@@ -668,21 +577,21 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   />
                 )}
 
-                <FormControl fullWidth required error={!!fieldErrors.degree_code}>
+                <FormControl fullWidth required error={!!fieldErrors.degree_code} sx={{ minWidth: 240 }}>
                   <InputLabel>Degree</InputLabel>
                   <Select
                     value={form.degree_code ?? ''}
                     label="Degree"
                     onChange={handleSelectChange('degree_code')}
                     disabled={!form.department_code || loadingDegrees}
-                  >
+                      >
                     {loadingDegrees ? (
                       <MenuItem disabled>Loading degrees...</MenuItem>
                     ) : degrees.length === 0 ? (
                       <MenuItem disabled>No degrees available</MenuItem>
                     ) : (
                       degrees.map((degree) => (
-                        <MenuItem key={degree.id} value={degree.id}>
+                          <MenuItem key={degree.code} value={degree.code}>
                           {degree.name} ({degree.code})
                         </MenuItem>
                       ))
@@ -691,6 +600,32 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   {fieldErrors.degree_code && (
                     <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
                       {fieldErrors.degree_code}
+                    </Typography>
+                  )}
+                </FormControl>
+                <FormControl fullWidth required sx={{ minWidth: 240 }}>
+                  <InputLabel>Primary Instructor</InputLabel>
+                  <Select
+                    value={form.primary_instructor}
+                    label="Primary Instructor"
+                    onChange={(e) => {
+                      setForm({
+                        ...form,
+                        primary_instructor: e.target.value,
+                      });
+                      updateFieldError('primary_instructor', e.target.value);
+                    }}
+                    error={!!fieldErrors.primary_instructor}
+                  >
+                    {faculty.map((member) => (
+                      <MenuItem key={member.id} value={member.id}>
+                        {member.first_name} {member.last_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {fieldErrors.primary_instructor && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                      {fieldErrors.primary_instructor}
                     </Typography>
                   )}
                 </FormControl>
@@ -722,8 +657,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   error={!!fieldErrors.semester}
                   helperText={fieldErrors.semester || "Which semester (0-10)"}
                   slotProps={{ 
-                    inputLabel: { shrink: true },
-                    htmlInput: { min: 0, max: 10 }
+                    inputLabel: { shrink: true }
                   }}
                 />
 
@@ -731,8 +665,16 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   fullWidth
                   label="Max Students"
                   type="number"
-                  value={form.max_students}
-                  onChange={handleInputChange('max_students')}
+                  value={form.max_students === 0 ? '' : String(form.max_students)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      max_students: val === '' ? 0 : Math.max(0, Math.min(500, Number(val)))
+                    }));
+                    // Only validate if not empty
+                    if (val !== '') updateFieldError('max_students', Number(val));
+                  }}
                   error={!!fieldErrors.max_students}
                   helperText={fieldErrors.max_students || "Maximum enrollment (1-500)"}
                   slotProps={{ 
@@ -754,46 +696,32 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 />
               </Box>
 
-              <TextField
-                required
-                fullWidth
-                multiline
-                rows={4}
+              <RichTextEditor
                 label="Course Overview"
-                value={form.overview}
-                onChange={handleInputChange('overview')}
-                error={!!fieldErrors.overview}
-                helperText={fieldErrors.overview || `Provide a detailed overview (10-2000 characters) - ${form.overview.length}/2000`}
+                value={form.description}
+                onChange={handleInputChange('description')}
+                width={"100%"}
+                height={120}
               />
+              {fieldErrors.description && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                  {fieldErrors.description}
+                </Typography>
+              )}
 
               <Box>
-                <Typography variant="h6" gutterBottom>
-                  Prerequisites
-                </Typography>
-                {form.prerequisites.map((prereq, index) => (
-                  <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={prereq}
-                      onChange={(e) => handlePrerequisiteChange(index, e.target.value)}
-                      placeholder="Enter prerequisite course"
-                    />
-                    <IconButton
-                      size="small"
-                      onClick={() => handlePrerequisiteRemove(index)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Box>
-                ))}
-                <Button
-                  size="small"
-                  startIcon={<AddIcon />}
-                  onClick={handlePrerequisiteAdd}
-                >
-                  Add Prerequisite
-                </Button>
+                <RichTextEditor
+                  label="Prerequisites"
+                  value={form.prerequisites}
+                  onChange={handleInputChange('prerequisites')}
+                  width={"100%"}
+                  height={120}
+                />
+                {fieldErrors.prerequisites && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                    {fieldErrors.prerequisites}
+                  </Typography>
+                )}
               </Box>
             </Box>
           )}
@@ -801,49 +729,87 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
           {/* Tab 1: Study Details */}
           {activeTab === 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
-                <Box>
-                  {renderStudyDetailSection('Learning Objectives', 'learning_objectives')}
-                  {renderStudyDetailSection('Assessment Methods', 'assessment_methods')}
-                  {renderStudyDetailSection('References', 'references')}
-                </Box>
-                
-                <Box>
-                  {renderStudyDetailSection('Course Outcomes', 'course_outcomes')}
-                  {renderStudyDetailSection('Textbooks', 'textbooks')}
-                </Box>
-              </Box>
-            </Box>
-          )}
 
-          {/* Tab 2: Faculty Details */}
-          {activeTab === 2 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <FormControl fullWidth required sx={{ mt: 2 }}>
-                <InputLabel>Primary Instructor</InputLabel>
-                <Select
-                  value={form.faculty_details.primary_instructor}
-                  label="Primary Instructor"
-                  onChange={(e) => setForm({
-                    ...form,
-                    faculty_details: {
-                      ...form.faculty_details,
-                      primary_instructor: e.target.value,
-                    },
-                  })}
-                >
-                  {faculty.map((member) => (
-                    <MenuItem key={member.id} value={member.id}>
-                      {member.first_name} {member.last_name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              {/* Additional faculty details could be added here */}
-            </Box>
-          )}
-        </Box>
+                    <RichTextEditor
+                      label="Learning Objectives"
+                      value={form.learning_objectives}
+                      onChange={handleInputChange('learning_objectives')}
+                      width={"100%"}
+                      height={120}
+                    />
+                    {fieldErrors.learning_objectives && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                        {fieldErrors.learning_objectives}
+                      </Typography>
+                    )}
+
+                    <RichTextEditor
+                      label="Course Outcomes"
+                      value={form.course_outcomes}
+                      onChange={handleInputChange('course_outcomes')}
+                      width={"100%"}
+                      height={120}
+                    />
+                    {fieldErrors.course_outcomes && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                        {fieldErrors.course_outcomes}
+                      </Typography>
+                    )}
+
+                    <RichTextEditor
+                      label="Assessment Methods"
+                      value={form.assessment_methods}
+                      onChange={handleInputChange('assessment_methods')}
+                      width={"100%"}
+                      height={120}
+                    />
+                    {fieldErrors.assessment_methods && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                        {fieldErrors.assessment_methods}
+                      </Typography>
+                    )}
+
+                    <RichTextEditor
+                      label="References"
+                      value={form.references}
+                      onChange={handleInputChange('references')}
+                      width={"100%"}
+                      height={120}
+                    />
+                    {fieldErrors.references && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                        {fieldErrors.references}
+                      </Typography>
+                    )}
+
+                    <RichTextEditor
+                      label="Faculty Details"
+                      value={form.faculty_details}
+                      onChange={handleInputChange('faculty_details')}
+                      width={"100%"}
+                      height={120}
+                    />
+                    {fieldErrors.faculty_details && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                        {fieldErrors.faculty_details}
+                      </Typography>
+                    )}
+
+                    <RichTextEditor
+                      label="Textbooks"
+                      value={form.textbooks}
+                      onChange={handleInputChange('textbooks')}
+                      width={"100%"}
+                      height={120}
+                    />
+                    {fieldErrors.textbooks && (
+                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                        {fieldErrors.textbooks}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </Box>
           </>
         )}
       </DialogContent>

@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Container, Typography, Paper, Box } from '@mui/material';
 import CreateDegreeDialog from '../components/faculty/CreateDegreeDialog';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const CreateDegreePage: React.FC = () => {
   const [open, setOpen] = useState(true);
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
 
   return (
@@ -18,8 +17,8 @@ const CreateDegreePage: React.FC = () => {
         <Paper sx={{ p: 3, mt: 2 }}>
           <CreateDegreeDialog
             open={open}
-            onClose={() => { setOpen(false); navigate('/degrees'); }}
-            onSuccess={() => { setOpen(false); navigate('/degrees'); }}
+            onClose={() => { setOpen(false); router.push('/degrees'); }}
+            onSuccess={() => { setOpen(false); router.push('/degrees'); }}
             mode="create"
           />
         </Paper>

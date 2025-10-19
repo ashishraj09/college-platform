@@ -1,5 +1,4 @@
-import React, { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { ReactNode, useEffect } from 'react';
 import { useAppSelector } from '../../hooks/redux';
 import { Box, CircularProgress } from '@mui/material';
 import { getUserEffectiveRole } from '../../store/slices/authSlice';
@@ -34,15 +33,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Redirect to login if not authenticated
+  const router = require('next/router').useRouter();
+  useEffect(() => {
+    if (!loading && (!isAuthenticated || !user)) {
+      router.replace('/login');
+    }
+  }, [loading, isAuthenticated, user, router]);
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    return null;
   }
 
   // Check if user has required role based on effective role
   if (requiredRole && effectiveRole !== requiredRole) {
     // Redirect to their appropriate dashboard based on effective role
-    const redirectPath = `/${effectiveRole}`;
-    return <Navigate to={redirectPath} replace />;
+    useEffect(() => {
+      if (!loading && isAuthenticated && user && requiredRole && effectiveRole !== requiredRole) {
+        router.replace(`/${effectiveRole}`);
+      }
+    }, [loading, isAuthenticated, user, requiredRole, effectiveRole, router]);
+    return null;
   }
 
   // Check if user account is active

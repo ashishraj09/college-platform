@@ -6,7 +6,7 @@ const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   
   // Other recommended configurations
-  reactStrictMode: true,
+  reactStrictMode: false,
   
   // Disable type checking and linting during build (handle separately in CI)
   typescript: {

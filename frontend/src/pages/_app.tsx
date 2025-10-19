@@ -4,7 +4,6 @@ import { Provider } from 'react-redux';
 import { store } from '../store/store';
 import '../styles/globals.css';
 import { Analytics } from '@vercel/analytics/react';
-import { ClientRouter } from '../components/ClientRouter';
 import { SnackbarProvider } from 'notistack';
 
 import DashboardLayout from '../layouts/DashboardLayout';
@@ -23,12 +22,10 @@ function MyApp({ Component, pageProps }: AppProps) {
           horizontal: 'right',
         }}
       >
-        <ClientRouter>
-          <AuthProvider>
-            {getLayout(<Component {...pageProps} />)}
-            <Analytics />
-          </AuthProvider>
-        </ClientRouter>
+        <AuthProvider>
+          {getLayout(<Component {...pageProps} />)}
+          <Analytics />
+        </AuthProvider>
       </SnackbarProvider>
     </Provider>
   );

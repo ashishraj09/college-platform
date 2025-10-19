@@ -46,7 +46,51 @@ const Degree = defineModel('Degree', {
     },
   },
   description: {
-  // Degree description
+    // Degree description
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  specializations: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  career_prospects: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  admission_requirements: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  accreditation: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  fees: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  entry_requirements: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  learning_outcomes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  assessment_methods: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  contact_information: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  application_deadlines: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  application_process: {
     type: DataTypes.TEXT,
     allowNull: true,
   },

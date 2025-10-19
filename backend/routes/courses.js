@@ -20,17 +20,91 @@ const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 const { sendCourseApprovalEmail } = require('../utils/email');
 const { handleCaughtError } = require('../utils/errorHandler');
 
+
+/**
+ * GET /courses/public/:code
+ * Purpose: Get single active course by code (public endpoint, no authentication required)
+ * Access: Public (no authentication)
+ * Params: code (course code)
+ * Response: { course: {...} }
+ */
+router.get('/public/:code', async (req, res) => {
+  try {
+    const { Course, Department, Degree } = await models.getMany('Course', 'Department', 'Degree');
+    const { code } = req.params;
+
+    const course = await Course.findOne({
+      where: { 
+        code: code.toUpperCase(),
+        status: 'active' 
+      },
+      include: [
+        {
+          model: Department,
+          as: 'departmentByCode',
+          attributes: ['id', 'name', 'code'],
+        },
+        {
+          model: Degree,
+          as: 'degreeByCode',
+          attributes: ['id', 'name', 'code'],
+        },
+      ],
+    });
+
+    if (!course) {
+      return res.status(404).json({ error: 'Course not found or not active' });
+    }
+
+    const formattedCourse = {
+      id: course.id,
+      name: course.name,
+      code: course.code,
+      description: course.description,
+      credits: course.credits,
+      semester: course.semester,
+      status: course.status,
+      department: course.departmentByCode ? {
+        name: course.departmentByCode.name,
+        code: course.departmentByCode.code,
+      } : null,
+      degree: course.degreeByCode ? {
+        name: course.degreeByCode.name,
+        code: course.degreeByCode.code,
+      } : null,
+      prerequisites: course.prerequisites,
+      learning_objectives: course.learning_objectives,
+      course_outcomes: course.course_outcomes,
+      assessment_methods: course.assessment_methods,
+      textbooks: course.textbooks,
+      references: course.references,
+      faculty_details: course.faculty_details,
+    };
+
+    res.json({ course: formattedCourse });
+  } catch (error) {
+    handleCaughtError(res, error, 'Failed to fetch course details');
+  }
+});
+
+
 // Course validation rules
 const courseValidation = [
   body('name').trim().isLength({ min: 2, max: 150 }).withMessage('Course name must be 2-150 characters'),
   body('code').trim().isLength({ min: 3, max: 15 }).withMessage('Course code must be 3-15 characters'),
-  body('overview').trim().isLength({ min: 10, max: 2000 }).withMessage('Overview must be 10-2000 characters'),
+  body('description').isString().withMessage('Description must be a string (HTML allowed)').notEmpty().withMessage('Description is required'),
   body('credits').isInt({ min: 1, max: 10 }).withMessage('Credits must be between 1-10'),
   body('semester').isInt({ min: 1, max: 10 }).withMessage('Semester must be between 1-10'),
-  body('department_id').isUUID().withMessage('Invalid department ID'),
-  body('degree_id').isUUID().withMessage('Invalid degree ID'),
-  body('study_details').isObject().withMessage('Study details must be an object'),
-  body('faculty_details').isObject().withMessage('Faculty details must be an object'),
+  // department_code and degree_code are now required for lookups, not IDs
+  body('department_code').trim().isLength({ min: 2, max: 10 }).withMessage('Department code must be 2-10 characters'),
+  body('degree_code').trim().isLength({ min: 2, max: 10 }).withMessage('Degree code must be 2-10 characters'),
+  body('prerequisites').optional().isString(),
+  body('learning_objectives').optional().isString(),
+  body('course_outcomes').optional().isString(),
+  body('assessment_methods').optional().isString(),
+  body('textbooks').optional().isString(),
+  body('references').optional().isString(),
+  body('faculty_details').optional().isString(),
 ];
 
 /**
@@ -156,6 +230,18 @@ router.get('/',
           obj.degree = obj.degreeByCode;
           delete obj.degreeByCode;
         }
+        // Only include new fields in response
+        obj.description = course.description;
+        obj.prerequisites = course.prerequisites;
+        obj.learning_objectives = course.learning_objectives;
+        obj.course_outcomes = course.course_outcomes;
+        obj.assessment_methods = course.assessment_methods;
+        obj.textbooks = course.textbooks;
+        obj.references = course.references;
+        obj.faculty_details = course.faculty_details;
+        // Remove old fields if present
+        delete obj.overview;
+        delete obj.study_details;
         return obj;
       });
 
@@ -633,6 +719,7 @@ router.get('/:id/edit',
           { model: User, as:'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'primaryInstructor', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
         ],
       });
 
@@ -753,16 +840,21 @@ router.post('/',
       const {
         name,
         code,
-        overview,
-        study_details,
-        faculty_details,
+        description,
         credits,
         semester,
         prerequisites,
+        learning_objectives,
+        course_outcomes,
+        assessment_methods,
+        textbooks,
+        references,
+        faculty_details,
         max_students,
         department_id,
         degree_id,
         is_elective = false,
+        primary_instructor,
       } = req.body;
 
       // Verify department and degree exist and belong to user's department
@@ -795,53 +887,40 @@ router.post('/',
         return res.status(409).json({ error: 'Course code already exists' });
       }
 
-      // Create course
-      const courses = await Course.findAll({
-        where: whereClause,
-        include: [
-          {
-            model: Department,
-            as: 'departmentByCode',
-            attributes: ['id', 'name', 'code']
-          },
-          {
-            model: Degree,
-            as: 'degreeByCode',
-            attributes: ['id', 'name', 'code']
-          },
-          {
-            model: User,
-            as: 'creator',
-            attributes: ['id', 'first_name', 'last_name', 'email']
-          }
-        ],
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        order: [['created_at', 'DESC']]
+      // Create course with primary_instructor
+      const newCourse = await Course.create({
+        name,
+        code: code.toUpperCase(),
+        description,
+        credits,
+        semester,
+        prerequisites,
+        learning_objectives,
+        course_outcomes,
+        assessment_methods,
+        textbooks,
+        references,
+        faculty_details,
+        max_students,
+        department_id,
+        degree_id,
+        is_elective,
+        primary_instructor,
+        created_by: user.id,
+        department_code: department.code,
+        degree_code: degree.code,
+        version: 1,
+        status: 'draft',
+        is_latest_version: true,
       });
 
-      // For each course, check if a pending child version exists
-      const coursesWithPendingFlag = await Promise.all(courses.map(async course => {
-        // Check if there's a child version that's not active/archived
-        const pendingVersion = await Course.findOne({
-          where: {
-            parent_course_id: course.id,
-            status: { [Op.notIn]: ['active', 'archived'] }
-          }
-        });
-        course.dataValues.hasNewPendingVersion = !!pendingVersion;
-        return course;
-      }));
-
-      res.json(coursesWithPendingFlag);
-
-      // Fetch course with associations
-      const createdCourse = await Course.findByPk(course.id, {
+      // Fetch course with associations, including primaryInstructor
+      const createdCourse = await Course.findByPk(newCourse.id, {
         include: [
           { model: Department, as: 'departmentByCode' },
           { model: Degree, as: 'degreeByCode' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
-          { model: User, as: 'lecturers', attributes: ['id', 'first_name', 'last_name', 'email', 'user_type'], through: { attributes: ['role', 'responsibilities'] } },
+          { model: User, as: 'primaryInstructor', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
         ],
       });
 
@@ -961,28 +1040,33 @@ router.post('/:id/create-version',
       }
       
       // Create new course version
-      const newCourseData = {
-        name: originalCourse.name,
-        code: baseCode, // Base code without version suffix
-        overview: originalCourse.overview,
-        study_details: originalCourse.study_details,
-        faculty_details: originalCourse.faculty_details,
-        credits: originalCourse.credits,
-        semester: originalCourse.semester,
-        prerequisites: originalCourse.prerequisites,
-        max_students: originalCourse.max_students,
-        department_id: originalCourse.department_id,
-        department_code: originalCourse.department_code,
-        degree_id: originalCourse.degree_id,
-        degree_code: originalCourse.degree_code,
-        is_elective: originalCourse.is_elective,
-        created_by: userId,
-        version: nextVersion,
-        parent_course_id: originalCourse.parent_course_id || originalCourse.id,
-        is_latest_version: true,
-        status: 'draft',
-        // DO NOT set id here; let Sequelize auto-generate a new UUID
-      };
+        const newCourseData = {
+          name: originalCourse.name,
+          code: baseCode, // Base code without version suffix
+          description: originalCourse.description,
+          faculty_details: originalCourse.faculty_details,
+          credits: originalCourse.credits,
+          semester: originalCourse.semester,
+          prerequisites: originalCourse.prerequisites,
+          learning_objectives: originalCourse.learning_objectives,
+          course_outcomes: originalCourse.course_outcomes,
+          assessment_methods: originalCourse.assessment_methods,
+          textbooks: originalCourse.textbooks,
+          references: originalCourse.references,
+          max_students: originalCourse.max_students,
+          department_id: originalCourse.department_id,
+          department_code: originalCourse.department_code,
+          degree_id: originalCourse.degree_id,
+          degree_code: originalCourse.degree_code,
+          is_elective: originalCourse.is_elective,
+          created_by: userId,
+          version: nextVersion,
+          parent_course_id: originalCourse.parent_course_id || originalCourse.id,
+          is_latest_version: true,
+          status: 'draft',
+          primary_instructor: originalCourse.primary_instructor,
+          // DO NOT set id here; let Sequelize auto-generate a new UUID
+        };
       
       console.log(`[DEBUG] Creating new course version with data:`, {
         name: newCourseData.name,
@@ -1016,6 +1100,7 @@ router.post('/:id/create-version',
           { model: Department, as: 'departmentByCode' },
           { model: Degree, as: 'degreeByCode' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'primaryInstructor', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
         ],
       });
 
@@ -1473,10 +1558,12 @@ router.put('/:id',
         return res.status(400).json({ error: 'Cannot update approved/active courses directly' });
       }
 
+
       const updatedFields = {};
       const allowedFields = [
-        'name', 'code', 'overview', 'study_details', 'faculty_details',
-        'credits', 'semester', 'prerequisites', 'max_students', 'is_elective'
+        'name', 'code', 'description', 'credits', 'semester', 'prerequisites',
+        'learning_objectives', 'course_outcomes', 'assessment_methods', 'textbooks', 'references', 'faculty_details',
+        'max_students', 'is_elective', 'department_code', 'degree_code', 'primary_instructor'
       ];
 
       allowedFields.forEach(field => {
@@ -1509,6 +1596,7 @@ router.put('/:id',
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'primaryInstructor', attributes: ['id', 'first_name', 'last_name', 'email'] },
         ],
       });
 

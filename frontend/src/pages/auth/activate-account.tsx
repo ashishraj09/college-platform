@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -19,9 +18,7 @@ interface PasswordForm {
 }
 
 const ActivateAccountPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,8 +27,8 @@ const ActivateAccountPage: React.FC = () => {
     confirmPassword: '',
   });
 
-  const token = searchParams.get('token');
-  const isPasswordReset = location.pathname === '/reset-password';
+  const token = router.query.token as string | undefined;
+  const isPasswordReset = router.pathname === '/reset-password';
 
   useEffect(() => {
     if (!token) {
@@ -92,7 +89,7 @@ const ActivateAccountPage: React.FC = () => {
       });
       
       // Redirect to login page
-      navigate('/login');
+  router.push('/login');
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 
         (isPasswordReset ? 'Failed to reset password. Please try again.' : 'Failed to activate account. Please try again.');
@@ -127,7 +124,7 @@ const ActivateAccountPage: React.FC = () => {
             <Button
               fullWidth
               variant="outlined"
-              onClick={() => navigate('/login')}
+              onClick={() => router.push('/login')}
               sx={{ mt: 2 }}
             >
               Go to Login

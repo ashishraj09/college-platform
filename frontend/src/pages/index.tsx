@@ -2,8 +2,10 @@ import React, { useEffect, useContext } from 'react';
 import { useRouter } from 'next/router';
 import { AuthContext } from '../contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
+import Homepage from './homepage';
+import type { NextPage } from 'next';
 
-const HomeRedirect: React.FC = () => {
+const HomeRedirect: NextPage & { getLayout?: (page: React.ReactElement) => React.ReactNode } = () => {
   const router = useRouter();
   const auth = useContext(AuthContext);
 
@@ -32,8 +34,6 @@ const HomeRedirect: React.FC = () => {
             router.replace('/login');
         }
       }
-    } else {
-      router.replace('/login');
     }
   }, [auth, router]);
 
@@ -46,7 +46,15 @@ const HomeRedirect: React.FC = () => {
     );
   }
 
+  // If not authenticated, show the homepage directly
+  if (!auth?.isAuthenticated) {
+    return <Homepage />;
+  }
+
   return null;
 };
+
+// Disable the default DashboardLayout for this page
+HomeRedirect.getLayout = (page: React.ReactElement) => page;
 
 export default HomeRedirect;

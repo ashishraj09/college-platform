@@ -30,7 +30,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   // Removed unused icon
 } from '@mui/icons-material';
-import { useParams } from 'react-router-dom';
 import { degreesAPI, coursesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
