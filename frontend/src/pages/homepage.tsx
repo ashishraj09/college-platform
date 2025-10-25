@@ -398,7 +398,7 @@ const Homepage: React.FC = () => {
                         fontWeight: 600,
                         fontSize: '1.05rem',
                         color: '#333',
-                        borderBottom: '1px solid #e0e0e0',
+                        borderBottom: 'none',
                         borderRadius: 0,
                         '&:hover': {
                           bgcolor: 'transparent',
