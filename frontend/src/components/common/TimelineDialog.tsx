@@ -58,7 +58,7 @@ const TimelineDialog: React.FC<TimelineDialogProps> = ({ open, onClose, events, 
 								<ListItem key={event.id} alignItems="flex-start">
 									<ListItemIcon>{getIcon(event)}</ListItemIcon>
 									<ListItemText
-										primary={event.type === 'message' ? event.message : event.action}
+										primary={event.type === 'message' ? event.message : event.description}
 										secondary={
 											<>
 												<Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -67,9 +67,6 @@ const TimelineDialog: React.FC<TimelineDialogProps> = ({ open, onClose, events, 
 													</Typography>
 													<Typography variant="caption">{new Date(event.timestamp).toLocaleString()}</Typography>
 												</Box>
-												{event.description && (
-													<Typography variant="body2" color="text.secondary">{event.description}</Typography>
-												)}
 											</>
 										}
 									/>
