@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
 import { setUser, logout, setLoading, setError, getUserEffectiveRole } from '../store/slices/authSlice';
@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
+  initialized: boolean;
   effectiveRole: string;
 }
 
@@ -23,6 +24,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useDispatch();
   const { user, loading, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const effectiveRole = getUserEffectiveRole(user);
+  const [initialized, setInitialized] = useState(false);
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
@@ -41,8 +43,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         dispatch(setError(profile.error));
         throw new Error(profile.error);
       }
-      
-      dispatch(setUser(profile));
+      // Normalize profile - some endpoints return { user: {...} }
+      const userObj = profile.user ? profile.user : profile;
+      if (userObj && userObj.id) {
+        dispatch(setUser(userObj));
+          setInitialized(true);
+      } else {
+        throw new Error('Invalid user profile returned from server');
+      }
     } catch (error) {
       console.error('Login error:', error);
       dispatch(setError('Login failed'));
@@ -58,36 +66,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await authAPI.logout();
       // Then clear local state
       dispatch(logout());
+      setInitialized(false);
     } catch (error) {
       console.error('Logout error:', error);
       // Clear local state even if API call fails
       dispatch(logout());
+      setInitialized(false);
     }
   };
 
   // Fetch latest user profile on page refresh
   useEffect(() => {
+    // If we already have a user in the store (e.g. restored from SSR or a previous action),
+    // don't call the profile endpoint again. This prevents unnecessary /auth/me calls on
+    // client-side navigations where AuthProvider remains mounted.
+    if (user && user.id) {
+      // Ensure loading is false and mark initialized
+      dispatch(setLoading(false));
+      setInitialized(true);
+      return;
+    }
+
     // Try to get user profile on initial load
+    let mounted = true;
     authAPI.getProfile()
       .then(profile => {
+        if (!mounted) return;
+        console.log('AuthProvider: profile fetched', profile);
         // Some APIs return { user: {...} }, others just {...}
         const userObj = profile.user ? profile.user : profile;
         if (userObj && userObj.id) {
+          console.log('AuthProvider: dispatching setUser', userObj.id);
           dispatch(setUser(userObj));
         } else {
           // If profile has no ID, treat as not authenticated
+          console.log('AuthProvider: no user id in profile, logging out');
           dispatch(logout());
         }
       })
       .catch(err => {
+        if (!mounted) return;
         // Not authenticated or error fetching profile
         console.error('Failed to refresh user profile:', err);
         dispatch(logout());
       })
       .finally(() => {
+        if (!mounted) return;
+        console.log('AuthProvider: finished profile refresh - setting loading=false');
         dispatch(setLoading(false));
+        setInitialized(true);
       });
-  }, [dispatch]);
+    return () => { mounted = false; };
+  }, [dispatch, user]);
 
   const value: AuthContextType = {
     user,
@@ -95,6 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout: logoutUser,
     loading,
+    initialized,
     effectiveRole
   };
 

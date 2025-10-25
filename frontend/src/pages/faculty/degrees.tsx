@@ -25,6 +25,7 @@ import { degreesAPI, coursesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
 import CreateDegreeDialog from '../../components/faculty/CreateDegreeDialog';
+import { useRouter } from 'next/router';
 
 interface Course {
   id: string;
@@ -95,16 +96,17 @@ const DegreesPage: React.FC = () => {
     }
   };
 
-  // Handler to view course details
+  const router = useRouter();
+  // Handler to view course details (Next.js router)
   const handleViewCourse = (courseId: string) => {
-    navigate(`/faculty/courses/${courseId}`);
+    router.push(`/faculty/courses/${courseId}`);
   };
   const [degrees, setDegrees] = useState<Degree[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDegree, setExpandedDegree] = useState<string | null>(null);
   const [degreeCourses, setDegreeCourses] = useState<{ [key: string]: Course[] }>({});
   const [degreeDialogOpen, setDegreeDialogOpen] = useState(false);
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
 
@@ -337,7 +339,7 @@ const DegreesPage: React.FC = () => {
                     <Button
                       variant="contained"
                       color="primary"
-                      onClick={() => navigate(`/faculty/degrees/${degree.id}`)}
+                      onClick={() => router.push(`/faculty/degrees/${degree.id}`)}
                       size="small"
                     >
                       View Details

@@ -74,8 +74,8 @@ const LoginPage: React.FC = () => {
         return;
       }
       
-      dispatch(setUser(profile));
-  const userObj = profile.user ? profile.user : profile;
+    const userObj = profile.user ? profile.user : profile;
+    dispatch(setUser(userObj));
   const dashboardRoute = getDashboardRoute(userObj.user_type, userObj.is_head_of_department);
   router.push(dashboardRoute);
     } catch (err: any) {

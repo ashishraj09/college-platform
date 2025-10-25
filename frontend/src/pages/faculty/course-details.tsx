@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { coursesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
+import { useRouter } from 'next/router';
 
 interface Course {
   id: string;
@@ -102,8 +103,8 @@ interface Course {
 }
 
 const CourseDetailsView: React.FC = () => {
-  const { courseId } = useParams<{ courseId: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const courseId = router.query.courseId as string | undefined;
   const { enqueueSnackbar } = useSnackbar();
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,7 +186,7 @@ const CourseDetailsView: React.FC = () => {
         </Alert>
         <Button
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/faculty')}
+          onClick={() => router.push('/faculty')}
           sx={{ mt: 2 }}
         >
           Back to Dashboard
@@ -202,7 +203,7 @@ const CourseDetailsView: React.FC = () => {
           <Link
             component="button"
             variant="inherit"
-            onClick={() => navigate('/faculty')}
+            onClick={() => router.push('/faculty')}
             sx={{ textDecoration: 'none' }}
           >
             Faculty Dashboard
@@ -211,7 +212,7 @@ const CourseDetailsView: React.FC = () => {
         </Breadcrumbs>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <IconButton onClick={() => navigate('/faculty')} sx={{ p: 1 }}>
+          <IconButton onClick={() => router.push('/faculty')} sx={{ p: 1 }}>
             <ArrowBackIcon />
           </IconButton>
           <Box sx={{ flexGrow: 1 }}>

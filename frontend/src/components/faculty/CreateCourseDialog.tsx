@@ -56,12 +56,30 @@ interface CourseForm {
   primary_instructor: string;
 }
 
-const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({ 
-  open, 
-  onClose, 
-  onSuccess, 
-  mode, 
-  course 
+const fieldValidationConfig: { [key: string]: { required?: boolean; minLength?: number; maxLength?: number; pattern?: RegExp; min?: number; max?: number; message?: string } } = {
+  name: { required: true, minLength: 3, maxLength: 100, message: 'Course name is required' },
+  code: { required: true, minLength: 3, maxLength: 10, pattern: /^[A-Z0-9]+$/, message: 'Course code is required' },
+  description: { required: true, minLength: 5, message: 'Course description is required' },
+  credits: { required: true, min: 1, max: 10, message: 'Credits must be between 1 and 10' },
+  semester: { required: true, min: 1, max: 10, message: 'Semester must be between 1 and 10' },
+  max_students: { required: true, min: 1, max: 500, message: 'Max students must be between 1 and 500' },
+  degree_code: { required: true, message: 'Degree selection is required' },
+  prerequisites: { required: true, minLength: 3, message: 'Prerequisites are required' },
+  learning_objectives: { required: true, minLength: 3, message: 'Learning objective is required' },
+  course_outcomes: { required: true, minLength: 3, message: 'Course outcome is required' },
+  assessment_methods: { required: true, minLength: 3, message: 'Assessment method is required' },
+  textbooks: { required: true, minLength: 3, message: 'Textbook is required' },
+  references: { required: true, minLength: 3, message: 'Reference is required' },
+  faculty_details: { required: true, minLength: 3, message: 'Faculty details are required' },
+  primary_instructor: { required: true, message: 'Primary instructor is required' },
+};
+
+const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
+  open,
+  onClose,
+  onSuccess,
+  mode,
+  course,
 }) => {
   // Auth context
   const { user } = useAuth();
@@ -84,12 +102,12 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     assessment_methods: '',
     textbooks: '',
     references: '',
-  primary_instructor: '',
-  faculty_details: '',
+    primary_instructor: '',
+    faculty_details: '',
   };
 
   // State management
-  const [form, setForm] = useState<CourseForm>({...defaultForm});
+  const [form, setForm] = useState<CourseForm>({ ...defaultForm });
   const [loading, setLoading] = useState<boolean>(false);
   const [initialLoading, setInitialLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -101,23 +119,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const [activeTab, setActiveTab] = useState(0);
   
   // Field validation errors
-  const [fieldErrors, setFieldErrors] = useState<{
-  name?: string;
-  code?: string;
-  description?: string;
-  credits?: string;
-  semester?: string;
-  max_students?: string;
-  degree_code?: string;
-  prerequisites?: string;
-  learning_objectives?: string;
-  course_outcomes?: string;
-  assessment_methods?: string;
-  textbooks?: string;
-  references?: string;
-  primary_instructor?: string;
-  faculty_details?: string;
-}>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Load degrees and faculty when dialog opens
   useEffect(() => {
@@ -197,69 +199,33 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     }
   }, [open, mode, course, user]);
 
-  // Validation functions
-  const validateField = (fieldName: string, value: any): string | undefined => {
-  switch (fieldName) {
-    case 'name':
-      if (!value?.trim()) return 'Course name is required';
-      if (value.trim().length < 3) return 'Course name must be at least 3 characters';
-      if (value.trim().length > 100) return 'Course name cannot exceed 100 characters';
-      break;
-    case 'code':
-      if (!value?.trim()) return 'Course code is required';
-      if (value.trim().length < 3) return 'Course code must be at least 3 characters';
-      if (value.trim().length > 10) return 'Course code cannot exceed 10 characters';
-      if (!/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
-      break;
-    case 'description':
-      if (!value?.trim()) return 'Course description is required';
-      break;
-    case 'prerequisites':
-      if (!value?.trim()) return 'Prerequisites are required';
-      break;
-    case 'learning_objectives':
-      if (!value?.trim()) return 'Learning objective is required';
-      break;
-    case 'course_outcomes':
-      if (!value?.trim()) return 'Course outcome is required';
-      break;
-    case 'assessment_methods':
-      if (!value?.trim()) return 'Assessment method is required';
-      break;
-    case 'textbooks':
-      if (!value?.trim()) return 'Textbook is required';
-      break;
-    case 'references':
-      if (!value?.trim()) return 'Reference is required';
-      break;
-    case 'faculty_details':
-      if (!value?.trim()) return 'Faculty details are required';
-      break;
-    case 'credits':
-      if (value < 1 || value > 10) return 'Credits must be between 1 and 10';
-      break;
-    case 'semester':
-      if (value < 1 || value > 10) return 'Semester must be between 1 and 10';
-      break;
-    case 'max_students':
-      if (value < 1 || value > 500) return 'Max students must be between 1 and 500';
-      break;
-    case 'degree_code':
-      if (!value) return 'Degree selection is required';
-      break;
-    case 'primary_instructor':
-      if (!value || !value.trim()) return 'Primary instructor is required';
-      break;
-  }
-  return undefined;
-};
+  // Config-driven validation function
+  const validateField = (field: string, value: any): string | undefined => {
+    const config = fieldValidationConfig[field];
+    if (!config) return undefined;
+    if (config.required && (value === undefined || value === null || (typeof value === 'string' ? value.trim().length === 0 : false))) {
+      return config.message || 'This field is required';
+    }
+    if (config.minLength && typeof value === 'string' && value.trim().length < config.minLength) {
+      return config.message || `Minimum ${config.minLength} characters required`;
+    }
+    if (config.maxLength && typeof value === 'string' && value.trim().length > config.maxLength) {
+      return config.message || `Maximum ${config.maxLength} characters allowed`;
+    }
+    if (config.pattern && typeof value === 'string' && value && !config.pattern.test(value.trim())) {
+      return 'Only uppercase letters and numbers allowed';
+    }
+    if (config.min !== undefined && typeof value === 'number' && value < config.min) {
+      return config.message;
+    }
+    if (config.max !== undefined && typeof value === 'number' && value > config.max) {
+      return config.message;
+    }
+    return undefined;
+  };
 
-  const updateFieldError = (fieldName: string, value: any) => {
-    const error = validateField(fieldName, value);
-    setFieldErrors(prev => ({
-      ...prev,
-      [fieldName]: error
-    }));
+  const updateFieldError = (field: string, value: any) => {
+    setFieldErrors(prev => ({ ...prev, [field]: validateField(field, value) || '' }));
   };
 
   // Event handlers
@@ -286,116 +252,30 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
     setError('');
   };
 
+  // Config-driven form validation
   const validateForm = (): boolean => {
-    // Create a new errors object
-    const newFieldErrors: typeof fieldErrors = {};
     let hasError = false;
-
-    // Check required fields
-    if (!form.name.trim()) {
-      newFieldErrors.name = 'Course name is required';
-      hasError = true;
-    } else if (form.name.trim().length < 3) {
-      newFieldErrors.name = 'Course name must be at least 3 characters';
-      hasError = true;
-    } else if (form.name.trim().length > 100) {
-      newFieldErrors.name = 'Course name cannot exceed 100 characters';
-      hasError = true;
-    }
-
-    if (!form.code.trim()) {
-      newFieldErrors.code = 'Course code is required';
-      hasError = true;
-    } else if (form.code.trim().length < 3) {
-      newFieldErrors.code = 'Course code must be at least 3 characters';
-      hasError = true;
-    } else if (form.code.trim().length > 10) {
-      newFieldErrors.code = 'Course code cannot exceed 10 characters';
-      hasError = true;
-    } else if (!/^[A-Z0-9]+$/.test(form.code.trim())) {
-      newFieldErrors.code = 'Only uppercase letters and numbers allowed';
-      hasError = true;
-    }
-
-    if (!form.description.trim()) {
-      newFieldErrors.description = 'Course description is required';
-      hasError = true;
-    }
-
-    if (!form.degree_code) {
-      newFieldErrors.degree_code = 'Degree selection is required';
-      hasError = true;
-    }
-
-    if (form.credits < 1 || form.credits > 10) {
-      newFieldErrors.credits = 'Credits must be between 1 and 10';
-      hasError = true;
-    }
-
-    if (form.semester < 1 || form.semester > 10) {
-      newFieldErrors.semester = 'Semester must be between 1 and 10';
-      hasError = true;
-    }
-
-    if (form.max_students < 1 || form.max_students > 500) {
-      newFieldErrors.max_students = 'Maximum students must be between 1 and 500';
-      hasError = true;
-    }
-
-    // Check study details (now flat fields)
-    if (!(form.learning_objectives ?? '').trim()) {
-      newFieldErrors.learning_objectives = 'Learning objective is required';
-      hasError = true;
-    }
-    if (!(form.course_outcomes ?? '').trim()) {
-      newFieldErrors.course_outcomes = 'Course outcome is required';
-      hasError = true;
-    }
-    if (!(form.assessment_methods ?? '').trim()) {
-      newFieldErrors.assessment_methods = 'Assessment method is required';
-      hasError = true;
-    }
-    if (!(form.textbooks ?? '').trim()) {
-      newFieldErrors.textbooks = 'Textbook is required';
-      hasError = true;
-    }
-
-    if (!(form.references ?? '').trim()) {
-      newFieldErrors.references = 'Reference is required';
-      hasError = true;
-    }
-
-    if (!(form.prerequisites ?? '').trim()) {
-      newFieldErrors.prerequisites = 'Prerequisites are required';
-      hasError = true;
-    }
-
-    if (!(form.primary_instructor ?? '').trim()) {
-      newFieldErrors.primary_instructor = 'Primary instructor is required';
-      hasError = true;
-    }
-
-    if (!(form.faculty_details ?? '').trim()) {
-      newFieldErrors.faculty_details = 'Faculty details are required';
-      hasError = true;
-    }
-
-    setFieldErrors(newFieldErrors);
+    const newErrors: { [key: string]: string } = {};
+    Object.keys(fieldValidationConfig).forEach(field => {
+      const error = validateField(field, (form as any)[field]);
+      if (error) {
+        newErrors[field] = error;
+        hasError = true;
+      }
+    });
+    setFieldErrors(newErrors);
     return !hasError;
   };
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      // If there are validation errors, show an error message
       setError('Please correct the errors before submitting');
-      // Show the tab with errors
-      if (fieldErrors.name || fieldErrors.code || fieldErrors.description || 
-      fieldErrors.credits || fieldErrors.semester || fieldErrors.degree_code || 
-      fieldErrors.max_students) {
+      // Tab switching logic: find which tab has the first error
+      const tab0Fields = ['name', 'code', 'description', 'credits', 'semester', 'degree_code', 'max_students', 'primary_instructor'];
+      const tab1Fields = ['prerequisites', 'learning_objectives', 'course_outcomes', 'assessment_methods', 'textbooks', 'references', 'faculty_details'];
+      if (tab0Fields.some(f => fieldErrors[f])) {
         setActiveTab(0);
-      } else if (fieldErrors.learning_objectives || fieldErrors.course_outcomes || 
-                fieldErrors.assessment_methods || fieldErrors.textbooks || 
-                fieldErrors.references) {
+      } else if (tab1Fields.some(f => fieldErrors[f])) {
         setActiveTab(1);
       }
       return;
@@ -515,6 +395,15 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
             {error && (
               <Alert severity="error" sx={{ m: 2 }}>
                 {error}
+                {Object.values(fieldErrors).filter(Boolean).length > 0 && (
+                  <ul style={{ margin: '8px 0 0 0', paddingLeft: 20 }}>
+                    {Object.entries(fieldErrors)
+                      .filter(([_, msg]) => !!msg)
+                      .map(([field, msg]) => (
+                        <li key={field}>{msg}</li>
+                      ))}
+                  </ul>
+                )}
               </Alert>
             )}
 
@@ -531,7 +420,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
               {/* Tab 0: Basic Information */}
               {activeTab === 0 && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                   <TextField
                     required
                     fullWidth
@@ -702,12 +591,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                 onChange={handleInputChange('description')}
                 width={"100%"}
                 height={120}
+                error={fieldErrors.description}
               />
-              {fieldErrors.description && (
-                <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                  {fieldErrors.description}
-                </Typography>
-              )}
 
               <Box>
                 <RichTextEditor
@@ -716,32 +601,24 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                   onChange={handleInputChange('prerequisites')}
                   width={"100%"}
                   height={120}
+                  error={fieldErrors.prerequisites}
                 />
-                {fieldErrors.prerequisites && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {fieldErrors.prerequisites}
-                  </Typography>
-                )}
               </Box>
-            </Box>
-          )}
+                </Box>
+              )}
 
-          {/* Tab 1: Study Details */}
-          {activeTab === 1 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Tab 1: Study Details */}
+              {activeTab === 1 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
 
-                    <RichTextEditor
+                  <RichTextEditor
                       label="Learning Objectives"
                       value={form.learning_objectives}
                       onChange={handleInputChange('learning_objectives')}
                       width={"100%"}
                       height={120}
+                      error={fieldErrors.learning_objectives}
                     />
-                    {fieldErrors.learning_objectives && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                        {fieldErrors.learning_objectives}
-                      </Typography>
-                    )}
 
                     <RichTextEditor
                       label="Course Outcomes"
@@ -749,12 +626,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                       onChange={handleInputChange('course_outcomes')}
                       width={"100%"}
                       height={120}
+                      error={fieldErrors.course_outcomes}
                     />
-                    {fieldErrors.course_outcomes && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                        {fieldErrors.course_outcomes}
-                      </Typography>
-                    )}
 
                     <RichTextEditor
                       label="Assessment Methods"
@@ -762,12 +635,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                       onChange={handleInputChange('assessment_methods')}
                       width={"100%"}
                       height={120}
+                      error={fieldErrors.assessment_methods}
                     />
-                    {fieldErrors.assessment_methods && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                        {fieldErrors.assessment_methods}
-                      </Typography>
-                    )}
 
                     <RichTextEditor
                       label="References"
@@ -775,12 +644,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                       onChange={handleInputChange('references')}
                       width={"100%"}
                       height={120}
+                      error={fieldErrors.references}
                     />
-                    {fieldErrors.references && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                        {fieldErrors.references}
-                      </Typography>
-                    )}
 
                     <RichTextEditor
                       label="Faculty Details"
@@ -788,12 +653,8 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                       onChange={handleInputChange('faculty_details')}
                       width={"100%"}
                       height={120}
+                      error={fieldErrors.faculty_details}
                     />
-                    {fieldErrors.faculty_details && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                        {fieldErrors.faculty_details}
-                      </Typography>
-                    )}
 
                     <RichTextEditor
                       label="Textbooks"
@@ -801,15 +662,11 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
                       onChange={handleInputChange('textbooks')}
                       width={"100%"}
                       height={120}
+                      error={fieldErrors.textbooks}
                     />
-                    {fieldErrors.textbooks && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                        {fieldErrors.textbooks}
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-              </Box>
+                </Box>
+              )}
+            </Box>
           </>
         )}
       </DialogContent>

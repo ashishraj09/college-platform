@@ -80,7 +80,7 @@ const Course = defineModel('Course', {
     allowNull: false,
     validate: {
       min: 1,
-      max: 10,
+      max: 30,
     },
   },
   semester: {
@@ -122,11 +122,11 @@ const Course = defineModel('Course', {
   },
   degree_code: {
   // Code-based association to Degree (no DB constraint)
-    type: DataTypes.STRING(10),
+    type: DataTypes.STRING(20),
     allowNull: false,
     validate: {
       notEmpty: true,
-      len: [2, 10],
+      len: [2, 20],
       isUppercase: true,
     },
     comment: 'Degree code for code-based association.',

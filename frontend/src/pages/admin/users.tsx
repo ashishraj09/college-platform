@@ -29,6 +29,7 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { usersAPI } from '../../services/api';
+import { useRouter } from 'next/router';
 import { useSnackbar } from 'notistack';
 
 interface User {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Container, Typography, Paper, Box } from '@mui/material';
 import CreateDegreeDialog from '../components/faculty/CreateDegreeDialog';
 import { useAuth } from '../contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 const CreateDegreePage: React.FC = () => {
   const [open, setOpen] = useState(true);

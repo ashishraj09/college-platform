@@ -69,35 +69,39 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
   degree,
 }) => {
     const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+  // Config-driven validation for all fields (including rich text)
+  const fieldValidationConfig: { [key: string]: { required?: boolean; minLength?: number; message?: string } } = {
+    name: { required: true, minLength: 3, message: 'Degree name is required' },
+    code: { required: true, minLength: 2, message: 'Degree code is required' },
+    department_code: { required: true, message: 'Department selection is required' },
+    degree_type: { required: true, message: 'Degree type is required' },
+    total_credits: { required: true, message: 'Total credits must be at least 1' },
+    duration_years: { required: true, message: 'Duration must be at least 1 year' },
+    description: { required: true, minLength: 10, message: 'Description is required' },
+    specializations: { required: true, minLength: 5, message: 'Specializations are required' },
+    career_prospects: { required: true, minLength: 5, message: 'Career prospects are required' },
+    accreditation: { required: true, minLength: 5, message: 'Accreditation is required' },
+    learning_outcomes: { required: true, minLength: 5, message: 'Learning outcomes are required' },
+    assessment_methods: { required: true, minLength: 5, message: 'Assessment methods are required' },
+    contact_information: { required: true, minLength: 5, message: 'Contact information is required' },
+    admission_requirements: { required: true, minLength: 5, message: 'Admission requirements are required' },
+    entry_requirements: { required: true, minLength: 5, message: 'Entry requirements are required' },
+    fees: { required: true, minLength: 1, message: 'Fees are required' },
+    application_deadlines: { required: true, minLength: 5, message: 'Application deadlines are required' },
+    application_process: { required: true, minLength: 5, message: 'Application process is required' },
+  };
+
   const validateField = (field: string, value: any): string | undefined => {
-    switch (field) {
-      case 'name':
-        if (!value?.trim()) return 'Degree name is required';
-        if (value.trim().length < 3) return 'Degree name must be at least 3 characters';
-        break;
-      case 'code':
-        if (!value?.trim()) return 'Degree code is required';
-        if (!/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
-        break;
-      case 'department_code':
-        if (!value) return 'Department selection is required';
-        break;
-      case 'degree_type':
-        if (!value) return 'Degree type is required';
-        break;
-      case 'total_credits':
-        if (!value || isNaN(Number(value)) || Number(value) < 1) return 'Total credits must be at least 1';
-        break;
-      case 'duration_years':
-        if (!value || isNaN(Number(value)) || Number(value) < 1) return 'Duration must be at least 1 year';
-        break;
-      case 'description':
-        if (!value?.trim()) return 'Description is required';
-        if (value.trim().length < 10) return 'Description must be at least 10 characters';
-        break;
-      default:
-        return undefined;
-    }
+    const config = fieldValidationConfig[field];
+    if (!config) return undefined;
+    if (config.required && (
+      value === undefined || value === null || (typeof value === 'string' ? value.trim().length === 0 : false)
+    )) return config.message || 'This field is required';
+    if (config.minLength && typeof value === 'string' && value.trim().length < config.minLength) return config.message || `Minimum ${config.minLength} characters required`;
+    if (field === 'code' && typeof value === 'string' && value && !/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
+    if (field === 'total_credits' && (isNaN(Number(value)) || Number(value) < 1)) return config.message;
+    if (field === 'duration_years' && (isNaN(Number(value)) || Number(value) < 1)) return config.message;
+    return undefined;
   };
   const updateFieldError = (field: string, value: any) => {
     setFieldErrors(prev => ({ ...prev, [field]: validateField(field, value) || '' }));
@@ -203,10 +207,12 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
 
   // Form field change handler
   const handleInputChange = (field: keyof DegreeForm) => (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    event: { target: { value: string } } | React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setForm((prev: DegreeForm) => ({ ...prev, [field]: event.target.value }));
-    updateFieldError(field, event.target.value);
+    // Support both standard and RichTextEditor event shape
+    const value = (event as any).target?.value;
+    setForm((prev: DegreeForm) => ({ ...prev, [field]: value }));
+    updateFieldError(field, value);
     setError('');
   };
 
@@ -221,31 +227,38 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
 
   const handleSubmit = async () => {
 
-    // Validate all required fields
-    const requiredFields = ['name', 'code', 'department_code', 'degree_type', 'total_credits', 'duration_years', 'description'];
+    // Validate all fields in config
     let hasError = false;
     const newErrors: { [key: string]: string } = {};
-    requiredFields.forEach(field => {
+    Object.keys(fieldValidationConfig).forEach(field => {
       const error = validateField(field, form[field]);
       if (error) {
         newErrors[field] = error;
         hasError = true;
       }
     });
+    // Validate at least one semester
+    let semesterError = '';
+    if (!form.courses_per_semester || Object.keys(form.courses_per_semester).length === 0) {
+      semesterError = 'At least one semester must be added to Courses Per Semester.';
+      setActiveTab(0);
+    }
     setFieldErrors(newErrors);
-    if (hasError) {
+    if (hasError || semesterError) {
       setError('Please correct the errors before submitting');
       // Tab switching logic: find which tab has the first error
       const tab0Fields = ['name', 'code', 'department_code', 'degree_type', 'total_credits', 'duration_years', 'description'];
       const tab1Fields = ['specializations', 'career_prospects', 'accreditation', 'study_mode', 'learning_outcomes', 'assessment_methods', 'contact_information', 'application_process'];
       const tab2Fields = ['admission_requirements', 'entry_requirements', 'fees', 'location', 'application_deadlines'];
-      if (tab0Fields.some(f => newErrors[f])) {
+      if (tab0Fields.some(f => newErrors[f]) || semesterError) {
         setActiveTab(0);
-      } else if (tab1Fields.some(f => fieldErrors[f])) {
+      } else if (tab1Fields.some(f => newErrors[f])) {
         setActiveTab(1);
-      } else if (tab2Fields.some(f => fieldErrors[f])) {
+      } else if (tab2Fields.some(f => newErrors[f])) {
         setActiveTab(2);
       }
+      // Add semester error to fieldErrors for display
+      setFieldErrors(prev => ({ ...prev, _semester: semesterError }));
       return;
     }
 
@@ -263,7 +276,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
         }
       }
     }
-    
+
     // Remove department object from payload if present, department_code is already in form
     const { department, ...restForm } = form as any;
     const payload = {
@@ -273,7 +286,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     if (form.courses_per_semester && Object.keys(form.courses_per_semester).length > 0) {
       payload.courses_per_semester = form.courses_per_semester;
     }
-    
+
     let result;
     if (mode === 'edit' && degree && degree.id) {
       result = await degreesAPI.updateDegree(degree.id, payload);
@@ -318,7 +331,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
           <SchoolIcon color="primary" />
           {mode === 'edit' ? 'Edit Degree Program' : 'Create New Degree Program'}
         </DialogTitle>
-        <DialogContent dividers sx={{ height: '70vh', overflow: 'hidden', p: 0 }}>
+        <DialogContent dividers sx={{ height: '70vh', overflowY: 'auto', p: 0 }}>
           {initialLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
               <CircularProgress size={60} />
@@ -336,7 +349,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                       {Object.entries(fieldErrors)
                         .filter(([_, msg]) => !!msg)
                         .map(([field, msg]) => (
-                          <li key={field}>{msg}</li>
+                          <li key={field}>{field === '_semester' ? msg : msg}</li>
                         ))}
                     </ul>
                   )}
@@ -584,27 +597,50 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                       onChange={handleInputChange('description')}
                       width={"100%"}
                       height={120}
+                      error={fieldErrors.description}
                     />
                   </Box>
                 )}
             {activeTab === 1 && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <RichTextEditor label="Specializations" value={form.specializations} onChange={handleInputChange('specializations')} width={"100%"} height={120} />
-                <RichTextEditor label="Career Prospects" value={form.career_prospects} onChange={handleInputChange('career_prospects')} width={"100%"} height={120} />
-                <RichTextEditor label="Accreditation" value={form.accreditation} onChange={handleInputChange('accreditation')} width={"100%"} height={120} />
-                <RichTextEditor label="Learning Outcomes" value={form.learning_outcomes} onChange={handleInputChange('learning_outcomes')} width={"100%"} height={120} />
-                <RichTextEditor label="Assessment Methods" value={form.assessment_methods} onChange={handleInputChange('assessment_methods')} width={"100%"} height={120} />
-                <RichTextEditor label="Contact Information" value={form.contact_information} onChange={handleInputChange('contact_information')} width={"100%"} height={120} />
+                <Box>
+                  <RichTextEditor label="Specializations" value={form.specializations} onChange={handleInputChange('specializations')} width={"100%"} height={120} error={fieldErrors.specializations} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Career Prospects" value={form.career_prospects} onChange={handleInputChange('career_prospects')} width={"100%"} height={120} error={fieldErrors.career_prospects} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Accreditation" value={form.accreditation} onChange={handleInputChange('accreditation')} width={"100%"} height={120} error={fieldErrors.accreditation} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Learning Outcomes" value={form.learning_outcomes} onChange={handleInputChange('learning_outcomes')} width={"100%"} height={120} error={fieldErrors.learning_outcomes} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Assessment Methods" value={form.assessment_methods} onChange={handleInputChange('assessment_methods')} width={"100%"} height={120} error={fieldErrors.assessment_methods} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Contact Information" value={form.contact_information} onChange={handleInputChange('contact_information')} width={"100%"} height={120} error={fieldErrors.contact_information} />
+                </Box>
               </Box>
             )}
             {/* Tab 2: Admission & Fees */}
             {activeTab === 2 && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <RichTextEditor label="Admission Requirements" value={form.admission_requirements} onChange={handleInputChange('admission_requirements')} width={"100%"} height={120} />
-                <RichTextEditor label="Entry Requirements" value={form.entry_requirements} onChange={handleInputChange('entry_requirements')} width={"100%"} height={120} />
-                <RichTextEditor label="Fees" value={form.fees} onChange={handleInputChange('fees')} width={"100%"} height={120} />
-                <RichTextEditor label="Application Deadlines" value={form.application_deadlines} onChange={handleInputChange('application_deadlines')} width={"100%"} height={120} />
-                <RichTextEditor label="Application Process" value={form.application_process} onChange={handleInputChange('application_process')} width={"100%"} height={120} />
+                <Box>
+                  <RichTextEditor label="Admission Requirements" value={form.admission_requirements} onChange={handleInputChange('admission_requirements')} width={"100%"} height={120} error={fieldErrors.admission_requirements} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Entry Requirements" value={form.entry_requirements} onChange={handleInputChange('entry_requirements')} width={"100%"} height={120} error={fieldErrors.entry_requirements} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Fees" value={form.fees} onChange={handleInputChange('fees')} width={"100%"} height={120} error={fieldErrors.fees} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Application Deadlines" value={form.application_deadlines} onChange={handleInputChange('application_deadlines')} width={"100%"} height={120} error={fieldErrors.application_deadlines} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Application Process" value={form.application_process} onChange={handleInputChange('application_process')} width={"100%"} height={120} error={fieldErrors.application_process} />
+                </Box>
               </Box>
             )}
           </Box>

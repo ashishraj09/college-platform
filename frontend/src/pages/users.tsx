@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { usersAPI } from '../services/api';
+import { useRouter } from 'next/router';
 
 interface User {
   id: string;
@@ -68,7 +69,7 @@ interface UsersPagination {
 
 export const UsersPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [pagination, setPagination] = useState<UsersPagination>({
     total: 0,
@@ -114,7 +115,7 @@ export const UsersPage: React.FC = () => {
 
   const handleEditUser = (user: User) => {
     // Navigate to edit page with user ID
-    navigate(`/admin/edit-user/${user.id}`);
+    router.push(`/admin/edit-user/${user.id}`);
   };
 
   const handleDeleteUser = (user: User) => {
@@ -222,7 +223,7 @@ export const UsersPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => navigate('/admin/create-user')}
+            onClick={() => router.push('/admin/create-user')}
           >
             Create User
           </Button>

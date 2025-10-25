@@ -231,6 +231,15 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Preview endpoint - authenticated, returns meta (creator/updater/approver)
+  getPreviewCourseById: async (id: string) => {
+    try {
+      const { data } = await api.get(`/courses/preview/${id}`);
+      return data; // returns { course: {...} }
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
   getCourseForEdit: async (id: string, resolveNames = false) => {
     try {
       return (await api.get(`/courses/${id}/edit?resolve_names=${resolveNames}`)).data;
@@ -499,6 +508,15 @@ export const degreesAPI = {
     try {
       const { data } = await api.get('/degrees', { params: { department_code: department_code, status: 'active' } });
       return data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  // Authenticated preview endpoint - fetch degree by ID (department-limited)
+  getPreviewDegreeById: async (id: string) => {
+    try {
+      const { data } = await api.get(`/degrees/preview/${id}`);
+      return data; // Returns { degree: {...} }
     } catch (err: any) {
       return handleApiError(err);
     }

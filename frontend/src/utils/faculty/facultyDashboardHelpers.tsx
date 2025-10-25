@@ -15,9 +15,7 @@ export interface Entity {
   is_elective?: boolean;
   rejection_reason?: string;
   version: number;
-  hasNewPendingVersion?: boolean; // True if a newer version exists in draft, pending_approval, or approved state (not active/archived)
-  createdAt?: string;
-  updatedAt?: string;
+  hasNewPendingVersion?: boolean; // optional flag used to disable edit when a newer version exists
   department?: { name: string; code: string };
   degree?: { name: string; code: string };
   entityType: EntityType;
@@ -40,7 +38,10 @@ export const getStatusIcon = (status: string) => {
 };
 
 export const getAvailableEntityActions = (entity: Entity, type: EntityType, isHOD: boolean = false) => {
-  const actions = [];
+  const actions: any[] = [];
+  // Always include View first so it's available on all statuses (draft, pending, approved, active)
+  actions.push({ action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false });
+
   switch (entity.status) {
     case 'draft':
       actions.push(
@@ -52,47 +53,24 @@ export const getAvailableEntityActions = (entity: Entity, type: EntityType, isHO
     case 'pending_approval':
     case 'submitted':
       actions.push(
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false },
-        { 
-          action: 'edit', 
-          label: `Edit ${type}`, 
-          icon: <EditIcon />, 
-          disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true)
-        }
+        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon />, disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true) }
       );
       if (isHOD && entity.status === 'pending_approval') {
-        actions.push(
-          { action: 'approve', label: `Approve ${type}`, icon: <ApproveIcon />, disabled: false }
-        );
+        actions.push({ action: 'approve', label: `Approve ${type}`, icon: <ApproveIcon />, disabled: false });
       }
       break;
     case 'approved':
       actions.push(
-        { 
-          action: 'edit', 
-          label: `Edit ${type}`, 
-          icon: <EditIcon />, 
-          disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true)
-        },
-        { action: 'publish', label: 'Publish', icon: <PublishIcon />, disabled: false },
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
+        { action: 'edit', label: `Edit ${type}`, icon: <EditIcon />, disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true) },
+        { action: 'publish', label: 'Publish', icon: <PublishIcon />, disabled: false }
       );
       break;
     case 'active':
-      actions.push(
-        {
-          action: 'edit',
-          label: `Edit ${type}`,
-          icon: <EditIcon />,
-          disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true)
-        },
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
-      );
+      actions.push({ action: 'edit', label: `Edit ${type}`, icon: <EditIcon />, disabled: (type === 'course' && entity.hasNewPendingVersion === true) || (type === 'degree' && entity.hasNewPendingVersion === true) });
       break;
     default:
-      actions.push(
-        { action: 'view', label: `View ${type}`, icon: <VisibilityIcon />, disabled: false }
-      );
+      // Only View for unknown statuses
+      break;
   }
   return actions;
 };
@@ -109,6 +87,7 @@ export const handleEntityAction = async (
   navigate: (url: string) => void,
   loadData: () => void
 ) => {
+
   // Map correct API methods for each entity type
   const submitFn = type === 'course' ? api.submitCourse : api.submitDegree;
   const approveFn = type === 'course' ? api.approveCourse : api.approveDegree;
@@ -119,9 +98,6 @@ export const handleEntityAction = async (
     case 'edit':
       setEntityToEdit(entity);
       setDialogOpen(true);
-      break;
-    case 'view':
-      navigate(`/faculty/${type}/${entity.id}`);
       break;
     case 'submit':
       await submitFn(entity.id, user?.id, user?.department?.id);

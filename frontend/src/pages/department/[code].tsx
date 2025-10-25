@@ -9,6 +9,7 @@ import {
   Divider,
   Paper,
 } from '@mui/material';
+import PublicShell from '../../components/PublicShell';
 import {
   School as SchoolIcon,
   MenuBook as CourseIcon,
@@ -52,6 +53,8 @@ const DepartmentPage: React.FC = () => {
   const [degrees, setDegrees] = useState<Degree[]>([]);
   const [loading, setLoading] = useState(true);
   const [departmentInfo, setDepartmentInfo] = useState<Department | null>(null);
+  const [sanitizedDescription, setSanitizedDescription] = useState<string | null>(null);
+  const [purifier, setPurifier] = useState<any | null>(null);
   const router = useRouter();
   const { code } = router.query;
 
@@ -89,6 +92,29 @@ const DepartmentPage: React.FC = () => {
     fetchData();
   }, [code]);
 
+  // Dynamically import DOMPurify on client and sanitize department description
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let mounted = true;
+    (async () => {
+      try {
+        const mod = await import('dompurify');
+        const DOMPurify = mod.default || mod;
+        if (!mounted) return;
+        setPurifier(() => DOMPurify);
+        if (departmentInfo?.description) {
+          setSanitizedDescription(DOMPurify.sanitize(departmentInfo.description));
+        } else {
+          setSanitizedDescription(null);
+        }
+      } catch (err) {
+        console.warn('Failed to load DOMPurify, falling back to raw HTML rendering', err);
+        if (departmentInfo?.description) setSanitizedDescription(departmentInfo.description);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [departmentInfo?.description]);
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
@@ -99,50 +125,6 @@ const DepartmentPage: React.FC = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#fff' }}>
-      {/* Navigation Bar */}
-      <Box
-        sx={{
-          bgcolor: 'white',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        }}
-      >
-        <Container maxWidth="xl">
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 2 }}>
-            <Box 
-              sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }}
-              onClick={() => router.push('/')}
-            >
-              <Box
-                component="img"
-                src="/static/college-logo.png"
-                alt="College Logo"
-                sx={{ 
-                  height: 40, 
-                  width: 'auto',
-                  objectFit: 'contain'
-                }}
-              />
-              <Typography variant="h5" fontWeight={700} color="primary">
-                {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}
-              </Typography>
-            </Box>
-            <Button
-              variant="outlined"
-              startIcon={<LoginIcon />}
-              onClick={() => router.push('/login')}
-              sx={{ fontWeight: 600, px: 3 }}
-            >
-              Login
-            </Button>
-          </Box>
-        </Container>
-      </Box>
-
       {/* Hero Banner */}
       <Box
         sx={{
@@ -172,28 +154,24 @@ const DepartmentPage: React.FC = () => {
 
       {/* Department Description and Programmes Count */}
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        {departmentInfo?.description && (
-          <Box sx={{ mb: 3, maxWidth: { xs: '100%', md: '1200px' }, px: { xs: 2, md: 0 }, mx: 'auto', textAlign: 'center' }}>
-            {departmentInfo.description.split(/\n+/).map((para, idx) => (
-              <Typography
-                key={idx}
-                variant="body1"
-                color="text.secondary"
-                sx={{
+          {departmentInfo?.description && (
+            <Box sx={{ mb: 3, maxWidth: { xs: '100%', md: '1200px' }, px: { xs: 2, md: 0 }, mx: 'auto', textAlign: 'center' }}>
+              {/* Render sanitized HTML description. DOMPurify is imported dynamically to avoid SSR issues. */}
+              <div
+                dangerouslySetInnerHTML={{ __html: sanitizedDescription ?? '' }}
+                style={{
+                  margin: '0 auto',
+                  textAlign: 'justify',
                   lineHeight: 1.8,
                   fontSize: '1.05rem',
-                  mb: 2,
-                  textAlign: 'justify',
-                  mx: 'auto',
-                  whiteSpace: 'pre-line',
-                  px: { xs: 0, md: 4 }
+                  color: 'rgba(0,0,0,0.7)',
+                  maxWidth: '1200px',
+                  paddingLeft: 0,
+                  paddingRight: 0,
                 }}
-              >
-                {para}
-              </Typography>
-            ))}
-          </Box>
-        )}
+              />
+            </Box>
+          )}
         <Typography variant="h5" fontWeight={600} color="text.secondary">
           {degrees.length} programme{degrees.length !== 1 ? 's' : ''} available
         </Typography>
@@ -240,15 +218,15 @@ const DepartmentPage: React.FC = () => {
                     overflow: 'hidden' // Prevent content overflow
                   }}>
                     {/* Header with Icon and Title - Fixed Section */}
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'flex-start', 
-                      gap: 2, 
-                      mb: 2,
-                      minHeight: '80px', // Fixed minimum height
-                      maxHeight: '100px', // Maximum height for header
-                      flexShrink: 0 // Don't shrink
-                    }}>
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 1, 
+                        mb: 0.5,
+                        minHeight: '56px', // Reduced minimum height to tighten header
+                        maxHeight: '80px', // Maximum height for header
+                        flexShrink: 0 // Don't shrink
+                      }}>
                       <SchoolIcon sx={{ fontSize: 32, color: 'primary.main', flexShrink: 0 }} />
                       <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                         {/* Title with controlled height */}
@@ -258,10 +236,10 @@ const DepartmentPage: React.FC = () => {
                           color="primary.main"
                           sx={{ 
                             cursor: 'pointer',
-                            lineHeight: 1.3,
+                            lineHeight: 1.2,
                             fontSize: '1rem',
-                            mb: 1,
-                            maxHeight: '3.9em', // Max 3 lines
+                            mb: 0,
+                            maxHeight: '3.6em', // Slightly reduced max height
                             overflow: 'hidden',
                             display: '-webkit-box',
                             WebkitLineClamp: 3,
@@ -291,24 +269,23 @@ const DepartmentPage: React.FC = () => {
                     {/* Description - Flexible middle section */}
                     <Box sx={{ 
                       flex: 1, 
-                      mb: 2, 
+                      mb: 0.5, 
                       overflow: 'hidden',
                       minHeight: 0 // Allow flex to shrink
                     }}>
-                      <Typography 
-                        variant="body2" 
-                        color="text.secondary" 
-                        sx={{ 
+                      <Box
+                        component="div"
+                        sx={{
                           display: '-webkit-box',
                           WebkitLineClamp: 3,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           lineHeight: 1.5,
+                          color: 'text.secondary'
                         }}
-                      >
-                        {degree.description || 'Master of Science degree providing comprehensive education in this field.'}
-                      </Typography>
+                        dangerouslySetInnerHTML={{ __html: purifier ? purifier.sanitize(degree.description || '') : (degree.description || '') }}
+                      />
                     </Box>
 
                     {/* Stats at bottom - Fixed Section */}
@@ -350,129 +327,13 @@ const DepartmentPage: React.FC = () => {
         )}
       </Container>
 
-      {/* Footer */}
-      <Box
-        sx={{
-          bgcolor: '#f8f9fa',
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          py: 6,
-          mt: 8,
-        }}
-      >
-        <Container maxWidth="lg">
-          <Grid container spacing={4}>
-            {/* Brand Section */}
-            <Grid item xs={12} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                <Box
-                  component="img"
-                  src="/static/college-logo.png"
-                  alt="College Logo"
-                  sx={{ 
-                    height: 32, 
-                    width: 'auto',
-                    objectFit: 'contain'
-                  }}
-                />
-                <Typography variant="h6" fontWeight={700}>
-                  {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                Empowering students through world-class education.
-              </Typography>
-            </Grid>
-
-            {/* Quick Links */}
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                Quick Links
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{ color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                  onClick={() => router.push('/')}
-                >
-                  All Programmes
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                  onClick={() => router.push('/login')}
-                >
-                  Student Login
-                </Typography>
-              </Box>
-            </Grid>
-
-            {/* Information For */}
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                Information For
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Future Students
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Current Students
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Staff
-                </Typography>
-              </Box>
-            </Grid>
-
-            {/* About */}
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                About
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Our Story
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Leadership
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Careers
-                </Typography>
-              </Box>
-            </Grid>
-
-            {/* Contact */}
-            <Grid item xs={6} sm={3} md={3}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                Contact
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {degrees.length} Active Programmes
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Email: info@college.edu
-              </Typography>
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 4 }} />
-          
-          <Typography variant="body2" color="text.secondary" align="center">
-            © {new Date().getFullYear()} {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}. All rights reserved.
-          </Typography>
-        </Container>
-      </Box>
+      {/* Footer provided by PublicShell */}
     </Box>
   );
 };
 
-// Disable the default DashboardLayout for this page
-DepartmentPage.getLayout = (page: React.ReactElement) => page;
+// Disable the default DashboardLayout for this page but wrap with PublicShell
+// @ts-expect-error: Next.js custom property
+DepartmentPage.getLayout = (page: React.ReactNode) => <PublicShell>{page}</PublicShell>;
 
 export default DepartmentPage;
-
-// Ensure department page is not wrapped in DashboardLayout (public page)
-// @ts-expect-error: Next.js custom property
-DepartmentPage.getLayout = (page: React.ReactNode) => page;

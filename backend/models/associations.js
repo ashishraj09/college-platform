@@ -78,7 +78,8 @@ async function initializeAssociations() {
   // Add constraints: false to prevent DB-level constraint
   Degree.belongsTo(Department, { foreignKey: 'department_code', targetKey: 'code', as: 'departmentByCode', onDelete: 'CASCADE', onUpdate: 'CASCADE', constraints: false }); // Code-based
   // Each degree has many courses
-  Degree.hasMany(Course, { foreignKey: 'degree_id', as: 'courses' }); // DB integrity
+  Degree.hasMany(Course, { foreignKey: 'degree_code', sourceKey: 'code', as: 'courses', constraints: false }); // Code-based (used as `courses`)
+  // Keep an explicit alias if callers expect `coursesByCode` as well
   Degree.hasMany(Course, { foreignKey: 'degree_code', sourceKey: 'code', as: 'coursesByCode', constraints: false }); // Code-based
   // Each degree has a creator (User)
   Degree.belongsTo(User, { foreignKey: 'created_by', as: 'creator', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });

@@ -48,7 +48,12 @@ interface SemesterData {
 // Main student degree/enrollment tab component
   const MyDegreeTab: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
-  const { user } = useAuth();
+  const { user, loading: authLoading, initialized: authInitialized } = useAuth();
+  // Reset hasLoadedData whenever the authenticated user changes (login/logout)
+  useEffect(() => {
+    hasLoadedData.current = false;
+    console.debug('MyDegreeTab: user changed, reset hasLoadedData, userId=', user?.id);
+  }, [user?.id]);
   const hasLoadedData = useRef(false); // Prevent duplicate API calls
   // UI and data state
   const [activeTab, setActiveTab] = useState(0); // Tab selection
@@ -379,7 +384,7 @@ const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateChec
   const fetchDraft = useCallback(async () => {
     if (currentDraft) return;
     const response = await enrollmentAPI.createDraft({ course_codes: [], semester: getCurrentSemester() } as any);
-    if (response.error) {
+    if (!response || (response as any).error) {
       // Silently fail - draft creation errors are not critical
       setCurrentDraft(null);
       setSelectedCourses([]);
@@ -397,18 +402,19 @@ const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateChec
   // Check active enrollment status and update UI state
   const checkActiveEnrollmentStatus = useCallback(async () => {
     const response = await enrollmentAPI.checkActiveEnrollmentStatus();
-    if (response.error) {
+    if (!response || (response as any).error) {
       // Silently fail - enrollment status check errors are handled gracefully
       return;
     }
     
-    setActiveEnrollments(response.activeEnrollments || []);
-    const pendingEnrollments = (response.activeEnrollments || []).filter(
+    const resp: any = response;
+    setActiveEnrollments(resp.activeEnrollments || []);
+    const pendingEnrollments = (resp.activeEnrollments || []).filter(
       (e: any) => e.enrollment_status !== 'approved' &&
         e.enrollment_status !== 'draft' &&
         e.enrollment_status !== 'rejected'
     );
-    const hasApproved = (response.activeEnrollments || []).some(
+    const hasApproved = (resp.activeEnrollments || []).some(
       (e: any) => e.enrollment_status === 'approved' && e.semester === getCurrentSemester()
     );
     if (pendingEnrollments.length > 0) {
@@ -417,14 +423,14 @@ const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateChec
       setDraftEnrollment(null);
       setEnrollmentInitiated(false);
       setSelectedCourses([]);
-    } else if (response.hasDraft && response.draftEnrollment && !hasApproved) {
+    } else if (resp.hasDraft && resp.draftEnrollment && !hasApproved) {
       setHasActiveEnrollment(false);
       setHasDraftEnrollment(true);
-      setDraftEnrollment(response.draftEnrollment);
-      if (response.draftEnrollment.course_codes && Array.isArray(response.draftEnrollment.course_codes)) {
-        setSelectedCourses(Array.from(new Set(response.draftEnrollment.course_codes)));
-      } else if (response.draftEnrollment.course_ids && Array.isArray(response.draftEnrollment.course_ids)) {
-        const codes = response.draftEnrollment.course_ids
+      setDraftEnrollment(resp.draftEnrollment);
+      if (resp.draftEnrollment.course_codes && Array.isArray(resp.draftEnrollment.course_codes)) {
+        setSelectedCourses(Array.from(new Set(resp.draftEnrollment.course_codes)));
+      } else if (resp.draftEnrollment.course_ids && Array.isArray(resp.draftEnrollment.course_ids)) {
+        const codes = resp.draftEnrollment.course_ids
           .map((id: string) => {
             const found = Object.values(courseCodeMap).find(c => c.id === id);
             return found ? found.code : null;
@@ -435,7 +441,7 @@ const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateChec
         setSelectedCourses([]);
       }
       setEnrollmentInitiated(true);
-      setCurrentDraft(response.draftEnrollment);
+      setCurrentDraft(resp.draftEnrollment);
     } else {
       setHasActiveEnrollment(false);
       setHasDraftEnrollment(false);
@@ -449,15 +455,24 @@ const isCourseRegisterable = (course: CourseWithEnrollmentStatus, ignoreDateChec
 
 // Initial load: fetch degree courses and enrollment status
 useEffect(() => {
+
+  // Debug: log auth and user state when effect runs
+  console.log('MyDegreeTab: effect run - authLoading=', authLoading, 'authInitialized=', authInitialized, 'user=', user);
+
   // Prevent duplicate loads - but only if we've already loaded data successfully
   if (hasLoadedData.current) {
     console.log('🛑 Skipping load - data already loaded');
     return;
   }
-  
-  // Don't attempt to load if we don't have user data yet
+
+  // Wait for auth system to finish initializing and ensure we have user data
+  if (!authInitialized) {
+    console.log('⏳ Waiting for auth initialization...');
+    return;
+  }
+
   if (!user) {
-    console.log('⏳ Waiting for user data...');
+    console.log('⏳ No authenticated user after auth initialization, skipping enrollment load');
     return;
   }
   
@@ -467,7 +482,10 @@ useEffect(() => {
     setLoading(true);
     try {
       const semester = getCurrentSemester();
-      const degreeCodeCandidate = user?.degree_code || user?.degree?.code;
+      // Safely derive degree code from user object and normalize to uppercase
+      const degreeCodeCandidate = (user?.degree_code || user?.degree?.code)
+        ? String(user?.degree_code || user?.degree?.code).toUpperCase()
+        : undefined;
       
       console.log('📡 Calling APIs - Degree:', degreeCodeCandidate, 'Semester:', semester);
       
@@ -571,13 +589,15 @@ useEffect(() => {
       } finally {
         if (isMounted) {
           setLoading(false);
+          // mark as loaded to prevent duplicate fetches
+          hasLoadedData.current = true;
         }
       }
     };
     
     loadAll();
     return () => { isMounted = false; };
-  }, [user, getCurrentSemester, enqueueSnackbar]);
+  }, [user, authLoading, authInitialized, getCurrentSemester, enqueueSnackbar]);
 
   // Show loading spinner while fetching data
   if (loading) {

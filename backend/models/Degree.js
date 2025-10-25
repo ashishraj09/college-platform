@@ -13,13 +13,6 @@ const { DataTypes } = require('sequelize');
 const { sequelize, defineModel } = require('../config/database');
 
 const Degree = defineModel('Degree', {
-  // Comments and timeline
-  comments: {
-    type: DataTypes.JSON,
-    allowNull: true,
-    defaultValue: [],
-    comment: 'Array of comment objects for conversation timeline.'
-  },
   id: {
   // Primary key
     type: DataTypes.UUID,
@@ -37,11 +30,11 @@ const Degree = defineModel('Degree', {
   },
   code: {
   // Unique degree code (uppercase)
-    type: DataTypes.STRING(10),
+    type: DataTypes.STRING(20),
     allowNull: false,
     validate: {
       notEmpty: true,
-      len: [2, 10],
+      len: [2, 20],
       isUppercase: true,
     },
   },
@@ -162,26 +155,6 @@ const Degree = defineModel('Degree', {
       allowNull: false,
       defaultValue: 1,
       comment: 'Current version of the degree.'
-    },
-    version_history: {
-  // Array of previous versions
-      type: DataTypes.JSON,
-      allowNull: true,
-      defaultValue: [],
-      comment: 'Array of previous versions with metadata.'
-    },
-    feedback: {
-  // Feedback from reviewers/approvers
-      type: DataTypes.TEXT,
-      allowNull: true,
-      comment: 'Feedback from reviewers/approvers.'
-    },
-    approval_history: {
-  // Approval workflow actions
-      type: DataTypes.JSON,
-      allowNull: true,
-      defaultValue: [],
-      comment: 'Array of approval workflow actions.'
     },
     approved_at: {
   // When degree was approved

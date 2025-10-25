@@ -9,28 +9,131 @@ import {
   CircularProgress,
   Button,
   Divider,
-  Card,
-  CardContent,
   alpha,
   useTheme,
   Breadcrumbs,
   Link as MuiLink,
+  IconButton,
+  Menu,
+  MenuItem,
+  ListItemIcon,
 } from '@mui/material';
+// (Using standard Grid import from @mui/material)
 import {
   MenuBook as CourseIcon,
   Star as StarIcon,
   Business as DepartmentIcon,
+  Schedule as ScheduleIcon,
   School as SchoolIcon,
   ArrowBack as BackIcon,
   CheckCircle as ActiveIcon,
   Pending as PendingIcon,
-  Draft as DraftIcon,
+  Drafts as DraftIcon,
   Archive as ArchiveIcon,
 } from '@mui/icons-material';
+import { Login as LoginIcon, AccountCircle, ExitToApp } from '@mui/icons-material';
 import Link from 'next/link';
 import { coursesAPI } from '../../services/api';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
+import DOMPurify from 'dompurify';
+import PublicShell from '../../components/PublicShell';
+
+// Log imported icons to help diagnose undefined-import runtime errors
+if (typeof window !== 'undefined') {
+  // Only run in browser
+  // eslint-disable-next-line no-console
+  console.debug('CourseDetailPage icons:', {
+    CourseIcon,
+    StarIcon,
+    DepartmentIcon,
+    SchoolIcon,
+    BackIcon,
+    ActiveIcon,
+    PendingIcon,
+    DraftIcon,
+    ArchiveIcon,
+  });
+}
+
+// Safe icon renderer: returns element or undefined if component is undefined
+const renderIcon = (Comp: any, props?: any) => {
+  if (!Comp) return undefined;
+  try {
+    return <Comp {...props} />;
+  } catch (e) {
+    // swallow render errors and return undefined so callers can handle absence
+    return undefined;
+  }
+};
+
+// HTML rendering helpers
+const sanitizeHtml = (html: string) => {
+  if (!html) return '';
+  try {
+    if (typeof window === 'undefined') {
+      // Server fallback: remove tags
+      return (html || '').replace(/<[^>]*>?/gm, '');
+    }
+    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  } catch (e) {
+    return (html || '').replace(/<[^>]*>?/gm, '');
+  }
+};
+
+const renderHtmlContent = (content: any) => {
+  if (content === null || content === undefined) return null;
+  // Arrays: render as list
+  if (Array.isArray(content)) {
+    return (
+      <Box component="ul" sx={{ pl: 3, mb: 2 }}>
+        {content.map((item: any, i: number) => (
+          <li key={i}>
+            {typeof item === 'string' ? (
+              // render HTML string
+              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(item) }} />
+            ) : (
+              String(item)
+            )}
+          </li>
+        ))}
+      </Box>
+    );
+  }
+
+  if (typeof content === 'string') {
+    // Render as sanitized HTML on client, fallback to stripped HTML on server
+    return <Box dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }} />;
+  }
+
+  // Objects - pretty print keys
+  if (typeof content === 'object') {
+    return (
+      <Box>
+        {Object.entries(content).map(([k, v]) => (
+          <Box key={k} sx={{ mb: 1 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              {k.replace(/_/g, ' ').toUpperCase()}
+            </Typography>
+            {renderHtmlContent(v)}
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
+  // fallback
+  return <Typography variant="body1">{String(content)}</Typography>;
+};
+
+const adminOnlyKeys = new Set([
+  'created_by','updated_by','approved_by','submitted_at','approved_at','parent_course_id','version','is_latest_version'
+]);
+
+// PublicShell provides shared header/footer for public pages
+
+// Grid compatibility alias: MUI Grid typings in this project are strict; use an any-typed alias
+const GridCompat: any = Grid;
 
 interface Course {
   id: string;
@@ -45,10 +148,22 @@ interface Course {
   degree?: { name: string; code: string };
   study_details?: any;
   faculty_details?: any;
+  prerequisites?: any;
+  learning_objectives?: string;
+  course_outcomes?: string;
+  assessment_methods?: string;
+  textbooks?: string;
+  references?: string;
+  max_students?: number;
   created_at?: string;
   created_by?: string;
   activated_at?: string;
   activated_by?: string;
+  updated_by?: string;
+  approved_by?: string;
+  submitted_at?: string;
+  approved_at?: string;
+  updated_at?: string;
 }
 
 const CourseDetailPage: React.FC = () => {
@@ -78,8 +193,8 @@ const CourseDetailPage: React.FC = () => {
 
         let data;
         if (isUUID(idOrCode)) {
-          // Authenticated view - fetch by ID (requires auth)
-          data = await coursesAPI.getCourseById(idOrCode);
+          // Authenticated preview view - call the dedicated preview endpoint which returns meta fields
+          data = await coursesAPI.getPreviewCourseById(idOrCode);
         } else {
           // Public view - fetch by code (no auth required)
           data = await coursesAPI.getPublicCourseByCode(idOrCode);
@@ -115,23 +230,39 @@ const CourseDetailPage: React.FC = () => {
   const getStatusInfo = (status?: string) => {
     switch (status) {
       case 'active':
-        return { icon: <ActiveIcon />, color: 'success', label: 'Active' };
+        return { icon: renderIcon(ActiveIcon), color: 'success', label: 'Active' };
       case 'pending_approval':
-        return { icon: <PendingIcon />, color: 'warning', label: 'Pending Approval' };
+        return { icon: renderIcon(PendingIcon), color: 'warning', label: 'Pending Approval' };
       case 'draft':
-        return { icon: <DraftIcon />, color: 'default', label: 'Draft' };
+        return { icon: renderIcon(DraftIcon), color: 'default', label: 'Draft' };
       case 'archived':
-        return { icon: <ArchiveIcon />, color: 'error', label: 'Archived' };
+        return { icon: renderIcon(ArchiveIcon), color: 'error', label: 'Archived' };
       default:
-        return { icon: <DraftIcon />, color: 'default', label: status || 'Unknown' };
+        return { icon: renderIcon(DraftIcon), color: 'default', label: status || 'Unknown' };
     }
   };
 
   const statusInfo = getStatusInfo(course?.status);
 
+  // Status icon mapping (used in the meta box)
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'active':
+        return renderIcon(ActiveIcon, { sx: { color: 'success.main', mr: 1 } });
+      case 'pending_approval':
+        return renderIcon(PendingIcon, { sx: { color: 'warning.main', mr: 1 } });
+      case 'draft':
+        return renderIcon(DraftIcon, { sx: { color: 'info.main', mr: 1 } });
+      case 'archived':
+        return renderIcon(ArchiveIcon, { sx: { color: 'error.main', mr: 1 } });
+      default:
+        return renderIcon(DraftIcon, { sx: { color: 'grey.500', mr: 1 } });
+    }
+  };
+
   if (loading) {
     return (
-      <Container maxWidth="lg">
+      <Container maxWidth="xl">
         <Box
           display="flex"
           flexDirection="column"
@@ -150,9 +281,9 @@ const CourseDetailPage: React.FC = () => {
 
   if (error || !course) {
     return (
-      <Container maxWidth="lg">
+      <Container maxWidth="xl" sx={{ py: 8, textAlign: 'center', px: { xs: 1, md: 2 } }}>
         <Box sx={{ py: 8, textAlign: 'center' }}>
-          <CourseIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
+          {renderIcon(CourseIcon, { sx: { fontSize: 80, color: 'text.secondary', mb: 2 } })}
           <Typography variant="h5" gutterBottom color="text.secondary">
             {error || 'Course not found'}
           </Typography>
@@ -164,259 +295,246 @@ const CourseDetailPage: React.FC = () => {
     );
   }
 
+  const coursesBySemester = course.study_details?.semesters ? course.study_details.semesters : {};
+
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.05)} 0%, ${alpha(
-          theme.palette.secondary.light,
-          0.05
-        )} 100%)`,
-        pb: 8,
-      }}
-    >
-      <Container maxWidth="lg" sx={{ pt: 4 }}>
-        {/* Breadcrumbs */}
-        <Breadcrumbs sx={{ mb: 3 }}>
-          <Link href={user ? '/' : '/homepage'} passHref legacyBehavior>
-            <MuiLink color="inherit" sx={{ cursor: 'pointer' }}>
-              Home
-            </MuiLink>
-          </Link>
-          {course.degree && (
-            <Link href={`/degree/${course.degree.code}`} passHref legacyBehavior>
-              <MuiLink color="inherit" sx={{ cursor: 'pointer' }}>
-                {course.degree.name}
-              </MuiLink>
-            </Link>
-          )}
-          <Typography color="text.primary">{course.name}</Typography>
-        </Breadcrumbs>
+    <Box minHeight="100vh" display="flex" flexDirection="column">
+      {/* Hero Banner */}
+      <Box
+        sx={{
+          color: 'white',
+          py: 8,
+          backgroundImage: 'url(/static/students-homepage.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
+        }}
+      >
+        <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 2, px: { xs: 1, md: 2 } }}>
+          <Typography
+            variant="h2"
+            fontWeight={700}
+            gutterBottom
+            sx={{
+              fontSize: { xs: '2rem', md: '3rem' },
+              textShadow: '2px 2px 4px rgba(0,0,0,0.6)'
+            }}
+          >
+            {course.name}
+          </Typography>
+          {/* code/status chips removed from hero (meta box handles status in preview) */}
+          {/* Render description as sanitized HTML so tags (e.g. <p>) are respected like the degree page */}
+          {/* Hero shows only the title to match degree layout; description will appear in the card below the image */}
+        </Container>
 
-        {/* Back Button */}
-        <Button startIcon={<BackIcon />} onClick={handleBackClick} sx={{ mb: 3 }}>
-          Back{course.degree ? ` to ${course.degree.name}` : ''}
-        </Button>
-
-        {/* Main Content Card */}
-        <Card sx={{ mb: 4 }}>
-          <CardContent sx={{ p: 4 }}>
-            {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 3, mb: 3 }}>
-              <Box
-                sx={{
-                  bgcolor: alpha(theme.palette.secondary.main, 0.1),
-                  borderRadius: 2,
-                  p: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <CourseIcon sx={{ fontSize: 48, color: 'secondary.main' }} />
+        {/* Meta box - match degree page style. Only visible in authenticated preview (UUID) */}
+        {user && isUUID(Array.isArray(id) ? id[0] : id || '') && (
+          <Box sx={{
+            position: 'absolute',
+            top: { xs: 16, md: 32 },
+            right: { xs: 16, md: 48 },
+            bgcolor: 'rgba(255,255,255,0.7)',
+            color: 'text.primary',
+            borderRadius: 3,
+            boxShadow: 4,
+            p: 3,
+            minWidth: 260,
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            backdropFilter: 'blur(2px)',
+          }}>
+            {course.status && (
+              <Chip
+                icon={getStatusIcon(course.status || '')}
+                label={course.status}
+                color={course.status === 'active' ? 'success' : course.status === 'pending_approval' ? 'warning' : course.status === 'draft' ? 'info' : 'error'}
+                sx={{ mb: 2, fontWeight: 700, fontSize: '1rem', px: 2 }}
+              />
+            )}
+            {course.created_by && course.created_at && (
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="body2" fontWeight={500}>Created by: {course.created_by}</Typography>
+                <Typography variant="body2" color="text.secondary">Created: {new Date(course.created_at).toLocaleDateString()}</Typography>
               </Box>
-              <Box sx={{ flex: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, flexWrap: 'wrap' }}>
-                  <Typography variant="h3" fontWeight={700} color="secondary">
-                    {course.name}
-                  </Typography>
-                  <Chip label={course.code} color="secondary" variant="outlined" sx={{ fontWeight: 600 }} />
-                  {course.status && (
-                    <Chip
-                      icon={statusInfo.icon}
-                      label={statusInfo.label}
-                      color={statusInfo.color as any}
-                      sx={{ fontWeight: 600 }}
-                    />
-                  )}
+            )}
+            {course.updated_by && course.updated_at && (
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="body2" fontWeight={500}>Last modified by: {course.updated_by}</Typography>
+                <Typography variant="body2" color="text.secondary">Last modified: {new Date(course.updated_at).toLocaleDateString()}</Typography>
+              </Box>
+            )}
+            {['approved', 'active', 'archived'].includes(course.status || '') && course.approved_by && course.approved_at && (
+              <Box>
+                <Typography variant="body2" fontWeight={500}>Approved by: {course.approved_by}</Typography>
+                <Typography variant="body2" color="text.secondary">Approved: {new Date(course.approved_at).toLocaleDateString()}</Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Box>
+
+  <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, md: 8 } }}>
+        {/* Main content (no outer card) */}
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ p: 4 }}>
+            {/* Centered content area: remove left icon and center info like degree page */}
+            <Box sx={{ maxWidth: 920, mx: 'auto', textAlign: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 6, flexWrap: 'wrap', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {renderIcon(CourseIcon, { sx: { color: 'primary.main', fontSize: 20 } })}
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Code</Typography>
+                    <Typography variant="h6" fontWeight={700}>{course.code}</Typography>
+                  </Box>
                 </Box>
-                {course.description && (
-                  <Typography variant="body1" color="text.secondary" sx={{ mt: 2, lineHeight: 1.7 }}>
-                    {course.description}
-                  </Typography>
-                )}
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {renderIcon(StarIcon, { sx: { color: 'primary.main', fontSize: 20 } })}
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Credits</Typography>
+                    <Typography variant="h6" fontWeight={700}>{course.credits}</Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {renderIcon(ScheduleIcon, { sx: { color: 'primary.main', fontSize: 20 } })}
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Semester</Typography>
+                    <Typography variant="h6" fontWeight={700}>{course.semester}</Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {renderIcon(DepartmentIcon, { sx: { color: 'primary.main', fontSize: 20 } })}
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Department Code</Typography>
+                    <Typography variant="h6" fontWeight={700}>{course.department?.code || (course as any).department_code || ''}</Typography>
+                  </Box>
+                </Box>
               </Box>
             </Box>
 
-            {/* Quick Stats */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Paper
-                  sx={{
-                    p: 2,
-                    textAlign: 'center',
-                    bgcolor: alpha(theme.palette.success.main, 0.05),
-                    border: `1px solid ${alpha(theme.palette.success.main, 0.1)}`,
-                  }}
-                >
-                  <StarIcon sx={{ fontSize: 36, color: 'success.main', mb: 1 }} />
-                  <Typography variant="h6" fontWeight={600}>
-                    {course.credits}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Credits
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Paper
-                  sx={{
-                    p: 2,
-                    textAlign: 'center',
-                    bgcolor: alpha(theme.palette.primary.main, 0.05),
-                    border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  }}
-                >
-                  <CourseIcon sx={{ fontSize: 36, color: 'primary.main', mb: 1 }} />
-                  <Typography variant="h6" fontWeight={600}>
-                    Semester {course.semester}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Semester
-                  </Typography>
-                </Paper>
-              </Grid>
-              {course.department && (
-                <Grid item xs={12} sm={6} md={3}>
-                  <Paper
-                    sx={{
-                      p: 2,
-                      textAlign: 'center',
-                      bgcolor: alpha(theme.palette.info.main, 0.05),
-                      border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
-                    }}
-                  >
-                    <DepartmentIcon sx={{ fontSize: 36, color: 'info.main', mb: 1 }} />
-                    <Typography variant="body2" fontWeight={600}>
-                      {course.department.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Department
-                    </Typography>
-                  </Paper>
-                </Grid>
-              )}
-              {course.degree && (
-                <Grid item xs={12} sm={6} md={3}>
-                  <Paper
-                    sx={{
-                      p: 2,
-                      textAlign: 'center',
-                      bgcolor: alpha(theme.palette.secondary.main, 0.05),
-                      border: `1px solid ${alpha(theme.palette.secondary.main, 0.1)}`,
-                    }}
-                  >
-                    <SchoolIcon sx={{ fontSize: 36, color: 'secondary.main', mb: 1 }} />
-                    <Typography variant="body2" fontWeight={600} noWrap>
-                      {course.degree.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Degree Programme
-                    </Typography>
-                  </Paper>
-                </Grid>
-              )}
-            </Grid>
 
-            {/* Metadata (for authenticated users viewing by ID) */}
-            {user && isUUID(Array.isArray(id) ? id[0] : id || '') && (
+              <Box sx={{ mb: 4 }}>
+                {renderHtmlContent(course.description)}
+              </Box>
+
+            {course.study_details && (
               <>
-                <Divider sx={{ my: 3 }} />
-                <Box>
-                  <Typography variant="h6" gutterBottom fontWeight={600}>
-                    Course Metadata
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    Study Details
                   </Typography>
-                  <Grid container spacing={2}>
-                    {course.created_at && (
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Created: {new Date(course.created_at).toLocaleDateString()}
-                        </Typography>
-                      </Grid>
-                    )}
-                    {course.activated_at && (
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Activated: {new Date(course.activated_at).toLocaleDateString()}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
+                  <Box sx={{ pt: 1 }}>{renderHtmlContent(course.study_details)}</Box>
                 </Box>
               </>
             )}
 
-            <Divider sx={{ my: 4 }} />
-
-            {/* Course Overview */}
-            {course.overview && (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="h5" fontWeight={600} gutterBottom>
-                  Course Overview
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.8, whiteSpace: 'pre-line' }}>
-                  {course.overview}
-                </Typography>
-              </Box>
+            {/* Requirements / Prerequisites */}
+            {course.prerequisites && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    Requirements
+                  </Typography>
+                  <Box sx={{ pl: { xs: 0, md: 0 }, pt: 1 }}>
+                    <Box sx={{ mb: 1 }}>{renderHtmlContent(course.prerequisites)}</Box>
+                  </Box>
+                </Box>
+              </>
             )}
 
-            {/* Study Details */}
-            {course.study_details && (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="h5" fontWeight={600} gutterBottom>
-                  Study Details
-                </Typography>
-                <Paper sx={{ p: 3, bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                  {typeof course.study_details === 'object' ? (
-                    <Grid container spacing={2}>
-                      {Object.entries(course.study_details).map(([key, value]) => (
-                        <Grid item xs={12} sm={6} key={key}>
-                          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                            {key.replace(/_/g, ' ').toUpperCase()}
-                          </Typography>
-                          <Typography variant="body1">{String(value)}</Typography>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  ) : (
-                    <Typography variant="body1">{JSON.stringify(course.study_details)}</Typography>
-                  )}
-                </Paper>
-              </Box>
+            {/* Learning objectives */}
+            {course.learning_objectives && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    Learning Objectives
+                  </Typography>
+                  <Box sx={{ pt: 1 }}>{renderHtmlContent(course.learning_objectives)}</Box>
+                </Box>
+              </>
             )}
 
-            {/* Faculty Details */}
+            {/* Course outcomes */}
+            {course.course_outcomes && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    Outcomes
+                  </Typography>
+                  <Box sx={{ pt: 1 }}>{renderHtmlContent(course.course_outcomes)}</Box>
+                </Box>
+              </>
+            )}
+
+            {/* Assessment methods */}
+            {course.assessment_methods && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    Assessment Methods
+                  </Typography>
+                  <Box sx={{ pt: 1 }}>{renderHtmlContent(course.assessment_methods)}</Box>
+                </Box>
+              </>
+            )}
+
+            {/* Textbooks & references */}
+            {course.textbooks && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    Textbooks
+                  </Typography>
+                  <Box sx={{ pt: 1 }}>{renderHtmlContent(course.textbooks)}</Box>
+                </Box>
+              </>
+            )}
+
+            {course.references && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    References
+                  </Typography>
+                  <Box sx={{ pt: 1 }}>{renderHtmlContent(course.references)}</Box>
+                </Box>
+              </>
+            )}
+
             {course.faculty_details && (
-              <Box>
-                <Typography variant="h5" fontWeight={600} gutterBottom>
-                  Faculty Information
-                </Typography>
-                <Paper sx={{ p: 3, bgcolor: alpha(theme.palette.secondary.main, 0.02) }}>
-                  {typeof course.faculty_details === 'object' ? (
-                    <Grid container spacing={2}>
-                      {Object.entries(course.faculty_details).map(([key, value]) => (
-                        <Grid item xs={12} sm={6} key={key}>
-                          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                            {key.replace(/_/g, ' ').toUpperCase()}
-                          </Typography>
-                          <Typography variant="body1">{String(value)}</Typography>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  ) : (
-                    <Typography variant="body1">{JSON.stringify(course.faculty_details)}</Typography>
-                  )}
-                </Paper>
-              </Box>
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" fontWeight={600} gutterBottom>
+                    Faculty Details
+                  </Typography>
+                  <Box sx={{ pt: 1 }}>{renderHtmlContent(course.faculty_details)}</Box>
+                </Box>
+              </>
             )}
-          </CardContent>
-        </Card>
+          </Box>
+        </Box>
       </Container>
     </Box>
   );
 };
 
-// Disable the default DashboardLayout for this page (allow public access)
-CourseDetailPage.getLayout = (page: React.ReactElement) => page;
+// Use the app's default layout so the global header/footer and site chrome are applied.
+// (Removed the custom getLayout override that prevented the global layout from rendering.)
+
+// Disable the default DashboardLayout for this page but wrap with PublicShell
+// @ts-expect-error: Next.js custom property
+CourseDetailPage.getLayout = (page: React.ReactNode) => <PublicShell>{page}</PublicShell>;
 
 export default CourseDetailPage;

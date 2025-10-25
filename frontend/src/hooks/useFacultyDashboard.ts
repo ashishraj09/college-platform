@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { coursesAPI, degreesAPI, messageAPI } from '../services/api';
+import { coursesAPI, degreesAPI } from '../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../contexts/AuthContext';
 

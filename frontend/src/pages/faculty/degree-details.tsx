@@ -33,6 +33,7 @@ import {
 import { degreesAPI, coursesAPI } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 interface DegreeDetails {
   id: string;
@@ -76,7 +77,8 @@ interface Course {
 }
 
 const DegreeDetailsPage: React.FC = () => {
-  const { degreeId } = useParams<{ degreeId: string }>();
+  const router = useRouter();
+  const degreeId = router.query.degreeId as string | undefined;
   // Removed unused navigate
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();

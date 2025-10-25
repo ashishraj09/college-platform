@@ -14,6 +14,7 @@ type RichTextEditorProps = {
   label?: string;
   value?: string;
   onChange?: (event: { target: { value: string } }) => void;
+  error?: string;
 };
 
 const TOOLBAR_OPTIONS = [
@@ -29,6 +30,21 @@ const TOOLBAR_OPTIONS = [
 ];
 
 const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((props, ref) => {
+  // Focus Quill editor when clicking anywhere in the editor area (not toolbar/tabs)
+  const handleEditorAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (editorRef.current && quillRef.current && tab === 'visual') {
+      // Only focus if not clicking on toolbar/tabs
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('.ql-toolbar') ||
+        target.tagName === 'BUTTON' ||
+        target.closest('[role="button"]')
+      ) {
+        return;
+      }
+      quillRef.current.focus();
+    }
+  };
   const editorRef = useRef<HTMLDivElement>(null);
   const quillRef = useRef<Quill | null>(null);
   const [tab, setTab] = useState<'visual' | 'html'>('visual');
@@ -105,11 +121,25 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((pr
     }
   }, [tab]);
 
-  const width = props.width ?? 420;
-  const height = props.height ?? 180;
+  // Responsive width and height
+  const width = props.width ?? '100%';
+  const minHeight = props.height ?? 180;
 
   return (
-    <div style={{ position: 'relative', border: '1px solid #ccc', borderRadius: 8, background: '#fff', width, boxSizing: 'border-box', padding: 0, boxShadow: 'none' }}>
+  <div style={{
+      position: 'relative',
+      border: '1px solid #ccc',
+      borderRadius: 8,
+      background: '#fff',
+      width: width,
+      maxWidth: '100%',
+      minWidth: 240,
+      boxSizing: 'border-box',
+      padding: 0,
+      boxShadow: 'none',
+      margin: '0 auto',
+      overflow: 'visible',
+    }}>
       {props.label && (
         <label style={{
           position: 'absolute',
@@ -125,88 +155,114 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((pr
           lineHeight: 1,
         }}>{props.label}</label>
       )}
-      <div style={{ padding: '16px 12px 8px 12px' }}>
-  <div style={{ display: 'flex', borderBottom: '2px solid #eee', marginBottom: 0, paddingLeft: 24, paddingTop: 12 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <span style={{ display: 'inline-block', position: 'relative' }}>
-            <button
-              onClick={() => setTab('visual')}
-              style={{
-                fontWeight: tab === 'visual' ? 600 : 400,
-                border: 'none',
-                background: 'none',
-                color: tab === 'visual' ? '#222' : '#888',
-                fontSize: '1em',
-                padding: '2px 8px 2px 0',
-                outline: 'none',
-                cursor: 'pointer',
-                lineHeight: 1.2,
-                transition: 'color 0.2s',
-              }}
-            >
-              Visual
-            </button>
-            {tab === 'visual' && (
-              <span style={{
-                display: 'block',
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                bottom: -2,
-                height: 0,
-                borderBottom: '2.5px solid #222',
-              }} />
-            )}
-          </span>
-          <span style={{ display: 'inline-block', position: 'relative' }}>
-            <button
-              onClick={() => setTab('html')}
-              style={{
-                fontWeight: tab === 'html' ? 600 : 400,
-                border: 'none',
-                background: 'none',
-                color: tab === 'html' ? '#222' : '#888',
-                fontSize: '1em',
-                padding: '2px 8px 2px 0',
-                outline: 'none',
-                cursor: 'pointer',
-                lineHeight: 1.2,
-                transition: 'color 0.2s',
-              }}
-            >
-              HTML
-            </button>
-            {tab === 'html' && (
-              <span style={{
-                display: 'block',
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                bottom: -2,
-                height: 0,
-                borderBottom: '2.5px solid #222',
-              }} />
-            )}
-          </span>
+      <div
+        style={{
+          padding: '16px 12px 8px 12px',
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+        onClick={handleEditorAreaClick}
+      >
+        <div style={{ display: 'flex', borderBottom: '2px solid #eee', marginBottom: 0, paddingLeft: 24, paddingTop: 12 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <span style={{ display: 'inline-block', position: 'relative' }}>
+              <button
+                onClick={() => setTab('visual')}
+                style={{
+                  fontWeight: tab === 'visual' ? 600 : 400,
+                  border: 'none',
+                  background: 'none',
+                  color: tab === 'visual' ? '#222' : '#888',
+                  fontSize: '1em',
+                  padding: '2px 8px 2px 0',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  lineHeight: 1.2,
+                  transition: 'color 0.2s',
+                }}
+              >
+                Visual
+              </button>
+              {tab === 'visual' && (
+                <span style={{
+                  display: 'block',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: -2,
+                  height: 0,
+                  borderBottom: '2.5px solid #222',
+                }} />
+              )}
+            </span>
+            <span style={{ display: 'inline-block', position: 'relative' }}>
+              <button
+                onClick={() => setTab('html')}
+                style={{
+                  fontWeight: tab === 'html' ? 600 : 400,
+                  border: 'none',
+                  background: 'none',
+                  color: tab === 'html' ? '#222' : '#888',
+                  fontSize: '1em',
+                  padding: '2px 8px 2px 0',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  lineHeight: 1.2,
+                  transition: 'color 0.2s',
+                }}
+              >
+                HTML
+              </button>
+              {tab === 'html' && (
+                <span style={{
+                  display: 'block',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: -2,
+                  height: 0,
+                  borderBottom: '2.5px solid #222',
+                }} />
+              )}
+            </span>
+          </div>
         </div>
-      </div>
-      <div style={{ position: 'relative', width: '100%' }}>
-        <div ref={editorRef} style={{ height }} />
+        <div style={{ position: 'relative', width: '100%' }}>
+          <div
+            ref={editorRef}
+            style={{
+              minHeight: minHeight,
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              overflow: 'auto',
+            }}
+          />
           {tab === 'html' && (
-            <div style={{ position: 'absolute', inset: 0, margin: 0, padding: 12, background: '#fafbfc', height, width: '100%', boxSizing: 'border-box', borderRadius: 0 }}>
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              margin: 0,
+              padding: 12,
+              background: '#fafbfc',
+              minHeight: minHeight,
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              borderRadius: 0,
+              overflow: 'auto',
+            }}>
               <textarea
                 style={{
                   width: '100%',
-                  minHeight: height,
-                  maxHeight: height,
-                  height: height,
+                  minHeight: minHeight,
                   border: 'none',
                   outline: 'none',
                   background: 'transparent',
                   fontFamily: 'monospace',
                   fontSize: 15,
                   color: '#222',
-                  resize: 'none',
+                  resize: 'vertical',
                   boxSizing: 'border-box',
                   padding: 0,
                   overflow: 'auto',
@@ -217,7 +273,10 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((pr
               />
             </div>
           )}
-      </div>
+        </div>
+        {props.error && (
+          <div style={{ color: '#d32f2f', fontSize: 13, marginTop: 4, marginLeft: 2 }}>{props.error}</div>
+        )}
       </div>
     </div>
   );

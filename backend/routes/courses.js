@@ -6,7 +6,6 @@
  * - Code-based lookups for department and degree (department_code, degree_code)
  * - DB integrity via department_id, degree_id
  * - Error handling, security, validation, audit, maintainability
- * - See 1.md for full standards checklist
  */
 
 const express = require('express');
@@ -20,6 +19,100 @@ const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 const { sendCourseApprovalEmail } = require('../utils/email');
 const { handleCaughtError } = require('../utils/errorHandler');
 
+// Helper: fetch a course by id or code and format the response.
+// includeMeta: when true, include created/updated/approved names and timestamps (for preview)
+// resolveNames: when true, attempt to resolve faculty UUIDs to human names
+async function fetchAndFormatCourse({ id, code, includeMeta = false, resolveNames = true, activeOnly = false }) {
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
+
+  const where = id ? { id } : { code: (code || '').toUpperCase() };
+  if (activeOnly) where.status = 'active';
+
+  const course = await Course.findOne({
+    where,
+    include: [
+      { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+      { model: Degree, as: 'degreeByCode', attributes: ['id', 'name', 'code'] },
+      { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+      { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
+      { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'], required: false }
+    ]
+  });
+
+  if (!course) return null;
+
+  const formatted = {
+    id: course.id,
+    name: course.name,
+    code: course.code,
+    description: course.description,
+    overview: course.overview || course.description,
+    study_details: course.study_details || null,
+    credits: course.credits,
+    semester: course.semester,
+    status: course.status,
+    department: course.departmentByCode ? { name: course.departmentByCode.name, code: course.departmentByCode.code } : null,
+    degree: course.degreeByCode ? { name: course.degreeByCode.name, code: course.degreeByCode.code } : null,
+    prerequisites: course.prerequisites,
+    learning_objectives: course.learning_objectives,
+    course_outcomes: course.course_outcomes,
+    assessment_methods: course.assessment_methods,
+    textbooks: course.textbooks,
+    references: course.references,
+    faculty_details: course.faculty_details,
+    max_students: course.max_students,
+    primary_instructor: course.primary_instructor,
+    is_elective: course.is_elective,
+    department_code: course.department_code,
+    degree_code: course.degree_code,
+    version_code: course.version_code || null,
+    parent_course_id: course.parent_course_id,
+    version: course.version,
+    is_latest_version: course.is_latest_version,
+    created_at: course.created_at,
+    updated_at: course.updated_at,
+    submitted_at: course.submitted_at || null,
+  };
+
+  if (includeMeta) {
+    // Attach creator/updater/approver meta if available
+    formatted.created_by = course.creator ? `${course.creator.first_name} ${course.creator.last_name}` : null;
+    formatted.updated_by = course.updater ? `${course.updater.first_name} ${course.updater.last_name}` : null;
+    formatted.approved_by = course.approver ? `${course.approver.first_name} ${course.approver.last_name}` : null;
+    formatted.approved_at = course.approved_at || null;
+  }
+
+  // Optionally resolve faculty UUIDs to names (best effort, non-blocking)
+  if (resolveNames && formatted.faculty_details && typeof formatted.faculty_details === 'object') {
+    const UserModel = User; // for clarity
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const resolve = async (instructorId) => {
+      if (!instructorId || typeof instructorId !== 'string') return instructorId;
+      if (!uuidPattern.test(instructorId)) return instructorId;
+      try {
+        const u = await UserModel.findByPk(instructorId, { attributes: ['id', 'first_name', 'last_name'] });
+        return u ? `${u.first_name} ${u.last_name}` : instructorId;
+      } catch (e) {
+        return instructorId;
+      }
+    };
+
+    // shallow resolve common instructor fields
+    const fd = { ...formatted.faculty_details };
+    if (fd.primary_instructor) fd.primary_instructor = await resolve(fd.primary_instructor);
+    if (fd.instructor) fd.instructor = await resolve(fd.instructor);
+    if (fd.co_instructors && Array.isArray(fd.co_instructors)) fd.co_instructors = await Promise.all(fd.co_instructors.map(resolve));
+    if (fd.guest_lecturers && Array.isArray(fd.guest_lecturers)) fd.guest_lecturers = await Promise.all(fd.guest_lecturers.map(resolve));
+    if (fd.lab_instructors && Array.isArray(fd.lab_instructors)) fd.lab_instructors = await Promise.all(fd.lab_instructors.map(resolve));
+    formatted.faculty_details = fd;
+  }
+
+  return formatted;
+}
+
 
 /**
  * GET /courses/public/:code
@@ -30,62 +123,33 @@ const { handleCaughtError } = require('../utils/errorHandler');
  */
 router.get('/public/:code', async (req, res) => {
   try {
-    const { Course, Department, Degree } = await models.getMany('Course', 'Department', 'Degree');
     const { code } = req.params;
-
-    const course = await Course.findOne({
-      where: { 
-        code: code.toUpperCase(),
-        status: 'active' 
-      },
-      include: [
-        {
-          model: Department,
-          as: 'departmentByCode',
-          attributes: ['id', 'name', 'code'],
-        },
-        {
-          model: Degree,
-          as: 'degreeByCode',
-          attributes: ['id', 'name', 'code'],
-        },
-      ],
-    });
-
-    if (!course) {
+    // Use shared helper - public endpoint should only expose non-meta fields and active courses
+    // Query DB for active course directly to avoid ambiguous matches with non-active versions
+    const formatted = await fetchAndFormatCourse({ code, includeMeta: false, resolveNames: true, activeOnly: true });
+    if (!formatted) {
       return res.status(404).json({ error: 'Course not found or not active' });
     }
-
-    const formattedCourse = {
-      id: course.id,
-      name: course.name,
-      code: course.code,
-      description: course.description,
-      credits: course.credits,
-      semester: course.semester,
-      status: course.status,
-      department: course.departmentByCode ? {
-        name: course.departmentByCode.name,
-        code: course.departmentByCode.code,
-      } : null,
-      degree: course.degreeByCode ? {
-        name: course.degreeByCode.name,
-        code: course.degreeByCode.code,
-      } : null,
-      prerequisites: course.prerequisites,
-      learning_objectives: course.learning_objectives,
-      course_outcomes: course.course_outcomes,
-      assessment_methods: course.assessment_methods,
-      textbooks: course.textbooks,
-      references: course.references,
-      faculty_details: course.faculty_details,
-    };
-
-    res.json({ course: formattedCourse });
+    res.json({ course: formatted });
   } catch (error) {
     handleCaughtError(res, error, 'Failed to fetch course details');
   }
 });
+
+// Preview course (authenticated) - returns meta fields
+router.get('/preview/:id',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const formatted = await fetchAndFormatCourse({ id, includeMeta: true, resolveNames: true });
+      if (!formatted) return res.status(404).json({ error: 'Course not found' });
+      res.json({ course: formatted });
+    } catch (error) {
+      handleCaughtError(res, error, 'Failed to fetch course preview');
+    }
+  }
+);
 
 
 // Course validation rules
@@ -275,15 +339,8 @@ router.get('/my-courses',
     const User = await models.User();
     
     // Extract query parameters
-    console.log('Request query parameters raw:', req.query);
     const userId = req.query.userId || null;
     const departmentId = req.query.departmentId || null;
-    
-    console.log('Extracted parameters:', { 
-      userId, 
-      departmentId,
-      authUser: req.user ? { id: req.user.id, type: req.user.user_type } : 'No auth user'
-    });
     
     // For development/testing when authentication is disabled
     const user = req.user || { 
@@ -298,13 +355,6 @@ router.get('/my-courses',
       return res.status(400).json({ error: 'User context required - missing userId or departmentId parameters' });
     }
     
-    console.log('User info for my-courses:', {
-      id: user.id,
-      department_id: user.department_id,
-      user_type: user.user_type,
-      is_head_of_department: user.is_head_of_department || false
-    });
-    
     // Create where clause based on user type and permissions
     let whereClause = {};
     
@@ -312,11 +362,6 @@ router.get('/my-courses',
     if (user.department_id) {
       whereClause.department_id = user.department_id;
     }
-    
-    // Debug the userId parameter 
-    console.log('userId parameter type:', typeof req.query.userId);
-    console.log('userId parameter value:', req.query.userId);
-    console.log('Original request query parameters:', req.query);
     
     // If a specific userId is provided in the query parameter, use that FIRST
     if (req.query.userId && String(req.query.userId).length > 0) {
@@ -337,9 +382,6 @@ router.get('/my-courses',
       whereClause.created_by = user.id;
       console.log('Added created_by filter as safety check for faculty user');
     }
-    
-        // Print the final SQL filter that will be applied
-    console.log('Final SQL filter to be applied:', JSON.stringify(whereClause, null, 2));
     
     const courses = await Course.findAll({
       where: whereClause,
@@ -374,16 +416,7 @@ router.get('/my-courses',
       ],
       order: [['created_at', 'DESC']]
     });
-    
-    // Add debugging to check creator info
-    console.log(`Found ${courses.length} courses with the following creators:`);
-    const creators = courses.slice(0, 5).map(course => ({
-      course_name: course.name,
-      course_id: course.id,
-      created_by: course.created_by,
-      creator: course.creator ? { id: course.creator.id, name: `${course.creator.first_name} ${course.creator.last_name}` } : null
-    }));
-    console.log('Sample courses creator info:', creators);
+
 
     // Helper function to resolve instructor names
     const resolveInstructorNames = async (facultyDetails) => {
@@ -449,16 +482,14 @@ router.get('/my-courses',
     };
 
     const summary = {
-      total: coursesWithDraftFlag.length,
+      total: coursesWithPendingFlag.length,
       draft: categorized.draft.length,
       approved: categorized.approved.length,
       active: categorized.active.length
     };
 
-    console.log(`Returning ${coursesWithDraftFlag.length} courses with filter:`, whereClause);
-    
     res.json({
-      all: coursesWithDraftFlag,
+      all: coursesWithPendingFlag,
       categorized,
       summary
     });
@@ -539,9 +570,8 @@ router.get('/department-courses',
       all: courses,
       byStatus: coursesByStatus,
       departmentInfo: courses.length > 0 ? {
-        id: courses[0].department.id,
-        name: courses[0].department.name,
-      authenticateToken,
+        id: (courses[0].department && courses[0].department.id) || (courses[0].departmentByCode && courses[0].departmentByCode.id) || null,
+        name: (courses[0].department && courses[0].department.name) || (courses[0].departmentByCode && courses[0].departmentByCode.name) || null,
       } : null,
       summary: {
         total: courses.length,
@@ -575,7 +605,6 @@ router.get('/:id',
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'] },
           { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'] },
-          { model: User, as: 'lecturers', attributes: ['id', 'first_name', 'last_name', 'email', 'user_type'], through: { attributes: ['role', 'responsibilities'] } },
         ],
       });
 
@@ -1358,9 +1387,16 @@ router.patch('/:id/approve',
         updated_by: senderId,
       }, { transaction });
       await transaction.commit();
+      // Fetch refreshed course with associations to return accurate approved_by/approved_at
+      const refreshedCourse = await Course.findByPk(course.id, {
+        include: [
+          { model: Department, as: 'departmentByCode' },
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+        ],
+      });
       res.json({
         message: 'Course approved successfully',
-        course,
+        course: refreshedCourse,
       });
     } catch (error) {
       if (transaction) await transaction.rollback();
@@ -1403,6 +1439,9 @@ router.patch('/:id/reject',
         status: 'draft',
         rejection_reason: reason,
         updated_by: user.id || req.body.userId,
+        submitted_at: null,
+        approved_by: null,
+        approved_at: null,
       });
 
       // Add rejection message to messages table

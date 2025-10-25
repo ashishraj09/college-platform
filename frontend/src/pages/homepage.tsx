@@ -24,6 +24,7 @@ import {
   ArrowForward as ArrowIcon,
 } from '@mui/icons-material';
 import { degreesAPI } from '../services/api';
+import PublicShell from '../components/PublicShell';
 import { useRouter } from 'next/router';
 
 interface Degree {
@@ -163,47 +164,6 @@ const Homepage: React.FC = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#fff' }}>
-      {/* Navigation Bar */}
-      <Box
-        sx={{
-          bgcolor: 'white',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        }}
-      >
-        <Container maxWidth="xl">
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box
-                component="img"
-                src="/static/college-logo.png"
-                alt="College Logo"
-                sx={{ 
-                  height: 40, 
-                  width: 'auto',
-                  objectFit: 'contain'
-                }}
-              />
-              <Typography variant="h5" fontWeight={700} color="primary">
-                {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}
-              </Typography>
-            </Box>
-            <Button
-              variant="outlined"
-              startIcon={<LoginIcon />}
-              onClick={() => router.push('/login')}
-              sx={{ fontWeight: 600, px: 3 }}
-            >
-              Login
-            </Button>
-          </Box>
-        </Container>
-      </Box>
-
       {/* Hero Section */}
       <Box
         sx={{
@@ -281,147 +241,106 @@ const Homepage: React.FC = () => {
                     },
                   }}
                 />
+
+                {showSearchResults && searchQuery.length >= 3 && (
+                  <Paper
+                    elevation={8}
+                    sx={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      left: 0,
+                      right: 0,
+                      maxHeight: '60vh',
+                      overflowY: 'auto',
+                      borderRadius: 2,
+                      bgcolor: 'white',
+                      zIndex: 9999,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                    }}
+                  >
+                    {searchResults.degrees.length > 0 && (
+                      <Box>
+                        {searchResults.degrees.map((degree, index) => (
+                          <Box key={degree.id}>
+                            <Box
+                              onClick={() => {
+                                router.push(`/degree/${degree.code}`);
+                                setShowSearchResults(false);
+                              }}
+                              sx={{
+                                px: 4,
+                                py: 2.5,
+                                cursor: 'pointer',
+                                borderBottom: index < searchResults.degrees.length - 1 ? '1px solid #e0e0e0' : 'none',
+                                '&:hover': { bgcolor: '#f9f9f9' },
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              <Typography
+                                variant="body1"
+                                fontWeight={400}
+                                color="text.primary"
+                                sx={{ textAlign: 'left', mb: 0.5, fontSize: '1rem' }}
+                              >
+                                {degree.name}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'left', fontSize: '0.875rem' }}>
+                                {degree.code} • {degree.department?.name}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+
+                    {searchResults.courses.length > 0 && (
+                      <Box>
+                        {searchResults.courses.map((course, index) => (
+                          <Box key={course.id}>
+                            <Box
+                              onClick={() => {
+                                router.push(`/course/${course.code}`);
+                                setShowSearchResults(false);
+                              }}
+                              sx={{
+                                px: 4,
+                                py: 2.5,
+                                cursor: 'pointer',
+                                borderBottom: index < searchResults.courses.length - 1 ? '1px solid #e0e0e0' : 'none',
+                                '&:hover': { bgcolor: '#f9f9f9' },
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              <Typography
+                                variant="body1"
+                                fontWeight={400}
+                                color="text.primary"
+                                sx={{ textAlign: 'left', mb: 0.5, fontSize: '1rem' }}
+                              >
+                                {course.name}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'left', fontSize: '0.875rem' }}>
+                                {course.code} • {course.credits} credits • Semester {course.semester}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+
+                    {searchResults.degrees.length === 0 && searchResults.courses.length === 0 && (
+                      <Box sx={{ px: 3, py: 4, textAlign: 'center' }}>
+                        <Typography variant="body1" color="text.secondary">
+                          No results found
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Try searching with different keywords
+                        </Typography>
+                      </Box>
+                    )}
+                  </Paper>
+                )}
               </Paper>
-
-              {/* Search Results Dropdown */}
-              {showSearchResults && searchQuery.length >= 3 && (
-                <Paper
-                  elevation={8}
-                  sx={{
-                    position: 'absolute',
-                    top: 'calc(100% + 8px)',
-                    left: 0,
-                    right: 0,
-                    maxHeight: '60vh',
-                    overflowY: 'auto',
-                    borderRadius: 2,
-                    bgcolor: 'white',
-                    zIndex: 9999,
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    '&::-webkit-scrollbar': {
-                      width: '8px',
-                    },
-                    '&::-webkit-scrollbar-track': {
-                      bgcolor: '#f1f1f1',
-                    },
-                    '&::-webkit-scrollbar-thumb': {
-                      bgcolor: '#888',
-                      borderRadius: '4px',
-                      '&:hover': {
-                        bgcolor: '#555',
-                      },
-                    },
-                  }}
-                >
-                  {searchResults.degrees.length > 0 && (
-                    <Box>
-                      {searchResults.degrees.map((degree, index) => (
-                        <Box key={degree.id}>
-                          <Box
-                            onClick={() => {
-                              router.push(`/degree/${degree.code}`);
-                              setShowSearchResults(false);
-                            }}
-                            sx={{
-                              px: 4,
-                              py: 2.5,
-                              cursor: 'pointer',
-                              borderBottom: index < searchResults.degrees.length - 1 ? '1px solid #e0e0e0' : 'none',
-                              '&:hover': {
-                                bgcolor: '#f9f9f9',
-                              },
-                              transition: 'background-color 0.2s',
-                            }}
-                          >
-                            <Typography 
-                              variant="body1" 
-                              fontWeight={400} 
-                              color="text.primary" 
-                              sx={{ 
-                                textAlign: 'left',
-                                mb: 0.5,
-                                fontSize: '1rem',
-                              }}
-                            >
-                              {degree.name}
-                            </Typography>
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary" 
-                              sx={{ 
-                                textAlign: 'left',
-                                fontSize: '0.875rem',
-                              }}
-                            >
-                              {degree.code} • {degree.department?.name}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
-                  )}
-
-                  {searchResults.courses.length > 0 && (
-                    <Box>
-                      {searchResults.courses.map((course, index) => (
-                        <Box key={course.id}>
-                          <Box
-                            onClick={() => {
-                              router.push(`/course/${course.code}`);
-                              setShowSearchResults(false);
-                            }}
-                            sx={{
-                              px: 4,
-                              py: 2.5,
-                              cursor: 'pointer',
-                              borderBottom: index < searchResults.courses.length - 1 ? '1px solid #e0e0e0' : 'none',
-                              '&:hover': {
-                                bgcolor: '#f9f9f9',
-                              },
-                              transition: 'background-color 0.2s',
-                            }}
-                          >
-                            <Typography 
-                              variant="body1" 
-                              fontWeight={400} 
-                              color="text.primary" 
-                              sx={{ 
-                                textAlign: 'left',
-                                mb: 0.5,
-                                fontSize: '1rem',
-                              }}
-                            >
-                              {course.name}
-                            </Typography>
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary" 
-                              sx={{ 
-                                textAlign: 'left',
-                                fontSize: '0.875rem',
-                              }}
-                            >
-                              {course.code} • {course.credits} credits • Semester {course.semester}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
-                  )}
-
-                  {/* No Results Message */}
-                  {searchResults.degrees.length === 0 && searchResults.courses.length === 0 && (
-                    <Box sx={{ px: 3, py: 4, textAlign: 'center' }}>
-                      <Typography variant="body1" color="text.secondary">
-                        No results found
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Try searching with different keywords
-                      </Typography>
-                    </Box>
-                  )}
-                </Paper>
-              )}
             </Box>
           </Box>
         </Container>
@@ -512,7 +431,7 @@ const Homepage: React.FC = () => {
         </Typography>
         
         <Grid container spacing={6} justifyContent="center" alignItems="stretch" sx={{ maxWidth: 1100, mx: 'auto' }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
               <Box
                 sx={{
@@ -539,7 +458,7 @@ const Homepage: React.FC = () => {
             </Box>
           </Grid>
           
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <Box sx={{ textAlign: 'center', px: 2 }}>
               <Box
                 sx={{
@@ -566,7 +485,7 @@ const Homepage: React.FC = () => {
             </Box>
           </Grid>
           
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
               <Box
                 sx={{
@@ -593,7 +512,7 @@ const Homepage: React.FC = () => {
             </Box>
           </Grid>
           
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Box sx={{ textAlign: 'center', px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
               <Box
                 sx={{
@@ -622,125 +541,14 @@ const Homepage: React.FC = () => {
         </Grid>
       </Container>
 
-      {/* Footer */}
-      <Box
-        sx={{
-          bgcolor: '#f8f9fa',
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          py: 6,
-          mt: 8,
-        }}
-      >
-        <Container maxWidth="lg">
-          <Grid container spacing={4}>
-            {/* Brand Section */}
-            <Grid item xs={12} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-                <Box
-                  component="img"
-                  src="/static/college-logo.png"
-                  alt="College Logo"
-                  sx={{ 
-                    height: 32, 
-                    width: 'auto',
-                    objectFit: 'contain'
-                  }}
-                />
-                <Typography variant="h6" fontWeight={700}>
-                  {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                Empowering students through world-class education.
-              </Typography>
-            </Grid>
-
-            {/* Quick Links */}
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                Quick Links
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{ color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                  onClick={() => setSearchQuery('')}
-                >
-                  All Programmes
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                  onClick={() => router.push('/login')}
-                >
-                  Student Login
-                </Typography>
-              </Box>
-            </Grid>
-
-            {/* Information For */}
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                Information For
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Future Students
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Current Students
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Staff
-                </Typography>
-              </Box>
-            </Grid>
-
-            {/* About */}
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                About
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Our Story
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Leadership
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Careers
-                </Typography>
-              </Box>
-            </Grid>
-
-            {/* Contact */}
-            <Grid item xs={6} sm={3} md={3}>
-              <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
-                Contact
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {degrees.length} Active Programmes
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Email: info@college.edu
-              </Typography>
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 4 }} />
-          
-          <Typography variant="body2" color="text.secondary" align="center">
-            © {new Date().getFullYear()} {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}. All rights reserved.
-          </Typography>
-        </Container>
-      </Box>
     </Box>
   );
 };
 
-// Disable the default DashboardLayout for this page
-Homepage.getLayout = (page: React.ReactElement) => page;
+// Keep bypassing DashboardLayout but wrap with PublicShell
+// @ts-expect-error: Next.js custom property
+Homepage.getLayout = (page: React.ReactNode) => {
+  return <PublicShell>{page}</PublicShell>;
+};
 
 export default Homepage;

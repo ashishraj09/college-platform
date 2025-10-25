@@ -155,7 +155,13 @@ useEffect(() => {
 }, [user && user.id]);
 
 // Centralized function to fetch entities (courses or degrees) with status
-const fetchEntities = async (entityType, page, limit, statusKey, caller = '') => {
+const fetchEntities = async (
+  entityType: 'degree' | 'course',
+  page: number,
+  limit: number,
+  statusKey: string | undefined,
+  caller = ''
+) => {
 
     console.log(`[DEBUG] fetchEntities called from: ${caller}`);
     console.log(`[DEBUG] entityType: ${entityType}, page: ${page}, limit: ${limit}, status: ${statusKey}`);
@@ -362,10 +368,16 @@ useEffect(() => {
       return;
     }
     if (action === 'view') {
-      if (type === 'course') {
-  router.push(`/faculty/course/${entity.id}`);
+      const url = `/${type}/${entity.id}`;
+      try {
+        if (typeof window !== 'undefined' && window.open) {
+          window.open(url, '_blank');
+        } else {
+          router.push(url);
+        }
+      } catch (err) {
+        router.push(url);
       }
-      // Add degree view navigation if available
       return;
     }
     if (action === 'delete') {
@@ -627,11 +639,20 @@ useEffect(() => {
           </Typography>
         )}
         <Box sx={{ mb: 2 }}>
-          <div
-            style={{ color: '#616161', fontSize: '1rem', lineHeight: 1.6 }}
-            dangerouslySetInnerHTML={{
-              __html: DOMPurify.sanitize(item.overview || item.description || '')
+          {/* Truncate long descriptions to a few lines with an ellipsis */}
+          <Box
+            component="div"
+            sx={{
+              color: '#616161',
+              fontSize: '1rem',
+              lineHeight: 1.6,
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
             }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.overview || item.description || '') }}
           />
         </Box>
         {item.rejection_reason && item.status === 'draft' && (

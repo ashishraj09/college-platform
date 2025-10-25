@@ -20,7 +20,6 @@ const { auditMiddleware, captureOriginalData } = require('../middleware/audit');
 
 const router = express.Router();
 
-
 /**
  * GET /degrees/public
  * Purpose: Get all active degrees with courses (public endpoint, no authentication required)
@@ -107,79 +106,183 @@ router.get('/public', async (req, res) => {
  */
 router.get('/public/:code', async (req, res) => {
   try {
-    const { Degree, Department, Course } = await models.getMany('Degree', 'Department', 'Course');
     const { code } = req.params;
-
-    const degree = await Degree.findOne({
-      where: { 
-        code: code.toUpperCase(),
-        status: 'active' 
-      },
-      include: [
-        {
-          model: Department,
-          as: 'departmentByCode',
-          attributes: ['id', 'name', 'code'],
-        },
-        {
-          model: Course,
-          as: 'courses',
-          where: { status: 'active' },
-          required: false,
-          attributes: ['id', 'name', 'code', 'credits', 'semester'],
-        },
-      ],
-    });
-
+    // Use unified helper and request only active degree + active courses for public endpoint
+    const degree = await fetchAndFormatDegree({ code, includeMeta: false, resolveNames: true, activeOnly: true });
     if (!degree) {
       return res.status(404).json({ error: 'Degree programme not found or not active' });
     }
-
-    // Group courses by semester for course_structure
-    let course_structure = {};
-    if (degree.courses && Array.isArray(degree.courses)) {
-      for (const course of degree.courses) {
-        const sem = course.semester || 0;
-        if (!course_structure[sem]) course_structure[sem] = [];
-        course_structure[sem].push(course);
-      }
-    }
-
-    const formattedDegree = {
-      id: degree.id,
-      name: degree.name,
-      code: degree.code,
-      description: degree.description,
-      duration_years: degree.duration_years,
-      status: degree.status,
-      department: degree.departmentByCode ? {
-        id: degree.departmentByCode.id,
-        name: degree.departmentByCode.name,
-        code: degree.departmentByCode.code,
-      } : null,
-      prerequisites: Array.isArray(degree.prerequisites) ? degree.prerequisites : [],
-      study_details: typeof degree.study_details === 'object' && degree.study_details !== null ? degree.study_details : {},
-      faculty_details: typeof degree.faculty_details === 'object' && degree.faculty_details !== null ? degree.faculty_details : {},
-      course_structure: course_structure,
-      total_credits: degree.courses ? degree.courses.reduce((sum, c) => sum + (c.credits || 0), 0) : 0,
-      specializations: degree.specializations,
-      career_prospects: degree.career_prospects,
-      admission_requirements: degree.admission_requirements,
-      accreditation: degree.accreditation,
-      fees: degree.fees,
-      entry_requirements: degree.entry_requirements,
-      learning_outcomes: degree.learning_outcomes,
-      assessment_methods: degree.assessment_methods,
-      contact_information: degree.contact_information,
-      application_deadlines: degree.application_deadlines,
-      application_process: degree.application_process,
-    };
-
-    return res.json({ degree: formattedDegree });
+    return res.json({ degree });
   } catch (error) {
     handleCaughtError(res, error, 'Failed to fetch degree details');
   }
 });
+
+/**
+ * GET /degrees/preview/:id
+ * Purpose: Preview degree by ID (any status, authenticated, department-limited)
+ * Access: Authenticated users of same department as degree
+ * Params: id (degree UUID)
+ * Response: { degree: {...} }
+ */
+router.get('/preview/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+    // Request meta fields for preview only
+    const degree = await fetchAndFormatDegree({ id, includeMeta: true });
+    if (!degree) {
+      return res.status(404).json({ error: 'Degree programme not found' });
+    }
+    // Department access check
+    if (!user || !user.department_code || user.department_code !== degree.department?.code) {
+      return res.status(403).json({ error: 'Access denied: not in same department as degree' });
+    }
+      // degree already includes meta because we requested includeMeta
+      return res.json({ degree });
+  } catch (error) {
+    handleCaughtError(res, error, 'Failed to fetch degree preview');
+  }
+});
+
+// Unified function to fetch and format degree by id or code
+async function fetchAndFormatDegree({ id, code, includeMeta = false, resolveNames = true, activeOnly = false }) {
+  const { Degree, Department, Course, User } = await models.getMany('Degree', 'Department', 'Course', 'User');
+  let degree = null;
+  if (id) {
+    degree = await Degree.findByPk(id, {
+      include: [
+        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+        { model: Course, as: 'coursesByCode', required: false, attributes: ['id', 'name', 'code', 'credits', 'semester', 'status'] },
+      ],
+    });
+  } else if (code) {
+    const where = { code: code.toUpperCase() };
+    if (activeOnly) where.status = 'active';
+    degree = await Degree.findOne({
+      where,
+      include: [
+        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+        { model: Course, as: 'coursesByCode', where: activeOnly ? { status: 'active' } : undefined, required: false, attributes: ['id', 'name', 'code', 'credits', 'semester', 'status'] },
+      ],
+    });
+  }
+  if (!degree) return null;
+  // Group courses by semester for course_structure
+  let course_structure = {};
+  const coursesArr = degree.coursesByCode || [];
+  if (coursesArr.length > 0) {
+    for (const course of coursesArr) {
+      const sem = course.semester || 0;
+      if (!course_structure[sem]) course_structure[sem] = [];
+      course_structure[sem].push(course);
+    }
+  }
+  // Flatten course_structure to a single array for 'courses'
+  let flatCourses = [];
+  if (course_structure && typeof course_structure === 'object') {
+    flatCourses = Object.values(course_structure).flat();
+  }
+
+  // Base return object
+  const base = {
+    id: degree.id,
+    name: degree.name,
+    code: degree.code,
+    version: degree.version,
+    description: degree.description,
+    duration_years: degree.duration_years,
+    status: degree.status,
+    department: degree.departmentByCode ? {
+      id: degree.departmentByCode.id,
+      name: degree.departmentByCode.name,
+      code: degree.departmentByCode.code,
+    } : null,
+    prerequisites: degree.prerequisites,
+    study_details: degree.study_details ,
+    faculty_details: degree.faculty_details,
+    course_structure: course_structure,
+    courses: flatCourses,
+    total_credits: degree.total_credits,
+    specializations: degree.specializations,
+    career_prospects: degree.career_prospects,
+    admission_requirements: degree.admission_requirements,
+    accreditation: degree.accreditation,
+    fees: degree.fees,
+    entry_requirements: degree.entry_requirements,
+    learning_outcomes: degree.learning_outcomes,
+    assessment_methods: degree.assessment_methods,
+    contact_information: degree.contact_information,
+    application_deadlines: degree.application_deadlines,
+    application_process: degree.application_process,
+  };
+
+  // Optionally resolve faculty UUIDs to names (respect resolveNames flag)
+  if (resolveNames && base.faculty_details && typeof base.faculty_details === 'object') {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const resolve = async (instructorId) => {
+      if (!instructorId || typeof instructorId !== 'string') return instructorId;
+      if (!uuidPattern.test(instructorId)) return instructorId;
+      try {
+        const u = await User.findByPk(instructorId, { attributes: ['id', 'first_name', 'last_name'] });
+        return u ? `${u.first_name} ${u.last_name}` : instructorId;
+      } catch (e) {
+        return instructorId;
+      }
+    };
+
+    const fd = { ...base.faculty_details };
+    // common fields
+    if (fd.primary_instructor) fd.primary_instructor = await resolve(fd.primary_instructor);
+    if (fd.instructor) fd.instructor = await resolve(fd.instructor);
+    if (fd.co_instructors && Array.isArray(fd.co_instructors)) fd.co_instructors = await Promise.all(fd.co_instructors.map(resolve));
+    if (fd.guest_lecturers && Array.isArray(fd.guest_lecturers)) fd.guest_lecturers = await Promise.all(fd.guest_lecturers.map(resolve));
+    if (fd.lab_instructors && Array.isArray(fd.lab_instructors)) fd.lab_instructors = await Promise.all(fd.lab_instructors.map(resolve));
+    // some degree faculty structures may use an 'instructors' array with instructorId
+    if (fd.instructors && Array.isArray(fd.instructors)) {
+      for (let i = 0; i < fd.instructors.length; i++) {
+        if (fd.instructors[i].instructorId) {
+          fd.instructors[i].instructorId = await resolve(fd.instructors[i].instructorId);
+        }
+      }
+    }
+    // coordinator with coordinatorId
+    if (fd.coordinator && fd.coordinator.coordinatorId) {
+      fd.coordinator.coordinatorId = await resolve(fd.coordinator.coordinatorId);
+    }
+
+    base.faculty_details = fd;
+  }
+
+  // If meta requested, resolve and attach creator/updater/approver names and timestamps
+  if (includeMeta) {
+    let createdByName = null, updatedByName = null, approvedByName = null;
+    if (degree.created_by) {
+      const user = await User.findByPk(degree.created_by);
+      if (user) createdByName = `${user.first_name} ${user.last_name}`;
+    }
+    if (degree.updated_by) {
+      const user = await User.findByPk(degree.updated_by);
+      if (user) updatedByName = `${user.first_name} ${user.last_name}`;
+    }
+    if (degree.approved_by) {
+      const user = await User.findByPk(degree.approved_by);
+      if (user) approvedByName = `${user.first_name} ${user.last_name}`;
+    }
+
+    return {
+      ...base,
+      created_by: createdByName,
+      created_at: degree.createdAt || null,
+      updated_by: updatedByName,
+      updated_at: degree.updatedAt || null,
+      approved_by: approvedByName,
+      approved_at: degree.approved_at || null,
+    };
+  }
+
+  return base;
+}
 
 /**
  * PATCH /degrees/:id/reject
@@ -215,7 +318,7 @@ router.patch(
       if (degree.status !== 'pending_approval') {
         return res.status(400).json({ error: 'Only pending approval degrees can be rejected' });
       }
-      await degree.update({ status: 'draft', feedback: reason, updated_by: user.id });
+  await degree.update({ status: 'draft', feedback: reason, updated_by: user.id, submitted_at: null, approved_by: null, approved_at: null });
       // Add rejection message to messages table
       await Message.create({
         type: 'degree',
@@ -229,7 +332,6 @@ router.patch(
     }
   }
 );
-
 
 /**
  * POST /degrees/:id/create-version
@@ -496,31 +598,90 @@ router.post(
   async (req, res) => {
     try {
       const { Degree, Department } = await models.getMany('Degree', 'Department');
-      const { name, code, description, duration_years, department_id } = req.body;
+      // Destructure all possible fields from req.body
+      const {
+        name,
+        code,
+        description,
+        duration_years,
+        department_code,
+        courses_per_semester,
+        accreditation,
+        admission_requirements,
+        application_deadlines,
+        application_process,
+        assessment_methods,
+        career_prospects,
+        contact_information,
+        degree_type,
+        entry_requirements,
+        fees,
+        learning_outcomes,
+        location,
+        specializations,
+        study_mode,
+        total_credits,
+        prerequisites,
+        study_details,
+        faculty_details,
+        requirements,
+        elective_options,
+        enrollment_config,
+        graduation_requirements,
+        academic_calendar
+      } = req.body;
+
       // Verify department exists and user belongs to it
-      const department = await Department.findByPk(department_id);
+      const department = await Department.findOne({ where: { code: department_code } });
       if (!department) {
         return res.status(400).json({ error: 'Department not found' });
       }
-      // Faculty can only create degrees in their own department (temporarily bypassed for testing)
-      const user = req.user || { department_id };
-      if (user.department_id !== department_id) {
+      // Always use authenticated user context
+      const user = req.user;
+      if (!user || !user.id) {
+        return res.status(400).json({ error: 'User context required' });
+      }
+      if (user.department_code !== department_code) {
         return res.status(403).json({ error: 'Can only create degrees in your own department' });
       }
       // Check for duplicate degree code
-      const existingDegree = await Degree.findOne({ where: { code: code.toUpperCase() } });
+      const existingDegree = await Degree.findOne({ where: { code: code.trim().toUpperCase() } });
       if (existingDegree) {
         return res.status(409).json({ error: 'Degree code already exists' });
       }
-      // Create degree
+      // Create degree with all fields and set created_by
       const degree = await Degree.create({
-        name: name.trim(),
-        code: code.trim().toUpperCase(),
+        name: name?.trim(),
+        code: code?.trim().toUpperCase(),
         description: description?.trim() || null,
         duration_years,
-        department_id,
+        department_code,
         status: 'draft',
-        courses_per_semester: req.body.courses_per_semester || {},
+        courses_per_semester: courses_per_semester,
+        accreditation,
+        admission_requirements,
+        application_deadlines,
+        application_process,
+        assessment_methods,
+        career_prospects,
+        contact_information,
+        degree_type,
+        entry_requirements,
+        fees,
+        learning_outcomes,
+        location,
+        specializations,
+        study_mode,
+        total_credits,
+        prerequisites,
+        study_details,
+        faculty_details,
+        requirements,
+        elective_options,
+        enrollment_config,
+        graduation_requirements,
+        academic_calendar,
+        created_by: user.id
       });
       // Fetch degree with associations
       const createdDegree = await Degree.findByPk(degree.id, {
@@ -535,7 +696,6 @@ router.post(
     }
   }
 );
-
 
 /**
  * GET /degrees/:id
@@ -719,7 +879,8 @@ router.put(
 
       }
 
-      // Apply updates
+      // Always set updated_by to current user
+      updates.updated_by = user.id;
       await degree.update(updates);
 
       const refreshed = await Degree.findByPk(degree.id, {
@@ -769,7 +930,7 @@ router.patch(
         return res.status(400).json({ error: 'Only draft degrees can be submitted' });
       }
 
-      await degree.update({ status: 'pending_approval', updated_by: user.id });
+  await degree.update({ status: 'pending_approval', updated_by: user.id, submitted_at: new Date() });
 
       // Optionally add a message to the timeline
       if (req.body && req.body.message) {
@@ -870,7 +1031,7 @@ router.patch(
         return res.status(500).json({ error: 'Failed to create approval message' });
       }
 
-      await degree.update({ status: 'approved', approved_by: user.id, updated_by: user.id }, { transaction });
+  await degree.update({ status: 'approved', approved_by: user.id, approved_at: new Date(), updated_by: user.id }, { transaction });
 
       await transaction.commit();
 

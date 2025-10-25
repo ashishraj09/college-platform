@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { AuthContext } from '../contexts/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 import Homepage from './homepage';
+import PublicShell from '../components/PublicShell';
 import type { NextPage } from 'next';
 
 const HomeRedirect: NextPage & { getLayout?: (page: React.ReactElement) => React.ReactNode } = () => {
@@ -46,9 +47,13 @@ const HomeRedirect: NextPage & { getLayout?: (page: React.ReactElement) => React
     );
   }
 
-  // If not authenticated, show the homepage directly
+  // If not authenticated, show the homepage wrapped in the public shell
   if (!auth?.isAuthenticated) {
-    return <Homepage />;
+    return (
+      <PublicShell>
+        <Homepage />
+      </PublicShell>
+    );
   }
 
   return null;
