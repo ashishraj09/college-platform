@@ -21,9 +21,6 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
-  // Export as static HTML
-  output: 'export',
-  
   //  Disable image optimization for static export
   images: {
     unoptimized: true,
