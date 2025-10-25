@@ -3,6 +3,7 @@ import type { AppProps } from 'next/app';
 import { Provider } from 'react-redux';
 import { store } from '../store/store';
 import '../styles/globals.css';
+import 'quill/dist/quill.snow.css';
 import { Analytics } from '@vercel/analytics/react';
 import { SnackbarProvider } from 'notistack';
 

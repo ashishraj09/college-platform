@@ -53,11 +53,41 @@ const PublicHeader: React.FC = () => {
             <Typography variant="h5" fontWeight={700} color="primary">
               {process.env.NEXT_PUBLIC_APP_NAME}
             </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', ml: 3, cursor: 'pointer' }} onClick={() => router.push('/') }>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3L2 9L12 15L22 9L12 3Z" fill="#fff"/>
+                <path d="M2 17V9L12 15L22 9V17C22 17.5304 21.7893 18.0391 21.4142 18.4142C21.0391 18.7893 20.5304 19 20 19H4C3.46957 19 2.96086 18.7893 2.58579 18.4142C2.21071 18.0391 2 17.5304 2 17Z" fill="#fff"/>
+              </svg>
+              <Typography variant="h6" fontWeight={500} color="inherit" sx={{ ml: 1, color: '#fff' }}>
+                DEGREES
+              </Typography>
+            </Box>
           </Box>
 
-          <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {isAuthenticated && user && (
+              <Button
+                variant="outlined"
+                color="primary"
+                sx={{ fontWeight: 600, px: 2 }}
+                onClick={() => {
+                  if (user.user_type === 'student') {
+                    router.push('/student');
+                  } else if (user.user_type === 'faculty') {
+                    router.push('/faculty');
+                  } else if (user.user_type === 'office') {
+                    router.push('/office');
+                  } else if (user.user_type === 'admin') {
+                    router.push('/admin');
+                  } else {
+                    router.push('/');
+                  }
+                }}
+              >
+                Dashboard
+              </Button>
+            )}
             {loading ? (
-              // keep header spacing stable while auth refresh completes
               <Box sx={{ width: 110, height: 36 }} />
             ) : isAuthenticated && user ? (
               <>
@@ -152,8 +182,8 @@ const PublicFooter: React.FC<{ extraCountText?: string }> = ({ extraCountText })
                 onClick={() => router.push('/login')}
               >
                 Student Login
-              </Typography>
-            </Box>
+                </Typography>
+              </Box>
           </Grid>
 
           <Grid size={{ xs: 6, sm: 3, md: 2 }}>

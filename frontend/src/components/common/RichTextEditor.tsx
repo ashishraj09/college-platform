@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import Quill from 'quill';
-import 'quill/dist/quill.snow.css';
 
 export type RichTextEditorHandle = {
   getContent: () => string;
@@ -47,12 +46,15 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((pr
   };
   const editorRef = useRef<HTMLDivElement>(null);
   const quillRef = useRef<Quill | null>(null);
+  const [editorLoaded, setEditorLoaded] = useState(false);
   const [tab, setTab] = useState<'visual' | 'html'>('visual');
   const [html, setHtml] = useState(props.value || '');
   const [lastHtml, setLastHtml] = useState(props.value || '');
 
   useEffect(() => {
+    let mounted = true;
     if (editorRef.current && !quillRef.current) {
+      // Initialize Quill directly. This component will be imported client-side via dynamic import with ssr:false.
       quillRef.current = new Quill(editorRef.current, {
         theme: 'snow',
         modules: {
@@ -63,19 +65,23 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((pr
 
       // keep html in sync
       quillRef.current.on('text-change', () => {
-  let htmlContent = quillRef.current!.root.innerHTML;
-  // Normalize Quill empty value
-  if (htmlContent.trim() === '<p><br></p>') htmlContent = '';
-  setHtml(htmlContent);
-  if (props.onChange) props.onChange({ target: { value: htmlContent } });
+        let htmlContent = quillRef.current!.root.innerHTML;
+        // Normalize Quill empty value
+        if (htmlContent.trim() === '<p><br></p>') htmlContent = '';
+        setHtml(htmlContent);
+        if (props.onChange) props.onChange({ target: { value: htmlContent } });
       });
+
       // Set initial value
       if (props.value) {
         quillRef.current.root.innerHTML = props.value;
         setHtml(props.value);
       }
+      setEditorLoaded(true);
     }
+
     return () => {
+      mounted = false;
       if (quillRef.current && editorRef.current) {
         // Remove Quill toolbar and editor from DOM
         editorRef.current.innerHTML = '';

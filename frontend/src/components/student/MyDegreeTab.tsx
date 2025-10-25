@@ -620,7 +620,7 @@ useEffect(() => {
   return (
     <>
       {/* Tab Navigation */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="degree tabs">
           <Tab label="Current Semester" />
           <Tab label="Past Semesters" />
@@ -886,7 +886,14 @@ useEffect(() => {
                                 )}
                                 <Box sx={{ flex: 1 }}>
                                   <Typography variant="body1" component="div">
-                                    {course.name} ({course.code})
+                                    <a
+                                      href={`/student/course/${encodeURIComponent(course.code)}`}
+                                      style={{ textDecoration: 'none', color: '#1976d2', fontWeight: 500 }}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      {course.name} ({course.code})
+                                    </a>
                                   </Typography>
                                   <Typography variant="body2" color="textSecondary" component="div">
                                     {course.credits} credits

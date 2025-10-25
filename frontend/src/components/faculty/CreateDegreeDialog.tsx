@@ -59,6 +59,7 @@ interface DegreeForm {
   contact_information: string;
   application_deadlines: string;
   application_process: string;
+  faculty_details?: string;
 }
 
 const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
@@ -136,6 +137,7 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
     contact_information: '',
     application_deadlines: '',
     application_process: '',
+    faculty_details: '',
   };
   const [form, setForm] = useState<any>(defaultForm);
 
@@ -620,6 +622,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
                 </Box>
                 <Box>
                   <RichTextEditor label="Contact Information" value={form.contact_information} onChange={handleInputChange('contact_information')} width={"100%"} height={120} error={fieldErrors.contact_information} />
+                </Box>
+                <Box>
+                  <RichTextEditor label="Faculty Details" value={form.faculty_details} onChange={handleInputChange('faculty_details')} width={"100%"} height={120} error={fieldErrors.faculty_details} />
                 </Box>
               </Box>
             )}

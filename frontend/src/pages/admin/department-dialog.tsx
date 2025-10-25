@@ -7,8 +7,11 @@ import {
   Button,
   TextField,
   Alert,
+  Box,
 } from '@mui/material';
 import { departmentsAPI } from '../../services/api';
+import dynamic from 'next/dynamic';
+const RichTextEditor = dynamic(() => import('../../components/common/RichTextEditor'), { ssr: false });
 
 interface CreateDepartmentDialogProps {
   open: boolean;
@@ -91,16 +94,14 @@ const CreateDepartmentDialog: React.FC<CreateDepartmentDialogProps> = ({ open, o
             helperText="Short code for the department (will be converted to uppercase)"
           />
 
-          <TextField
-            fullWidth
-            label="Description"
-            value={formData.description}
-            onChange={(e) => handleChange('description', e.target.value)}
-            margin="normal"
-            multiline
-            rows={3}
-            placeholder="Brief description of the department"
-          />
+          <Box sx={{ mt: 1 }}>
+            <RichTextEditor
+              label="Description"
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              height={160}
+            />
+          </Box>
         </DialogContent>
 
         <DialogActions>

@@ -7,36 +7,7 @@ import PublicShell from '../components/PublicShell';
 import type { NextPage } from 'next';
 
 const HomeRedirect: NextPage & { getLayout?: (page: React.ReactElement) => React.ReactNode } = () => {
-  const router = useRouter();
   const auth = useContext(AuthContext);
-
-  useEffect(() => {
-    if (!auth) return;
-    if (auth.loading) return; // Don't redirect while loading
-    if (auth.isAuthenticated && auth.user) {
-      const user = auth.user;
-      if (user.user_type === 'faculty' && user.is_head_of_department) {
-        router.replace('/hod');
-      } else {
-        switch (user.user_type) {
-          case 'admin':
-            router.replace('/admin');
-            break;
-          case 'faculty':
-            router.replace('/faculty');
-            break;
-          case 'student':
-            router.replace('/student');
-            break;
-          case 'office':
-            router.replace('/office');
-            break;
-          default:
-            router.replace('/login');
-        }
-      }
-    }
-  }, [auth, router]);
 
   if (auth?.loading) {
     return (
@@ -47,16 +18,12 @@ const HomeRedirect: NextPage & { getLayout?: (page: React.ReactElement) => React
     );
   }
 
-  // If not authenticated, show the homepage wrapped in the public shell
-  if (!auth?.isAuthenticated) {
-    return (
-      <PublicShell>
-        <Homepage />
-      </PublicShell>
-    );
-  }
-
-  return null;
+  // Always show the homepage wrapped in the public shell, regardless of authentication
+  return (
+    <PublicShell>
+      <Homepage />
+    </PublicShell>
+  );
 };
 
 // Disable the default DashboardLayout for this page

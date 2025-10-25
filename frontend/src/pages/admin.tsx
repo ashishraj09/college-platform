@@ -44,6 +44,8 @@ import { useSnackbar } from 'notistack';
 import CreateDepartmentDialog from './admin/department-dialog';
 import { useRouter } from 'next/router';
 import { usersAPI, departmentsAPI } from '../services/api';
+import dynamic from 'next/dynamic';
+const RichTextEditor = dynamic(() => import('../components/common/RichTextEditor'), { ssr: false });
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -911,8 +913,7 @@ const AdminDashboard: React.FC = () => {
                     <TableRow>
                       <TableCell onClick={() => handleSort(3, 'name')} style={{ cursor: 'pointer' }}>Name {sortConfig.tab === 3 && sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell onClick={() => handleSort(3, 'code')} style={{ cursor: 'pointer' }}>Code {sortConfig.tab === 3 && sortConfig.column === 'code' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
-                      <TableCell onClick={() => handleSort(3, 'description')} style={{ cursor: 'pointer' }}>Description {sortConfig.tab === 3 && sortConfig.column === 'description' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
-                      <TableCell onClick={() => handleSort(3, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 3 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(3, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 3 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -921,7 +922,6 @@ const AdminDashboard: React.FC = () => {
                       <TableRow key={department.id}>
                         <TableCell>{department.name}</TableCell>
                         <TableCell>{department.code}</TableCell>
-                        <TableCell>{department.description}</TableCell>
                         <TableCell>
                           <Chip label={department.status} color={getStatusColor(department.status)} />
                         </TableCell>
@@ -989,17 +989,14 @@ const AdminDashboard: React.FC = () => {
                   value={editFormData.code}
                   onChange={(e) => setEditFormData({ ...editFormData, code: e.target.value })}
                 />
-                <TextField
-                  margin="normal"
-                  fullWidth
-                  id="description"
-                  label="Description"
-                  name="description"
-                  multiline
-                  rows={3}
-                  value={editFormData.description}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                />
+                <Box sx={{ mt: 2 }}>
+                  <RichTextEditor
+                    label="Description"
+                    value={editFormData.description}
+                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                    height={160}
+                  />
+                </Box>
                 <FormControl fullWidth margin="normal">
                   <InputLabel id="status-label">Status</InputLabel>
                   <Select

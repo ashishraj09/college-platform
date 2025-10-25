@@ -72,21 +72,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </Box>
           
           {/* Navigation Links */}
-          {user?.user_type === 'faculty' && (
+          {user?.user_type === 'faculty' && user?.is_head_of_department && router.pathname !== '/hod' && (
             <Box sx={{ display: 'flex', gap: 1, mr: 2 }}>
               <Button
                 color="inherit"
                 startIcon={<DashboardIcon />}
-                onClick={() => router.push('/faculty')}
+                onClick={() => router.push('/hod')}
               >
                 Dashboard
-              </Button>
-              <Button
-                color="inherit"
-                startIcon={<SchoolIcon />}
-                // onClick to /faculty/degrees removed
-              >
-                Degrees
               </Button>
             </Box>
           )}
@@ -97,14 +90,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               <Button
                 color="inherit"
                 startIcon={<DashboardIcon />}
-                onClick={() => router.push('/student')}
+                onClick={() => {
+                  const degreeCode = user?.degree?.code;
+                  if (degreeCode) {
+                    router.push(`/degree/${encodeURIComponent(degreeCode)}`);
+                  } else {
+                    router.push('/student');
+                  }
+                }}
               >
                 My Degree
               </Button>
               <Button
                 color="inherit"
                 startIcon={<SchoolIcon />}
-                onClick={() => router.push('/student/degrees')}
+                onClick={() => window.location.assign('/')}
               >
                 Degrees
               </Button>

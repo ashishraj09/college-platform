@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Tabs, Tab, Button, Card, CardContent, Chip, Grid, Alert, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import Link from 'next/link';
 import { enrollmentAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -161,7 +162,9 @@ const EnrollmentPage: React.FC = () => {
                         <Grid size={{ xs: 12, sm: 6, md: 4 }} key={course.id}>
                           <Card variant="outlined">
                             <CardContent>
-                              <Typography variant="subtitle2">{course.code}: {course.name}</Typography>
+                                      <Typography variant="subtitle2">
+                                        <Link href={`/course/${encodeURIComponent(course.code)}`}>{course.code}: {course.name}</Link>
+                                      </Typography>
                               <Typography variant="body2" color="text.secondary">
                                 Credits: {course.credits} | Department: {course.department?.code}
                               </Typography>
@@ -224,11 +227,13 @@ const EnrollmentPage: React.FC = () => {
                         <Grid size={{ xs: 12, sm: 6, md: 4 }} key={course.id}>
                           <Card variant="outlined">
                             <CardContent>
-                              <Typography variant="subtitle2">{course.code}: {course.name}</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                Credits: {course.credits} | Department: {course.department?.code}
-                              </Typography>
-                            </CardContent>
+                                <Typography variant="subtitle2">
+                                  <Link href={`/course/${encodeURIComponent(course.code)}`}>{course.code}: {course.name}</Link>
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Credits: {course.credits} | Department: {course.department?.code}
+                                </Typography>
+                              </CardContent>
                           </Card>
                         </Grid>
                       ))}

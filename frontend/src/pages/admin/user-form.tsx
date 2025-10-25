@@ -35,6 +35,7 @@ interface FormData {
   degree_code: string;
   student_id: string;
   employee_id: string;
+  current_semester?: number;
   is_head_of_department?: boolean;
 }
 
@@ -65,6 +66,7 @@ const CreateUser: React.FC = () => {
     degree_code: '',
     student_id: '',
     employee_id: '',
+    current_semester: undefined,
     is_head_of_department: false,
   });  const [errors, setErrors] = useState<FormErrors>({});
 
@@ -97,6 +99,7 @@ const CreateUser: React.FC = () => {
           department_code: departmentCode,
           degree_code: degreeCode,
           student_id: userData.student_id || '',
+          current_semester: userData.current_semester || userData.currentSemester || undefined,
           employee_id: userData.employee_id || '',
           is_head_of_department: !!userData.is_head_of_department,
         });
@@ -266,6 +269,7 @@ const CreateUser: React.FC = () => {
       if (formData.user_type === 'student') {
         if (formData.degree_code) userData.degree_code = formData.degree_code;
         if (formData.student_id) userData.student_id = formData.student_id;
+        if (formData.current_semester !== undefined) userData.current_semester = formData.current_semester;
       }
       if (formData.user_type === 'faculty' || formData.user_type === 'office' || formData.user_type === 'admin') {
         if (formData.employee_id) userData.employee_id = formData.employee_id;
@@ -468,6 +472,15 @@ const CreateUser: React.FC = () => {
                   error={!!errors.student_id}
                   helperText={errors.student_id}
                   required
+                />
+                <TextField
+                  fullWidth
+                  label="Current Semester"
+                  type="number"
+                  inputProps={{ min: 1, max: 12 }}
+                  value={formData.current_semester ?? ''}
+                  onChange={(e) => handleInputChange('current_semester', e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                  helperText="Enter the student's current semester (e.g., 1, 2, 3)"
                 />
               </>
             )}
