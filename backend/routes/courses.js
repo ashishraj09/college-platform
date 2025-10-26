@@ -1068,34 +1068,19 @@ router.post('/:id/create-version',
         baseCode = originalCourse.code;
       }
       
-      // Create new course version
-        const newCourseData = {
-          name: originalCourse.name,
-          code: baseCode, // Base code without version suffix
-          description: originalCourse.description,
-          faculty_details: originalCourse.faculty_details,
-          credits: originalCourse.credits,
-          semester: originalCourse.semester,
-          prerequisites: originalCourse.prerequisites,
-          learning_objectives: originalCourse.learning_objectives,
-          course_outcomes: originalCourse.course_outcomes,
-          assessment_methods: originalCourse.assessment_methods,
-          textbooks: originalCourse.textbooks,
-          references: originalCourse.references,
-          max_students: originalCourse.max_students,
-          department_id: originalCourse.department_id,
-          department_code: originalCourse.department_code,
-          degree_id: originalCourse.degree_id,
-          degree_code: originalCourse.degree_code,
-          is_elective: originalCourse.is_elective,
-          created_by: userId,
-          version: nextVersion,
-          parent_course_id: originalCourse.parent_course_id || originalCourse.id,
-          is_latest_version: true,
-          status: 'draft',
-          primary_instructor: originalCourse.primary_instructor,
-          // DO NOT set id here; let Sequelize auto-generate a new UUID
-        };
+      // Use utility to copy all fields except blacklisted ones
+      const { copyModelFieldsForVersioning } = require('../utils/versioning');
+      const blacklist = [
+        'id', 'created_at', 'updated_at', 'approved_at', 'approved_by', 'updated_by',
+        'submitted_at', 'rejection_reason', 'is_latest_version', 'status', 'version',
+        'parent_course_id', 'created_by',
+      ];
+      let newCourseData = copyModelFieldsForVersioning(originalCourse, blacklist);
+      newCourseData.created_by = userId;
+      newCourseData.version = nextVersion;
+      newCourseData.parent_course_id = originalCourse.parent_course_id || originalCourse.id;
+      newCourseData.is_latest_version = true;
+      newCourseData.status = 'draft';
       
       console.log(`[DEBUG] Creating new course version with data:`, {
         name: newCourseData.name,

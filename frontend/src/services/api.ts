@@ -504,9 +504,11 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
-  getActiveDegrees: async (department_code: string) => {
+  getActiveDegrees: async (department_code: string, all_creators: boolean = false) => {
     try {
-      const { data } = await api.get('/degrees', { params: { department_code: department_code, status: 'active' } });
+      const params: any = { department_code: department_code, status: 'active' };
+      if (all_creators) params.all_creators = true;
+      const { data } = await api.get('/degrees', { params });
       return data;
     } catch (err: any) {
       return handleApiError(err);

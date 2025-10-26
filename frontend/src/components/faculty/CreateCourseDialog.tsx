@@ -1,3 +1,4 @@
+// ...existing code...
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -58,7 +59,7 @@ interface CourseForm {
 
 const fieldValidationConfig: { [key: string]: { required?: boolean; minLength?: number; maxLength?: number; pattern?: RegExp; min?: number; max?: number; message?: string } } = {
   name: { required: true, minLength: 3, maxLength: 100, message: 'Course name is required' },
-  code: { required: true, minLength: 3, maxLength: 10, pattern: /^[A-Z0-9]+$/, message: 'Course code is required' },
+  code: { required: true, minLength: 3, maxLength: 15, pattern: /^[A-Z0-9-]+$/, message: 'Course code is required (uppercase letters, numbers, hyphens allowed)' },
   description: { required: true, minLength: 5, message: 'Course description is required' },
   credits: { required: true, min: 1, max: 10, message: 'Credits must be between 1 and 10' },
   semester: { required: true, min: 1, max: 10, message: 'Semester must be between 1 and 10' },
@@ -117,6 +118,15 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
   const [faculty, setFaculty] = useState<any[]>([]);
   const [loadingDegrees, setLoadingDegrees] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState(0);
+
+
+  // Ensure degree_code is always valid when degrees or form.degree_code changes
+  useEffect(() => {
+    if (!degrees || degrees.length === 0) return;
+    if (!degrees.some((d: any) => d.code === form.degree_code)) {
+      setForm(prev => ({ ...prev, degree_code: degrees[0]?.code || '' }));
+    }
+  }, [degrees, form.degree_code]);
   
   // Field validation errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -130,8 +140,9 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
       const fetchDegrees = async () => {
         try {
           setLoadingDegrees(true);
-          const response = await degreesAPI.getActiveDegrees(user.department.code);
-          // Filter degrees to only those matching department code
+          // Pass all_creators=true to fetch all degrees for department
+          const response = await degreesAPI.getActiveDegrees(user.department.code, true);
+          // Filter degrees to only those matching department code (defensive)
           const filteredDegrees = (response.degrees || []).filter((degree: any) => degree.department_code === user.department.code);
           setDegrees(filteredDegrees);
         } catch (err) {
@@ -179,7 +190,12 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
               degree_code: courseData.degree?.code ?? courseData.degree_code ?? '',
               department_code: courseData.department?.code ?? courseData.department_code ?? '',
               primary_instructor: courseData.primary_instructor ?? '',
+              max_students: courseData.max_students == null ? 0 : courseData.max_students,
             });
+            // If the loaded degree_code is not in the degrees list, set to first available
+            if (degrees.length > 0 && !degrees.some((d: any) => d.code === (courseData.degree?.code ?? courseData.degree_code ?? ''))) {
+              setForm(prev => ({ ...prev, degree_code: degrees[0]?.code || '' }));
+            }
           } catch (err) {
             setError('Failed to load course for editing');
           } finally {
@@ -191,6 +207,7 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
         setForm({
           ...defaultForm,
           department_code: user?.department?.code || '',
+          max_students: 0,
         });
         setCourseId(null);
       }
@@ -468,24 +485,28 @@ const CreateCourseDialog: React.FC<CreateCourseDialogProps> = ({
 
                 <FormControl fullWidth required error={!!fieldErrors.degree_code} sx={{ minWidth: 240 }}>
                   <InputLabel>Degree</InputLabel>
-                  <Select
-                    value={form.degree_code ?? ''}
-                    label="Degree"
-                    onChange={handleSelectChange('degree_code')}
-                    disabled={!form.department_code || loadingDegrees}
-                      >
-                    {loadingDegrees ? (
+                  {loadingDegrees ? (
+                    <Select value="" label="Degree" disabled>
                       <MenuItem disabled>Loading degrees...</MenuItem>
-                    ) : degrees.length === 0 ? (
+                    </Select>
+                  ) : degrees.length === 0 ? (
+                    <Select value="" label="Degree" disabled>
                       <MenuItem disabled>No degrees available</MenuItem>
-                    ) : (
-                      degrees.map((degree) => (
-                          <MenuItem key={degree.code} value={degree.code}>
+                    </Select>
+                  ) : (
+                    <Select
+                      value={form.degree_code}
+                      label="Degree"
+                      onChange={handleSelectChange('degree_code')}
+                      disabled={!form.department_code}
+                    >
+                      {degrees.map((degree) => (
+                        <MenuItem key={degree.code} value={degree.code}>
                           {degree.name} ({degree.code})
                         </MenuItem>
-                      ))
-                    )}
-                  </Select>
+                      ))}
+                    </Select>
+                  )}
                   {fieldErrors.degree_code && (
                     <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
                       {fieldErrors.degree_code}

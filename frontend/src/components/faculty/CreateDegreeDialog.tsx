@@ -71,9 +71,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
 }) => {
     const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
   // Config-driven validation for all fields (including rich text)
-  const fieldValidationConfig: { [key: string]: { required?: boolean; minLength?: number; message?: string } } = {
-    name: { required: true, minLength: 3, message: 'Degree name is required' },
-    code: { required: true, minLength: 2, message: 'Degree code is required' },
+  const fieldValidationConfig: { [key: string]: { required?: boolean; minLength?: number; pattern?: RegExp; message?: string } } = {
+  name: { required: true, minLength: 3, message: 'Degree name is required' },
+    code: { required: true, minLength: 2, pattern: /^[A-Z0-9-]+$/, message: 'Degree code is required (uppercase letters, numbers, hyphens allowed)' },
     department_code: { required: true, message: 'Department selection is required' },
     degree_type: { required: true, message: 'Degree type is required' },
     total_credits: { required: true, message: 'Total credits must be at least 1' },
@@ -99,7 +99,9 @@ const CreateDegreeDialog: React.FC<CreateDegreeDialogProps> = ({
       value === undefined || value === null || (typeof value === 'string' ? value.trim().length === 0 : false)
     )) return config.message || 'This field is required';
     if (config.minLength && typeof value === 'string' && value.trim().length < config.minLength) return config.message || `Minimum ${config.minLength} characters required`;
-    if (field === 'code' && typeof value === 'string' && value && !/^[A-Z0-9]+$/.test(value.trim())) return 'Only uppercase letters and numbers allowed';
+    if (config.pattern && typeof value === 'string' && value && !config.pattern.test(value.trim())) {
+      return 'Only uppercase letters, numbers, and hyphens allowed';
+    }
     if (field === 'total_credits' && (isNaN(Number(value)) || Number(value) < 1)) return config.message;
     if (field === 'duration_years' && (isNaN(Number(value)) || Number(value) < 1)) return config.message;
     return undefined;

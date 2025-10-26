@@ -398,27 +398,20 @@ router.post(
         order: [['version', 'DESC']],
       });
       const nextVersion = (maxVersionDegree?.version || 1) + 1;
-      // Create a new version with proper parent reference
-      const newDegreeData = {
-        name: degree.name,
-        code: degree.code,
-        description: degree.description,
-        department_id: degree.department_id,
-        department_code: degree.department_code,
-        courses: degree.courses,
-        requirements: degree.requirements,
-        duration_years: degree.duration_years,
-        created_by: req.user.id,
-        version: nextVersion,
-        parent_degree_id: degree.parent_degree_id || degree.id,
-        is_latest_version: true,
-        status: 'draft',
-        courses_per_semester: degree.courses_per_semester || {},
-        elective_options: degree.elective_options || {},
-        enrollment_config: degree.enrollment_config || {},
-        graduation_requirements: degree.graduation_requirements || {},
-        academic_calendar: degree.academic_calendar || {},
-      };
+      // Use utility to copy all fields except blacklisted ones
+      const { copyModelFieldsForVersioning } = require('../utils/versioning');
+      const blacklist = [
+        'id', 'created_at', 'updated_at', 'approved_at', 'approved_by', 'updated_by',
+        'submitted_at', 'is_latest_version', 'status', 'version',
+        'parent_degree_id', 'created_by',
+      ];
+      let newDegreeData = copyModelFieldsForVersioning(degree, blacklist);
+      // code is now copied from the original degree
+      newDegreeData.created_by = req.user.id;
+      newDegreeData.version = nextVersion;
+      newDegreeData.parent_degree_id = degree.parent_degree_id || degree.id;
+      newDegreeData.is_latest_version = true;
+      newDegreeData.status = 'draft';
       // Mark all previous versions as not latest
       const whereOr = [];
       if (req.params.id) whereOr.push({ id: req.params.id });
@@ -496,18 +489,17 @@ router.get(
         status,
         page = 1,
         limit = 50,
+        all_creators
       } = req.query;
       const whereClause = {};
       if (department_code) whereClause['$departmentByCode.code$'] = department_code;
       if (status) whereClause.status = status;
-      
       // Filter by department and ownership for non-admin users
       if (req.user && req.user.user_type !== 'admin') {
         // All non-admin users can only see degrees from their department
         whereClause.department_code = req.user.department_code;
-        
-        // Non-HOD users can only see degrees they created
-        if (!req.user.is_head_of_department) {
+        // Non-HOD users can only see degrees they created, unless all_creators=true
+        if (!req.user.is_head_of_department && String(all_creators) !== 'true') {
           whereClause.created_by = req.user.id;
         }
       }
@@ -1087,13 +1079,21 @@ router.delete(
         return res.status(403).json({ error: 'Can only delete degrees from your own department' });
       }
 
-      // Can't delete degrees with students
+      // Check if there's another active version of this degree code
+      const activeDegree = await Degree.findOne({
+        where: {
+          code: degree.code,
+          status: 'active',
+          id: { [Op.ne]: degree.id }
+        }
+      });
+
+      // Can't delete degrees with students unless another active version exists
       const studentCount = await User.count({ 
         where: { degree_code: degree.code, user_type: 'student' } 
       });
-
-      if (studentCount > 0) {
-        return res.status(400).json({ error: 'Cannot delete degree with enrolled students' });
+      if (studentCount > 0 && !activeDegree) {
+        return res.status(400).json({ error: 'Cannot delete degree with enrolled students unless another active version exists' });
       }
 
       // Check if there are associated courses
@@ -1102,28 +1102,15 @@ router.delete(
       });
 
       if (associatedCourses.length > 0) {
-        // Check if there's an active version of this degree
-        const activeDegree = await Degree.findOne({
-          where: {
-            code: degree.code,
-            status: 'active'
-          }
-        });
-
-        // If no active degree exists, don't allow deletion
-        if (!activeDegree) {
-          return res.status(400).json({ 
-            error: 'Cannot delete degree with associated courses when no active version exists' 
-          });
-        }
-
-        // Check if all associated courses have active versions
+        // Check if all associated courses have active versions (other than this degree)
         const coursesWithoutActiveVersions = [];
         for (const course of associatedCourses) {
           const activeCourse = await Course.findOne({
             where: {
               code: course.code,
-              status: 'active'
+              status: 'active',
+              degree_code: degree.code,
+              degree_id: { [Op.ne]: degree.id }
             }
           });
           if (!activeCourse) {

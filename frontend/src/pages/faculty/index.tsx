@@ -51,9 +51,7 @@ import { timelineAPI } from '../../services/api';
 const FacultyDashboard: React.FC = () => {
   // Helper to reload stats after entity actions
   const reloadStats = async () => {
-    console.log('[DEBUG] reloadStats called');
-    const error = new Error();
-    console.log('[DEBUG] reloadStats stack:', error.stack);
+  // console.log('[DEBUG] reloadStats called');
     const statsRes = await usersAPI.getStats();
     if (statsRes.error) {
       enqueueSnackbar('Error loading stats', { variant: 'error' });
@@ -417,28 +415,12 @@ useEffect(() => {
         );
         setEditEntityDialogOpen(false);
 
-        // Switch to Draft tab to show the new version
+        // Switch to Draft tab to show the new version, let useEffect handle fetching
         if (entityToEdit.entityType === "course") {
           setCourseTab(0); // 0 = Draft tab
         } else {
           setDegreeTab(0); // 0 = Draft tab
         }
-
-        // Always reload both entity lists and stats after version creation
-        await fetchEntities(
-          'course',
-          coursesPagination.page,
-          coursesPagination.limit,
-          courseTabsConfig[courseTab]?.key,
-          'version creation (course)'
-        );
-        await fetchEntities(
-          'degree',
-          degreesPagination.page,
-          degreesPagination.limit,
-          degreeTabsConfig[degreeTab]?.key,
-          'version creation (degree)'
-        );
         await reloadStats();
       } else {
         // For drafts or pending approval, open the edit dialog/modal and only update after user confirms
@@ -969,7 +951,9 @@ useEffect(() => {
           ) : (
             <>
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 3 }}>
-                {degrees.map(degree => (
+                {degrees
+                  .filter(degree => degree.status === degreeTabsConfig[degreeTab]?.key)
+                  .map(degree => (
                   <FacultyItemCard
                     key={degree.id}
                     item={{ ...degree, entityType: 'degree' }}
