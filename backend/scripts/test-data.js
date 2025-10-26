@@ -265,6 +265,7 @@ async function seedTestData() {
               facultyByDept[code].push(existingHod);
             } else {
               const hod = await create(User, {
+                created_at: new Date(),
                 id: uuidv4(), first_name: hodFirst, last_name: hodLast, email: hodEmail,
                 password: defaultHash, user_type: 'faculty', employee_id: `HOD${code}`,
                 department_code: code, status: 'active', email_verified: true, is_head_of_department: true,
@@ -273,6 +274,7 @@ async function seedTestData() {
             }
           } else {
             const hod = await create(User, {
+              created_at: new Date(),
               id: uuidv4(), first_name: hodFirst, last_name: hodLast, email: hodEmail,
               password: defaultHash, user_type: 'faculty', employee_id: `HOD${code}`,
               department_code: code, status: 'active', email_verified: true, is_head_of_department: true,
@@ -290,6 +292,7 @@ async function seedTestData() {
               if (existing) { await ensurePasswordForExisting(existing, DEFAULT_PASSWORD); facultyByDept[code].push(existing); continue; }
             }
             const faculty = await create(User, {
+              created_at: new Date(),
               id: uuidv4(), first_name: first, last_name: last, email,
               password: defaultHash, user_type: 'faculty', employee_id: `EMP${code}${f + 1}`,
               department_code: code, status: 'active', email_verified: true, is_head_of_department: false,
@@ -325,6 +328,7 @@ async function seedTestData() {
               if (existing) { await ensurePasswordForExisting(existing, DEFAULT_PASSWORD); continue; }
             }
             const student = await create(User, {
+              created_at: new Date(),
               id: uuidv4(), first_name: first, last_name: last, email,
               password: defaultHash, user_type: 'student', student_id: `STU${code}${s + 1}`,
               degree_code: degreeCodeToUse, department_code: code, status: 'active', email_verified: true,
@@ -333,6 +337,7 @@ async function seedTestData() {
             const yearStart = new Date().getFullYear();
             const academicYear = `${yearStart}-${yearStart + 1}`;
             await create(Enrollment, {
+              created_at: new Date(),
               id: uuidv4(), student_id: student.id, course_codes: [], enrollment_status: 'draft', submitted_at: null,
               academic_year: academicYear, semester: 1, department_code: code,
             });
@@ -374,6 +379,7 @@ async function seedTestData() {
               facultyByDept[code].push(existingHod);
             } else {
               const hod = await create(User, {
+                created_at: new Date(),
                 id: uuidv4(), first_name: hodFirst, last_name: hodLast, email: hodEmail,
                 password: defaultHash, user_type: 'faculty', employee_id: `HOD${code}`,
                 department_code: code, status: 'active', email_verified: true, is_head_of_department: true,
@@ -382,6 +388,7 @@ async function seedTestData() {
             }
           } else {
             const hod = await create(User, {
+              created_at: new Date(),
               id: uuidv4(), first_name: hodFirst, last_name: hodLast, email: hodEmail,
               password: defaultHash, user_type: 'faculty', employee_id: `HOD${code}`,
               department_code: code, status: 'active', email_verified: true, is_head_of_department: true,
@@ -399,6 +406,7 @@ async function seedTestData() {
               if (existing) { await ensurePasswordForExisting(existing, DEFAULT_PASSWORD); facultyByDept[code].push(existing); continue; }
             }
             const faculty = await create(User, {
+              created_at: new Date(),
               id: uuidv4(), first_name: first, last_name: last, email,
               password: defaultHash, user_type: 'faculty', employee_id: `EMP${code}${f + 1}`,
               department_code: code, status: 'active', email_verified: true, is_head_of_department: false,
@@ -422,6 +430,7 @@ async function seedTestData() {
           if (degreesForDept.length === 0) {
             const fallbackCode = `${code}GEN`;
             const fallback = await create(Degree, {
+              created_at: new Date(),
               id: uuidv4(), name: `Generic ${deptName} Program`, code: fallbackCode, department_code: code,
               description: `Auto-created placeholder degree for ${deptName}`, duration_years: 1, status: 'active', created_by: null,
             });
@@ -440,6 +449,7 @@ async function seedTestData() {
               if (existing) { await ensurePasswordForExisting(existing, DEFAULT_PASSWORD); continue; }
             }
             const student = await create(User, {
+              created_at: new Date(),
               id: uuidv4(), first_name: first, last_name: last, email,
               password: defaultHash, user_type: 'student', student_id: `STU${code}${s + 1}`,
               degree_code: degreeCodeToUse, department_code: code, status: 'active', email_verified: true,
@@ -449,6 +459,7 @@ async function seedTestData() {
             const yearStart = new Date().getFullYear();
             const academicYear = `${yearStart}-${yearStart + 1}`;
             await create(Enrollment, {
+              created_at: new Date(),
               id: uuidv4(), student_id: student.id, course_codes: [], enrollment_status: 'draft', submitted_at: null,
               academic_year: academicYear, semester: 1, department_code: code,
             });
@@ -473,6 +484,7 @@ async function seedTestData() {
                   if (existing) { createdDepartments[code] = existing; continue; }
                 }
                 const dept = await create(Department, {
+                  created_at: new Date(),
                   id: d.id || uuidv4(),
                   name: d.name,
                   code,
@@ -508,6 +520,7 @@ async function seedTestData() {
             degreeAssignIndex[deptCode]++;
           }
           const deg = await create(Degree, {
+            created_at: new Date(),
             id: dg.id || uuidv4(),
             name: dg.name,
             code: (dg.code || '').toUpperCase(),
@@ -526,9 +539,9 @@ async function seedTestData() {
             duration_years: dg.duration_years || 2,
             department_code: deptCode,
             status: dg.status || 'active',
-            prerequisites: dg.prerequisites || [],
-            study_details: dg.study_details || {},
-            faculty_details: dg.faculty_details || {},
+            prerequisites: dg.prerequisites || '',
+            study_details: dg.study_details || '',
+            faculty_details: dg.faculty_details || '',
             courses_per_semester: dg.courses_per_semester || {},
             created_by: assignUserId,
           });
@@ -585,12 +598,35 @@ async function seedTestData() {
             assignUserId = (adminUser && adminUser.id) ? adminUser.id : null;
           }
           courseAssignIndex[deptCode]++;
+
+          // Set primary_instructor to the creator if they are a faculty from the same department
+          let primaryInstructorId = null;
+          if (pick && pick.id && pick.user_type === 'faculty' && pick.department_code && pick.department_code.toUpperCase() === deptCode) {
+            primaryInstructorId = pick.id;
+          }
+
           await create(Course, {
-            id: c.id || uuidv4(), name: c.name, code: (c.code || '').toUpperCase(), description: c.description || null,
-            prerequisites: c.prerequisites || [], learning_objectives: c.learning_objectives || null, course_outcomes: c.course_outcomes || null,
-            assessment_methods: c.assessment_methods || null, textbooks: c.textbooks || null, references: c.references || null,
-            faculty_details: c.faculty_details || null, study_details: c.study_details || null, credits: c.credits || 4, semester: c.semester || 1,
-            department_code: deptCode, degree_code: (c.degree_code || '').toUpperCase(), status: c.status || 'active', created_by: assignUserId,
+            created_at: new Date(),
+            id: c.id || uuidv4(),
+            name: c.name,
+            code: (c.code || '').toUpperCase(),
+            description: c.description || null,
+            prerequisites: c.prerequisites || [],
+            learning_objectives: c.learning_objectives || null,
+            course_outcomes: c.course_outcomes || null,
+            assessment_methods: c.assessment_methods || null,
+            textbooks: c.textbooks || null,
+            references: c.references || null,
+            faculty_details: c.faculty_details || null,
+            study_details: c.study_details || null,
+            credits: c.credits || 4,
+            semester: c.semester || 1,
+            department_code: deptCode,
+            degree_code: (c.degree_code || '').toUpperCase(),
+            status: c.status || 'active',
+            created_by: assignUserId,
+            primary_instructor: primaryInstructorId,
+            max_students: 100,
           });
         }
       }
@@ -613,6 +649,7 @@ async function seedTestData() {
           await ensurePasswordForExisting(adminUser, ADMIN_PASSWORD);
         } else {
           adminUser = await create(User, {
+            created_at: new Date(),
             id: uuidv4(), first_name: 'Admin', last_name: 'User', email: 'admin@myskytower.com',
             password: adminHash, user_type: 'admin', employee_id: 'ADMIN001', status: 'active', email_verified: true,
           });

@@ -72,9 +72,9 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((pr
         if (props.onChange) props.onChange({ target: { value: htmlContent } });
       });
 
-      // Set initial value
+      // Set initial value using Quill's HTML import
       if (props.value) {
-        quillRef.current.root.innerHTML = props.value;
+        quillRef.current.clipboard.dangerouslyPasteHTML(0, props.value);
         setHtml(props.value);
       }
       setEditorLoaded(true);
@@ -93,7 +93,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>((pr
   // Sync external value changes
   useEffect(() => {
     if (quillRef.current && props.value !== undefined && props.value !== quillRef.current.root.innerHTML) {
-      quillRef.current.root.innerHTML = props.value;
+      quillRef.current.clipboard.dangerouslyPasteHTML(0, props.value);
       setHtml(props.value);
     }
   }, [props.value]);

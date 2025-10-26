@@ -217,42 +217,7 @@ async function fetchAndFormatDegree({ id, code, includeMeta = false, resolveName
     application_process: degree.application_process,
   };
 
-  // Optionally resolve faculty UUIDs to names (respect resolveNames flag)
-  if (resolveNames && base.faculty_details && typeof base.faculty_details === 'object') {
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const resolve = async (instructorId) => {
-      if (!instructorId || typeof instructorId !== 'string') return instructorId;
-      if (!uuidPattern.test(instructorId)) return instructorId;
-      try {
-        const u = await User.findByPk(instructorId, { attributes: ['id', 'first_name', 'last_name'] });
-        return u ? `${u.first_name} ${u.last_name}` : instructorId;
-      } catch (e) {
-        return instructorId;
-      }
-    };
-
-    const fd = { ...base.faculty_details };
-    // common fields
-    if (fd.primary_instructor) fd.primary_instructor = await resolve(fd.primary_instructor);
-    if (fd.instructor) fd.instructor = await resolve(fd.instructor);
-    if (fd.co_instructors && Array.isArray(fd.co_instructors)) fd.co_instructors = await Promise.all(fd.co_instructors.map(resolve));
-    if (fd.guest_lecturers && Array.isArray(fd.guest_lecturers)) fd.guest_lecturers = await Promise.all(fd.guest_lecturers.map(resolve));
-    if (fd.lab_instructors && Array.isArray(fd.lab_instructors)) fd.lab_instructors = await Promise.all(fd.lab_instructors.map(resolve));
-    // some degree faculty structures may use an 'instructors' array with instructorId
-    if (fd.instructors && Array.isArray(fd.instructors)) {
-      for (let i = 0; i < fd.instructors.length; i++) {
-        if (fd.instructors[i].instructorId) {
-          fd.instructors[i].instructorId = await resolve(fd.instructors[i].instructorId);
-        }
-      }
-    }
-    // coordinator with coordinatorId
-    if (fd.coordinator && fd.coordinator.coordinatorId) {
-      fd.coordinator.coordinatorId = await resolve(fd.coordinator.coordinatorId);
-    }
-
-    base.faculty_details = fd;
-  }
+  // faculty_details is now a rich text (HTML) string; no object resolution needed
 
   // If meta requested, resolve and attach creator/updater/approver names and timestamps
   if (includeMeta) {
@@ -1110,8 +1075,7 @@ router.delete(
               code: course.code,
               status: 'active',
               degree_code: degree.code,
-              degree_id: { [Op.ne]: degree.id }
-            }
+            },
           });
           if (!activeCourse) {
             coursesWithoutActiveVersions.push(course.name);

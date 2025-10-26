@@ -241,6 +241,19 @@ const FacultyApprovalPage: React.FC = () => {
     }
   };
 
+  const handleViewEntity = (entity: any, type: 'course' | 'degree') => {
+    const url = `/${type}/${entity.id}`;
+    try {
+      if (typeof window !== 'undefined' && window.open) {
+        window.open(url, '_blank');
+      } else {
+        router.push(url);
+      }
+    } catch (err) {
+      router.push(url);
+    }
+  };
+
   const renderApprovalCard = (item: any, type: 'course' | 'degree') => (
     <Card
       key={item.id}
@@ -284,9 +297,9 @@ const FacultyApprovalPage: React.FC = () => {
         <Button
           size="small"
           startIcon={<VisibilityIcon />}
-          onClick={() => {/* TODO: implement view course handler */}}
+          onClick={() => handleViewEntity(item, type)}
         >
-          View Course
+          View {type === 'course' ? 'Course' : 'Degree'}
         </Button>
         <Button
           size="small"

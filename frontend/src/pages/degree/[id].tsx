@@ -148,7 +148,7 @@ const DegreeDetailPage: React.FC = () => {
     };
 
     fetchDegree();
-  }, [id, user]);
+  }, [id]);
 
   const handleCourseClick = (courseCode: string) => {
     router.push(`/course/${courseCode}`);
@@ -279,50 +279,56 @@ const getStatusIcon = (status: string) => {
 
           {/* Add meta details box absolutely positioned top right of hero image */}
           {user && isUUID(Array.isArray(id) ? id[0] : id || '') && (
-            <Box sx={{
-              position: 'absolute',
-              top: { xs: 16, md: 32 },
-              right: { xs: 16, md: 48 },
-              bgcolor: 'rgba(255,255,255,0.7)', // More translucent
-              color: 'text.primary',
-              borderRadius: 3,
-              boxShadow: 4,
-              p: 3,
-              minWidth: 260,
-              zIndex: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              backdropFilter: 'blur(2px)', // subtle blur for glass effect
-            }}>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                right: { xs: 24, md: 56 },
+                transform: 'translateY(-50%)',
+                bgcolor: 'rgba(255,255,255,0.92)',
+                color: 'text.primary',
+                borderRadius: 4,
+                boxShadow: 6,
+                p: 3,
+                minWidth: 320,
+                zIndex: 10,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                backdropFilter: 'blur(3px)',
+              }}
+            >
               {/* Status badge with icon */}
               {degree.status && (
                 <Chip
                   icon={getStatusIcon(degree.status)}
-                  label={degree.status}
+                  label={getStatusInfo(degree.status).label}
                   color={degree.status === 'active' ? 'success' : degree.status === 'pending_approval' ? 'warning' : degree.status === 'draft' ? 'info' : 'error'}
-                  sx={{ mb: 2, fontWeight: 700, fontSize: '1rem', px: 2 }}
+                  sx={{ mb: 2, fontWeight: 700, fontSize: '1.1rem', px: 2, height: 40, borderRadius: 8, letterSpacing: 0.2, textTransform: 'none' }}
                 />
               )}
               {/* Created by/at */}
               {degree.created_by && degree.created_at && (
                 <Box sx={{ mb: 1 }}>
-                  <Typography variant="body2" fontWeight={500}>Created by: {degree.created_by}</Typography>
-                  <Typography variant="body2" color="text.secondary">Created: {new Date(degree.created_at).toLocaleDateString()}</Typography>
+                  <Typography variant="body2" fontWeight={500} sx={{ lineHeight: 1.3 }}>
+                    Created by: {degree.created_by} on {new Date(degree.created_at).toLocaleDateString()}
+                  </Typography>
                 </Box>
               )}
               {/* Updated by/at */}
               {degree.updated_by && degree.updated_at && (
                 <Box sx={{ mb: 1 }}>
-                  <Typography variant="body2" fontWeight={500}>Last modified by: {degree.updated_by}</Typography>
-                  <Typography variant="body2" color="text.secondary">Last modified: {new Date(degree.updated_at).toLocaleDateString()}</Typography>
+                  <Typography variant="body2" fontWeight={500} sx={{ lineHeight: 1.3 }}>
+                    Last modified by: {degree.updated_by} on {new Date(degree.updated_at).toLocaleDateString()}
+                  </Typography>
                 </Box>
               )}
               {/* Approved by/at (only for approved, active, archived) */}
               {['approved', 'active', 'archived'].includes(degree.status || '') && degree.approved_by && degree.approved_at && (
                 <Box>
-                  <Typography variant="body2" fontWeight={500}>Approved by: {degree.approved_by}</Typography>
-                  <Typography variant="body2" color="text.secondary">Approved: {new Date(degree.approved_at).toLocaleDateString()}</Typography>
+                  <Typography variant="body2" fontWeight={500} sx={{ lineHeight: 1.3 }}>
+                    Approved by: {degree.approved_by} on {new Date(degree.approved_at).toLocaleDateString()}
+                  </Typography>
                 </Box>
               )}
             </Box>

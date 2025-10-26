@@ -56,13 +56,7 @@
       },
       "career_prospects": "<ul><li>Software developer in tech companies</li><li>Data analyst or scientist</li><li>Graduate study in computer science or related fields</li></ul>",
       "accreditation": "<p>Accredited by the National Computing Accreditation Board (NCAB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in AI, systems, and software engineering.",
-        "members": [
-          {"name": "Dr. Alice Smith", "title": "Professor", "email": "alice.smith@myskytower.com"},
-          {"name": "Dr. Bob Lee", "title": "Associate Professor", "email": "bob.lee@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p>Faculty with expertise in AI, systems, and software engineering.</p><ul><li>Dr. Alice Smith, Professor (alice.smith@myskytower.com)</li><li>Dr. Bob Lee, Associate Professor (bob.lee@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Computer Science",
@@ -88,13 +82,7 @@
       },
       "career_prospects": "<ul><li>Advanced software engineering roles</li><li>Research and development positions</li><li>PhD study in computer science</li></ul>",
       "accreditation": "<p>Recognized by the International Association of Computing Professionals (IACP).</p>",
-      "faculty_details": {
-        "summary": "Faculty active in research and industry collaborations.",
-        "members": [
-          {"name": "Dr. Carol Tan", "title": "Senior Lecturer", "email": "carol.tan@myskytower.com"},
-          {"name": "Dr. David Kim", "title": "Professor", "email": "david.kim@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p>Faculty active in research and industry collaborations.</p><ul><li>Dr. Carol Tan, Senior Lecturer (carol.tan@myskytower.com)</li><li>Dr. David Kim, Professor (david.kim@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Data Science",
@@ -120,13 +108,7 @@
       },
       "career_prospects": "<ul><li>Data scientist in finance, healthcare, or tech</li><li>Machine learning engineer</li><li>Business intelligence analyst</li></ul>",
       "accreditation": "<p>Endorsed by the Data Science Education Consortium (DSEC).</p>",
-      "faculty_details": {
-        "summary": "Faculty with backgrounds in statistics, ML, and big data.",
-        "members": [
-          {"name": "Dr. Emily Zhang", "title": "Lecturer", "email": "emily.zhang@myskytower.com"},
-          {"name": "Dr. Frank Wu", "title": "Assistant Professor", "email": "frank.wu@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p>Faculty with backgrounds in statistics, ML, and big data.</p><ul><li>Dr. Emily Zhang, Lecturer (emily.zhang@myskytower.com)</li><li>Dr. Frank Wu, Assistant Professor (frank.wu@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Artificial Intelligence",
@@ -152,13 +134,7 @@
       },
       "career_prospects": "<ul><li>AI engineer in industry</li><li>Researcher in artificial intelligence</li><li>Consultant in AI-driven projects</li></ul>",
       "accreditation": "<p>Certified by the Artificial Intelligence Academic Council (AIAC).</p>",
-      "faculty_details": {
-        "summary": "Faculty specializing in deep learning, NLP, and robotics.",
-        "members": [
-          {"name": "Dr. Grace Lin", "title": "Professor", "email": "grace.lin@myskytower.com"},
-          {"name": "Dr. Henry Patel", "title": "Senior Lecturer", "email": "henry.patel@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p>Faculty specializing in deep learning, NLP, and robotics.</p><ul><li>Dr. Grace Lin, Professor (grace.lin@myskytower.com)</li><li>Dr. Henry Patel, Senior Lecturer (henry.patel@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Cybersecurity",
@@ -184,13 +160,7 @@
       },
       "career_prospects": "<ul><li>Cybersecurity analyst</li><li>Penetration tester</li><li>Security architect in organizations</li></ul>",
       "accreditation": "<p>Accredited by the Cybersecurity Professional Board (CPB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in network security and cryptography.",
-        "members": [
-          {"name": "Dr. Irene Fox", "title": "Lecturer", "email": "irene.fox@myskytower.com"},
-          {"name": "Dr. Jack Singh", "title": "Professor", "email": "jack.singh@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in network security and cryptography.</strong></p><ul><li>Dr. Irene Fox, Lecturer (irene.fox@myskytower.com)</li><li>Dr. Jack Singh, Professor (jack.singh@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Software Engineering",
@@ -216,13 +186,7 @@
       },
       "career_prospects": "<ul><li>Software architect</li><li>DevOps engineer</li><li>Project manager in software teams</li></ul>",
       "accreditation": "<p>Recognized by the Software Engineering Accreditation Council (SEAC).</p>",
-      "faculty_details": {
-        "summary": "Faculty with industry experience in large-scale software systems.",
-        "members": [
-          {"name": "Dr. Karen Young", "title": "Senior Lecturer", "email": "karen.young@myskytower.com"},
-          {"name": "Dr. Leo Brown", "title": "Professor", "email": "leo.brown@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with industry experience in large-scale software systems.</strong></p><ul><li>Dr. Karen Young, Senior Lecturer (karen.young@myskytower.com)</li><li>Dr. Leo Brown, Professor (leo.brown@myskytower.com)</li></ul>"
     },
   {
   "name": "BEng Electrical Engineering",
@@ -248,13 +212,7 @@
       },
       "career_prospects": "<ul><li>Electrical engineer in utilities or manufacturing</li><li>Control systems engineer</li><li>Graduate study in electrical engineering</li></ul>",
       "accreditation": "<p>Accredited by the National Engineering Council (NEC).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in power systems and electronics.",
-        "members": [
-          {"name": "Dr. Maya Rao", "title": "Professor", "email": "maya.rao@myskytower.com"},
-          {"name": "Dr. Nikhil Shah", "title": "Lecturer", "email": "nikhil.shah@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in power systems and electronics.</strong></p><ul><li>Dr. Maya Rao, Professor (maya.rao@myskytower.com)</li><li>Dr. Nikhil Shah, Lecturer (nikhil.shah@myskytower.com)</li></ul>"
     },
   {
   "name": "MEng Electrical Engineering",
@@ -280,13 +238,7 @@
       },
       "career_prospects": "<ul><li>Senior electrical engineer</li><li>Project manager in engineering firms</li><li>Researcher in electrical systems</li></ul>",
       "accreditation": "<p>Recognized by the International Electrical Engineering Board (IEEB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in advanced electronics and communications.",
-        "members": [
-          {"name": "Dr. Olivia Green", "title": "Associate Professor", "email": "olivia.green@myskytower.com"},
-          {"name": "Dr. Paul White", "title": "Professor", "email": "paul.white@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in advanced electronics and communications.</strong></p><ul><li>Dr. Olivia Green, Associate Professor (olivia.green@myskytower.com)</li><li>Dr. Paul White, Professor (paul.white@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Telecommunications",
@@ -312,13 +264,7 @@
       },
       "career_prospects": "<ul><li>Telecommunications engineer</li><li>Network architect</li><li>Consultant in telecom industry</li></ul>",
       "accreditation": "<p>Certified by the Telecom Engineering Society (TES).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in wireless and optical communications.",
-        "members": [
-          {"name": "Dr. Quinn Black", "title": "Lecturer", "email": "quinn.black@myskytower.com"},
-          {"name": "Dr. Rita Silver", "title": "Professor", "email": "rita.silver@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in wireless and optical communications.</strong></p><ul><li>Dr. Quinn Black, Lecturer (quinn.black@myskytower.com)</li><li>Dr. Rita Silver, Professor (rita.silver@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Power Systems",
@@ -344,13 +290,7 @@
       },
       "career_prospects": "<ul><li>Power systems engineer</li><li>Grid operations specialist</li><li>Consultant in energy sector</li></ul>",
       "accreditation": "<p>Accredited by the Power Engineering Board (PEB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in power grids and renewable energy.",
-        "members": [
-          {"name": "Dr. Samir Das", "title": "Professor", "email": "samir.das@myskytower.com"},
-          {"name": "Dr. Tina Brown", "title": "Lecturer", "email": "tina.brown@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in power grids and renewable energy.</strong></p><ul><li>Dr. Samir Das, Professor (samir.das@myskytower.com)</li><li>Dr. Tina Brown, Lecturer (tina.brown@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Control & Automation",
@@ -376,13 +316,7 @@
       },
       "career_prospects": "<ul><li>Automation engineer</li><li>Control systems designer</li><li>Industrial automation consultant</li></ul>",
       "accreditation": "<p>Certified by the Automation and Control Society (ACS).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in robotics and industrial automation.",
-        "members": [
-          {"name": "Dr. Uma Kapoor", "title": "Senior Lecturer", "email": "uma.kapoor@myskytower.com"},
-          {"name": "Dr. Victor Lin", "title": "Professor", "email": "victor.lin@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in robotics and industrial automation.</strong></p><ul><li>Dr. Uma Kapoor, Senior Lecturer (uma.kapoor@myskytower.com)</li><li>Dr. Victor Lin, Professor (victor.lin@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Embedded Systems",
@@ -408,13 +342,7 @@
       },
       "career_prospects": "<ul><li>Embedded systems engineer</li><li>IoT solutions architect</li><li>Firmware developer</li></ul>",
       "accreditation": "<p>Recognized by the Embedded Systems Association (ESA).</p>",
-      "faculty_details": {
-        "summary": "Faculty with backgrounds in hardware and software integration.",
-        "members": [
-          {"name": "Dr. Wendy Zhou", "title": "Lecturer", "email": "wendy.zhou@myskytower.com"},
-          {"name": "Dr. Xavier Lee", "title": "Professor", "email": "xavier.lee@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with backgrounds in hardware and software integration.</strong></p><ul><li>Dr. Wendy Zhou, Lecturer (wendy.zhou@myskytower.com)</li><li>Dr. Xavier Lee, Professor (xavier.lee@myskytower.com)</li></ul>"
     },
   {
   "name": "BEng Mechanical Engineering",
@@ -440,13 +368,7 @@
       },
       "career_prospects": "<ul><li>Mechanical engineer in manufacturing</li><li>Product design engineer</li><li>Graduate study in mechanical engineering</li></ul>",
       "accreditation": "<p>Accredited by the Mechanical Engineering Council (MEC).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in design, manufacturing, and simulation.",
-        "members": [
-          {"name": "Dr. Yara Singh", "title": "Professor", "email": "yara.singh@myskytower.com"},
-          {"name": "Dr. Zane Patel", "title": "Lecturer", "email": "zane.patel@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in design, manufacturing, and simulation.</strong></p><ul><li>Dr. Yara Singh, Professor (yara.singh@myskytower.com)</li><li>Dr. Zane Patel, Lecturer (zane.patel@myskytower.com)</li></ul>"
     },
   {
   "name": "MEng Mechanical Engineering",
@@ -472,13 +394,7 @@
       },
       "career_prospects": "<ul><li>Senior mechanical engineer</li><li>Project manager in engineering</li><li>Researcher in mechanical systems</li></ul>",
       "accreditation": "<p>Recognized by the International Mechanical Engineering Board (IMEB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in advanced manufacturing and energy systems.",
-        "members": [
-          {"name": "Dr. Alan Wu", "title": "Associate Professor", "email": "alan.wu@myskytower.com"},
-          {"name": "Dr. Bella Chen", "title": "Professor", "email": "bella.chen@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in advanced manufacturing and energy systems.</strong></p><ul><li>Dr. Alan Wu, Associate Professor (alan.wu@myskytower.com)</li><li>Dr. Bella Chen, Professor (bella.chen@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Thermal Sciences",
@@ -504,13 +420,7 @@
       },
       "career_prospects": "<ul><li>Thermal systems engineer</li><li>Energy analyst</li><li>Consultant in thermal engineering</li></ul>",
       "accreditation": "<p>Certified by the Thermal Engineering Society (TES).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in thermodynamics and energy systems.",
-        "members": [
-          {"name": "Dr. Carlos Rivera", "title": "Lecturer", "email": "carlos.rivera@myskytower.com"},
-          {"name": "Dr. Diana Lee", "title": "Professor", "email": "diana.lee@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in thermodynamics and energy systems.</strong></p><ul><li>Dr. Carlos Rivera, Lecturer (carlos.rivera@myskytower.com)</li><li>Dr. Diana Lee, Professor (diana.lee@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Fluid Mechanics",
@@ -536,13 +446,7 @@
       },
       "career_prospects": "<ul><li>Fluid mechanics specialist</li><li>Hydrodynamics engineer</li><li>Consultant in fluid systems</li></ul>",
       "accreditation": "<p>Accredited by the Fluid Dynamics Association (FDA).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in computational and experimental fluid mechanics.",
-        "members": [
-          {"name": "Dr. Ethan Park", "title": "Senior Lecturer", "email": "ethan.park@myskytower.com"},
-          {"name": "Dr. Fiona Grant", "title": "Professor", "email": "fiona.grant@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in computational and experimental fluid mechanics.</strong></p><ul><li>Dr. Ethan Park, Senior Lecturer (ethan.park@myskytower.com)</li><li>Dr. Fiona Grant, Professor (fiona.grant@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Materials & Manufacturing",
@@ -568,13 +472,7 @@
       },
       "career_prospects": "<ul><li>Materials engineer</li><li>Manufacturing process specialist</li><li>Consultant in advanced materials</li></ul>",
       "accreditation": "<p>Recognized by the Materials Engineering Board (MEB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in materials science and manufacturing.",
-        "members": [
-          {"name": "Dr. George Kim", "title": "Lecturer", "email": "george.kim@myskytower.com"},
-          {"name": "Dr. Hannah Lee", "title": "Professor", "email": "hannah.lee@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in materials science and manufacturing.</strong></p><ul><li>Dr. George Kim, Lecturer (george.kim@myskytower.com)</li><li>Dr. Hannah Lee, Professor (hannah.lee@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Robotics & Mechatronics",
@@ -600,13 +498,7 @@
       },
       "career_prospects": "<ul><li>Robotics engineer</li><li>Mechatronics systems designer</li><li>Automation consultant</li></ul>",
       "accreditation": "<p>Certified by the Robotics and Automation Society (RAS).</p>",
-      "faculty_details": {
-        "summary": "Faculty with backgrounds in robotics, automation, and control.",
-        "members": [
-          {"name": "Dr. Ian Moore", "title": "Professor", "email": "ian.moore@myskytower.com"},
-          {"name": "Dr. Julia Wang", "title": "Lecturer", "email": "julia.wang@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with backgrounds in robotics, automation, and control.</strong></p><ul><li>Dr. Ian Moore, Professor (ian.moore@myskytower.com)</li><li>Dr. Julia Wang, Lecturer (julia.wang@myskytower.com)</li></ul>"
     },
   {
   "name": "BSc Chemistry",
@@ -632,13 +524,7 @@
       },
       "career_prospects": "<ul><li>Chemist in industry or research</li><li>Quality control analyst</li><li>Graduate study in chemistry</li></ul>",
       "accreditation": "<p>Accredited by the National Chemistry Board (NCB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in organic, inorganic, and analytical chemistry.",
-        "members": [
-          {"name": "Dr. Kevin Patel", "title": "Professor", "email": "kevin.patel@myskytower.com"},
-          {"name": "Dr. Laura Smith", "title": "Lecturer", "email": "laura.smith@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in organic, inorganic, and analytical chemistry.</strong></p><ul><li>Dr. Kevin Patel, Professor (kevin.patel@myskytower.com)</li><li>Dr. Laura Smith, Lecturer (laura.smith@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Chemistry",
@@ -664,13 +550,7 @@
       },
       "career_prospects": "<ul><li>Research chemist</li><li>Lab manager</li><li>PhD study in chemistry</li></ul>",
       "accreditation": "<p>Recognized by the International Chemistry Association (ICA).</p>",
-      "faculty_details": {
-        "summary": "Faculty active in research and industry partnerships.",
-        "members": [
-          {"name": "Dr. Michael Brown", "title": "Senior Lecturer", "email": "michael.brown@myskytower.com"},
-          {"name": "Dr. Nina Green", "title": "Professor", "email": "nina.green@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty active in research and industry partnerships.</strong></p><ul><li>Dr. Michael Brown, Senior Lecturer (michael.brown@myskytower.com)</li><li>Dr. Nina Green, Professor (nina.green@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Analytical Chemistry",
@@ -696,13 +576,7 @@
       },
       "career_prospects": "<ul><li>Analytical chemist</li><li>Quality assurance specialist</li><li>Consultant in chemical analysis</li></ul>",
       "accreditation": "<p>Certified by the Analytical Chemistry Society (ACS).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in analytical instrumentation and methods.",
-        "members": [
-          {"name": "Dr. Oscar Lee", "title": "Lecturer", "email": "oscar.lee@myskytower.com"},
-          {"name": "Dr. Priya Singh", "title": "Professor", "email": "priya.singh@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in analytical instrumentation and methods.</strong></p><ul><li>Dr. Oscar Lee, Lecturer (oscar.lee@myskytower.com)</li><li>Dr. Priya Singh, Professor (priya.singh@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Organic Chemistry",
@@ -728,13 +602,7 @@
       },
       "career_prospects": "<ul><li>Organic chemist in pharma or materials</li><li>Research scientist</li><li>Consultant in organic synthesis</li></ul>",
       "accreditation": "<p>Recognized by the Organic Chemistry Board (OCB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in organic synthesis and drug design.",
-        "members": [
-          {"name": "Dr. Quentin Ross", "title": "Senior Lecturer", "email": "quentin.ross@myskytower.com"},
-          {"name": "Dr. Rina Patel", "title": "Professor", "email": "rina.patel@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in organic synthesis and drug design.</strong></p><ul><li>Dr. Quentin Ross, Senior Lecturer (quentin.ross@myskytower.com)</li><li>Dr. Rina Patel, Professor (rina.patel@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Materials Chemistry",
@@ -760,13 +628,7 @@
       },
       "career_prospects": "<ul><li>Materials chemist</li><li>Researcher in advanced materials</li><li>Consultant in materials science</li></ul>",
       "accreditation": "<p>Certified by the Materials Chemistry Association (MCA).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in materials chemistry and nanotechnology.",
-        "members": [
-          {"name": "Dr. Sara Kim", "title": "Lecturer", "email": "sara.kim@myskytower.com"},
-          {"name": "Dr. Tom White", "title": "Professor", "email": "tom.white@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in materials chemistry and nanotechnology.</strong></p><ul><li>Dr. Sara Kim, Lecturer (sara.kim@myskytower.com)</li><li>Dr. Tom White, Professor (tom.white@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Chemical Biology",
@@ -792,13 +654,7 @@
       },
       "career_prospects": "<ul><li>Chemical biologist</li><li>Researcher in chemical biology</li><li>Consultant in biotech industry</li></ul>",
       "accreditation": "<p>Recognized by the Chemical Biology Society (CBS).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in chemical biology and biotechnology.",
-        "members": [
-          {"name": "Dr. Uma Rao", "title": "Senior Lecturer", "email": "uma.rao@myskytower.com"},
-          {"name": "Dr. Victor Singh", "title": "Professor", "email": "victor.singh@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in chemical biology and biotechnology.</strong></p><ul><li>Dr. Uma Rao, Senior Lecturer (uma.rao@myskytower.com)</li><li>Dr. Victor Singh, Professor (victor.singh@myskytower.com)</li></ul>"
     },
   {
   "name": "BSc Mathematics",
@@ -824,13 +680,7 @@
       },
       "career_prospects": "<ul><li>Mathematician in research or industry</li><li>Data analyst</li><li>Graduate study in mathematics</li></ul>",
       "accreditation": "<p>Accredited by the National Mathematics Board (NMB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in pure and applied mathematics.",
-        "members": [
-          {"name": "Dr. William Lee", "title": "Professor", "email": "william.lee@myskytower.com"},
-          {"name": "Dr. Xena Brown", "title": "Lecturer", "email": "xena.brown@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in pure and applied mathematics.</strong></p><ul><li>Dr. William Lee, Professor (william.lee@myskytower.com)</li><li>Dr. Xena Brown, Lecturer (xena.brown@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Pure Mathematics",
@@ -856,13 +706,7 @@
       },
       "career_prospects": "<ul><li>Pure mathematician</li><li>Academic researcher</li><li>Consultant in quantitative fields</li></ul>",
       "accreditation": "<p>Recognized by the Pure Mathematics Society (PMS).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in algebra, analysis, and geometry.",
-        "members": [
-          {"name": "Dr. Yvonne Smith", "title": "Senior Lecturer", "email": "yvonne.smith@myskytower.com"},
-          {"name": "Dr. Zachary Kim", "title": "Professor", "email": "zachary.kim@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in algebra, analysis, and geometry.</strong></p><ul><li>Dr. Yvonne Smith, Senior Lecturer (yvonne.smith@myskytower.com)</li><li>Dr. Zachary Kim, Professor (zachary.kim@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Applied Mathematics",
@@ -888,13 +732,7 @@
       },
       "career_prospects": "<ul><li>Applied mathematician</li><li>Data scientist</li><li>Consultant in engineering or finance</li></ul>",
       "accreditation": "<p>Certified by the Applied Mathematics Board (AMB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in modeling, computation, and statistics.",
-        "members": [
-          {"name": "Dr. Amy Chen", "title": "Lecturer", "email": "amy.chen@myskytower.com"},
-          {"name": "Dr. Brian Lee", "title": "Professor", "email": "brian.lee@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in modeling, computation, and statistics.</strong></p><ul><li>Dr. Amy Chen, Lecturer (amy.chen@myskytower.com)</li><li>Dr. Brian Lee, Professor (brian.lee@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Statistics",
@@ -920,13 +758,7 @@
       },
       "career_prospects": "<ul><li>Statistician in government or industry</li><li>Data analyst</li><li>Researcher in statistics</li></ul>",
       "accreditation": "<p>Accredited by the Statistics Society (SS).</p>",
-      "faculty_details": {
-        "summary": "Faculty with research in probability, inference, and data science.",
-        "members": [
-          {"name": "Dr. Clara Wang", "title": "Senior Lecturer", "email": "clara.wang@myskytower.com"},
-          {"name": "Dr. Daniel Kim", "title": "Professor", "email": "daniel.kim@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with research in probability, inference, and data science.</strong></p><ul><li>Dr. Clara Wang, Senior Lecturer (clara.wang@myskytower.com)</li><li>Dr. Daniel Kim, Professor (daniel.kim@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Computational Mathematics",
@@ -952,13 +784,7 @@
       },
       "career_prospects": "<ul><li>Computational mathematician</li><li>Software developer in scientific computing</li><li>Consultant in modeling and simulation</li></ul>",
       "accreditation": "<p>Recognized by the Computational Mathematics Association (CMA).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in numerical analysis and scientific computing.",
-        "members": [
-          {"name": "Dr. Eva Lin", "title": "Lecturer", "email": "eva.lin@myskytower.com"},
-          {"name": "Dr. Felix Brown", "title": "Professor", "email": "felix.brown@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in numerical analysis and scientific computing.</strong></p><ul><li>Dr. Eva Lin, Lecturer (eva.lin@myskytower.com)</li><li>Dr. Felix Brown, Professor (felix.brown@myskytower.com)</li></ul>"
     },
   {
   "name": "MSc Financial Mathematics",
@@ -984,13 +810,7 @@
       },
       "career_prospects": "<ul><li>Quantitative analyst</li><li>Financial engineer</li><li>Risk management consultant</li></ul>",
       "accreditation": "<p>Certified by the Financial Mathematics Board (FMB).</p>",
-      "faculty_details": {
-        "summary": "Faculty with expertise in financial modeling and risk analysis.",
-        "members": [
-          {"name": "Dr. Gina Park", "title": "Lecturer", "email": "gina.park@myskytower.com"},
-          {"name": "Dr. Howard Lee", "title": "Professor", "email": "howard.lee@myskytower.com"}
-        ]
-      }
+      "faculty_details": "<p><strong>Faculty with expertise in financial modeling and risk analysis.</strong></p><ul><li>Dr. Gina Park, Lecturer (gina.park@myskytower.com)</li><li>Dr. Howard Lee, Professor (howard.lee@myskytower.com)</li></ul>"
     }
   ],
   "courses": [

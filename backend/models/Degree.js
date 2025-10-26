@@ -129,25 +129,19 @@ const Degree = defineModel('Degree', {
     defaultValue: 'draft',
   },
     prerequisites: {
-  // Prerequisite courses/degrees
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT,
       allowNull: true,
-      defaultValue: [],
-      comment: 'Array of course or degree IDs required as prerequisites.'
+      comment: 'Rich text/HTML for prerequisites.'
     },
     study_details: {
-  // Study mode, location, etc.
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT,
       allowNull: true,
-      defaultValue: {},
-      comment: 'JSON object for study mode, location, etc.'
+      comment: 'Rich text/HTML for study details.'
     },
     faculty_details: {
-  // Faculty info
-      type: DataTypes.JSON,
+      type: DataTypes.TEXT,
       allowNull: true,
-      defaultValue: {},
-      comment: 'JSON object for faculty info.'
+      comment: 'Rich text/HTML for faculty info.'
     },
     version: {
   // Current version

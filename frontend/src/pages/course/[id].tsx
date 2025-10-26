@@ -238,7 +238,7 @@ const CourseDetailPage: React.FC = () => {
       case 'archived':
         return { icon: renderIcon(ArchiveIcon), color: 'error', label: 'Archived' };
       default:
-        return { icon: renderIcon(DraftIcon), color: 'default', label: status || 'Unknown' };
+        return { icon: renderIcon(DraftIcon), color: 'default', label: status ? status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown' };
     }
   };
 
@@ -327,48 +327,53 @@ const CourseDetailPage: React.FC = () => {
           {/* Hero shows only the title to match degree layout; description will appear in the card below the image */}
         </Container>
 
-        {/* Meta box - match degree page style. Only visible in authenticated preview (UUID) */}
+        {/* Meta box - visually integrated within hero, matching degree page style */}
         {user && isUUID(Array.isArray(id) ? id[0] : id || '') && (
-          <Box sx={{
-            position: 'absolute',
-            top: { xs: 16, md: 32 },
-            right: { xs: 16, md: 48 },
-            bgcolor: 'rgba(255,255,255,0.7)',
-            color: 'text.primary',
-            borderRadius: 3,
-            boxShadow: 4,
-            p: 3,
-            minWidth: 260,
-            zIndex: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            backdropFilter: 'blur(2px)',
-          }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              right: { xs: 24, md: 56 },
+              transform: 'translateY(-50%)',
+              bgcolor: 'rgba(255,255,255,0.92)',
+              color: 'text.primary',
+              borderRadius: 4,
+              boxShadow: 6,
+              p: 3,
+              minWidth: 320,
+              zIndex: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              backdropFilter: 'blur(3px)',
+            }}
+          >
             {course.status && (
               <Chip
                 icon={getStatusIcon(course.status || '')}
-                label={course.status}
+                label={getStatusInfo(course.status).label}
                 color={course.status === 'active' ? 'success' : course.status === 'pending_approval' ? 'warning' : course.status === 'draft' ? 'info' : 'error'}
-                sx={{ mb: 2, fontWeight: 700, fontSize: '1rem', px: 2 }}
+                sx={{ mb: 2, fontWeight: 700, fontSize: '1.1rem', px: 2, height: 40, borderRadius: 8, letterSpacing: 0.2, textTransform: 'none' }}
               />
             )}
             {course.created_by && course.created_at && (
               <Box sx={{ mb: 1 }}>
-                <Typography variant="body2" fontWeight={500}>Created by: {course.created_by}</Typography>
-                <Typography variant="body2" color="text.secondary">Created: {new Date(course.created_at).toLocaleDateString()}</Typography>
+                <Typography variant="body2" fontWeight={500} sx={{ lineHeight: 1.3 }}>
+                  Created by: {course.created_by} on {new Date(course.created_at).toLocaleDateString()}
+                </Typography>
               </Box>
             )}
             {course.updated_by && course.updated_at && (
               <Box sx={{ mb: 1 }}>
-                <Typography variant="body2" fontWeight={500}>Last modified by: {course.updated_by}</Typography>
-                <Typography variant="body2" color="text.secondary">Last modified: {new Date(course.updated_at).toLocaleDateString()}</Typography>
+                <Typography variant="body2" fontWeight={500} sx={{ lineHeight: 1.3 }}>
+                  Last modified by: {course.updated_by} on {new Date(course.updated_at).toLocaleDateString()}
+                </Typography>
               </Box>
             )}
             {['approved', 'active', 'archived'].includes(course.status || '') && course.approved_by && course.approved_at && (
               <Box>
-                <Typography variant="body2" fontWeight={500}>Approved by: {course.approved_by}</Typography>
-                <Typography variant="body2" color="text.secondary">Approved: {new Date(course.approved_at).toLocaleDateString()}</Typography>
+                <Typography variant="body2" fontWeight={500} sx={{ lineHeight: 1.3 }}>Approved by: {course.approved_by}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.3 }}>Approved: {new Date(course.approved_at).toLocaleDateString()}</Typography>
               </Box>
             )}
           </Box>

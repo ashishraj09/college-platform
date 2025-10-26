@@ -72,8 +72,8 @@ async function fetchAndFormatCourse({ id, code, includeMeta = false, resolveName
     parent_course_id: course.parent_course_id,
     version: course.version,
     is_latest_version: course.is_latest_version,
-    created_at: course.created_at,
-    updated_at: course.updated_at,
+    created_at: course.createdAt,
+    updated_at: course.updatedAt,
     submitted_at: course.submitted_at || null,
   };
 
@@ -83,6 +83,8 @@ async function fetchAndFormatCourse({ id, code, includeMeta = false, resolveName
     formatted.updated_by = course.updater ? `${course.updater.first_name} ${course.updater.last_name}` : null;
     formatted.approved_by = course.approver ? `${course.approver.first_name} ${course.approver.last_name}` : null;
     formatted.approved_at = course.approved_at || null;
+    formatted.created_at = course.createdAt || null;
+    formatted.updated_at = course.updatedAt || null;
   }
 
   // Optionally resolve faculty UUIDs to names (best effort, non-blocking)
