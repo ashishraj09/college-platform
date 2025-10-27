@@ -231,12 +231,14 @@ const CourseDetailPage: React.FC = () => {
     switch (status) {
       case 'active':
         return { icon: renderIcon(ActiveIcon), color: 'success', label: 'Active' };
+      case 'approved':
+        return { icon: renderIcon(ActiveIcon), color: 'success', label: 'Approved' };
       case 'pending_approval':
         return { icon: renderIcon(PendingIcon), color: 'warning', label: 'Pending Approval' };
       case 'draft':
         return { icon: renderIcon(DraftIcon), color: 'default', label: 'Draft' };
       case 'archived':
-        return { icon: renderIcon(ArchiveIcon), color: 'error', label: 'Archived' };
+        return { icon: renderIcon(ArchiveIcon), color: 'default', label: 'Archived' };
       default:
         return { icon: renderIcon(DraftIcon), color: 'default', label: status ? status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown' };
     }
@@ -249,12 +251,14 @@ const CourseDetailPage: React.FC = () => {
     switch (status) {
       case 'active':
         return renderIcon(ActiveIcon, { sx: { color: 'success.main', mr: 1 } });
+      case 'approved':
+        return renderIcon(ActiveIcon, { sx: { color: 'success.main', mr: 1 } });
       case 'pending_approval':
         return renderIcon(PendingIcon, { sx: { color: 'warning.main', mr: 1 } });
       case 'draft':
-        return renderIcon(DraftIcon, { sx: { color: 'info.main', mr: 1 } });
+        return renderIcon(DraftIcon, { sx: { color: 'grey.500', mr: 1 } });
       case 'archived':
-        return renderIcon(ArchiveIcon, { sx: { color: 'error.main', mr: 1 } });
+        return renderIcon(ArchiveIcon, { sx: { color: 'grey.500', mr: 1 } });
       default:
         return renderIcon(DraftIcon, { sx: { color: 'grey.500', mr: 1 } });
     }
@@ -352,7 +356,7 @@ const CourseDetailPage: React.FC = () => {
               <Chip
                 icon={getStatusIcon(course.status || '')}
                 label={getStatusInfo(course.status).label}
-                color={course.status === 'active' ? 'success' : course.status === 'pending_approval' ? 'warning' : course.status === 'draft' ? 'info' : 'error'}
+                color={course.status === 'active' || course.status === 'approved' ? 'success' : course.status === 'pending_approval' ? 'warning' : 'default'}
                 sx={{ mb: 2, fontWeight: 700, fontSize: '1.1rem', px: 2, height: 40, borderRadius: 8, letterSpacing: 0.2, textTransform: 'none' }}
               />
             )}

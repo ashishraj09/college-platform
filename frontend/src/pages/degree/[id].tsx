@@ -171,12 +171,14 @@ const DegreeDetailPage: React.FC = () => {
     switch (status) {
       case 'active':
         return { icon: <ActiveIcon />, color: 'success', label: 'Active' };
+      case 'approved':
+        return { icon: <CheckCircleIcon />, color: 'success', label: 'Approved' };
       case 'pending_approval':
         return { icon: <PendingIcon />, color: 'warning', label: 'Pending Approval' };
       case 'draft':
         return { icon: <DraftIcon />, color: 'default', label: 'Draft' };
       case 'archived':
-        return { icon: <ArchiveIcon />, color: 'error', label: 'Archived' };
+        return { icon: <ArchiveIcon />, color: 'default', label: 'Archived' };
       default:
         return { icon: <DraftIcon />, color: 'default', label: status || 'Unknown' };
     }
@@ -187,12 +189,14 @@ const getStatusIcon = (status: string) => {
   switch (status) {
     case 'active':
       return <CheckCircleIcon sx={{ color: 'success.main', mr: 1 }} />;
+    case 'approved':
+      return <CheckCircleIcon sx={{ color: 'success.main', mr: 1 }} />;
     case 'pending_approval':
       return <PendingIcon sx={{ color: 'warning.main', mr: 1 }} />;
     case 'draft':
-      return <DraftIcon sx={{ color: 'info.main', mr: 1 }} />;
+      return <DraftIcon sx={{ color: 'grey.500', mr: 1 }} />;
     case 'archived':
-      return <ArchiveIcon sx={{ color: 'error.main', mr: 1 }} />;
+      return <ArchiveIcon sx={{ color: 'grey.500', mr: 1 }} />;
     default:
       return <DraftIcon sx={{ color: 'grey.500', mr: 1 }} />;
   }
@@ -303,7 +307,7 @@ const getStatusIcon = (status: string) => {
                 <Chip
                   icon={getStatusIcon(degree.status)}
                   label={getStatusInfo(degree.status).label}
-                  color={degree.status === 'active' ? 'success' : degree.status === 'pending_approval' ? 'warning' : degree.status === 'draft' ? 'info' : 'error'}
+                  color={degree.status === 'active' || degree.status === 'approved' ? 'success' : degree.status === 'pending_approval' ? 'warning' : 'default'}
                   sx={{ mb: 2, fontWeight: 700, fontSize: '1.1rem', px: 2, height: 40, borderRadius: 8, letterSpacing: 0.2, textTransform: 'none' }}
                 />
               )}
