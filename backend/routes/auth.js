@@ -565,4 +565,47 @@ router.get('/me', authenticateToken, async (req, res) => {
   }
 });
 
+// Validate token (password reset or activation)
+router.get('/validate-token', async (req, res) => {
+  /**
+   * GET /auth/validate-token?token=...
+   * Purpose: Check if a password reset or activation token is valid and not expired
+   * Access: Public
+   * Response: { valid: true, type: 'reset'|'activation' } or 400 with error
+   */
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const User = await models.User();
+    // Check password reset token
+    let user = await User.findOne({
+      where: {
+        password_reset_token: token,
+        password_reset_expires: {
+          [Op.gt]: new Date(),
+        },
+      },
+    });
+    if (user) {
+      return res.json({ valid: true, type: 'reset' });
+    }
+    // Check activation token (email_verification_token)
+    user = await User.findOne({
+      where: {
+        email_verification_token: token,
+        // Optionally, you can add an expiry check if you store one for activation
+      },
+    });
+    if (user) {
+      return res.json({ valid: true, type: 'activation' });
+    }
+    return res.status(400).json({ error: 'Invalid or expired token' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to validate token' });
+  }
+});
+
 module.exports = router;

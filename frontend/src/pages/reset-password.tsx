@@ -62,18 +62,43 @@ const ResetPasswordPage: React.FC = () => {
   });
 
   useEffect(() => {
+    if (!router.isReady) return;
     // Only show error if token is explicitly missing from the URL (not just undefined during SSR/first render)
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlToken = urlParams.get('token');
-      if (!urlToken) {
-        setError('Invalid or missing reset token');
-        setTokenValid(false);
-      } else {
-        setTokenValid(true);
-      }
+    if (!token) {
+      setError('Invalid or missing reset token');
+      setTokenValid(false);
+      return;
     }
-  }, [token]);
+
+    // Proactively validate token with backend
+    const validateToken = async () => {
+      try {
+        const result = await authAPI.validateToken(token);
+        // If API returns an error object instead of throwing
+        if (result && result.error) {
+          setError(result.error);
+          setTokenValid(false);
+        } else if (result.type !== 'reset') {
+          setError('Invalid password reset link. Please request a new one.');
+          setTokenValid(false);
+        } else {
+          setTokenValid(true);
+        }
+      } catch (err: any) {
+        console.log('validateToken error:', err);
+        // Robust error extraction
+        const backendError =
+          err?.error || 
+          (typeof err === 'string' ? err : null);
+        setError(
+          backendError ||
+          'This password reset link is invalid or has expired. Please request a new one.'
+        );
+        setTokenValid(false);
+      }
+    };
+    validateToken();
+  }, [token, router.isReady]);
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!token) {
@@ -127,13 +152,14 @@ const ResetPasswordPage: React.FC = () => {
           >
             <CardContent sx={{ p: 4 }}>
               <Box textAlign="center" mb={4}>
+                <img src="/static/college-logo.png" alt="College Platform Logo" style={{ width: 120, height: 120, marginBottom: 16 }} />
                 <Typography variant="h5" component="h1" gutterBottom fontWeight="bold">
                   Invalid Reset Link
                 </Typography>
               </Box>
 
               <Alert severity="error" sx={{ mb: 3 }}>
-                This password reset link is invalid or has expired. Please request a new one.
+                {error || 'This password reset link is invalid or has expired. Please request a new one.'}
               </Alert>
 
               <Button
@@ -180,6 +206,7 @@ const ResetPasswordPage: React.FC = () => {
           >
             <CardContent sx={{ p: 4 }}>
               <Box textAlign="center" mb={4}>
+                <img src="/static/college-logo.png" alt="College Platform Logo" style={{ width: 120, height: 120, marginBottom: 16 }} />
                 <Typography variant="h5" component="h1" gutterBottom fontWeight="bold">
                   Password Reset Successful
                 </Typography>
@@ -223,6 +250,7 @@ const ResetPasswordPage: React.FC = () => {
         >
           <CardContent sx={{ p: 4 }}>
             <Box textAlign="center" mb={4}>
+              <img src="/static/college-logo.png" alt="College Platform Logo" style={{ width: 120, height: 120, marginBottom: 16 }} />
               <Typography variant="h5" component="h1" gutterBottom fontWeight="bold">
                 Set New Password
               </Typography>
@@ -233,7 +261,7 @@ const ResetPasswordPage: React.FC = () => {
 
             {error && (
               <Alert severity="error" sx={{ mb: 3 }}>
-                {error}
+              {error}
               </Alert>
             )}
 

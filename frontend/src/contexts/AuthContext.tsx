@@ -77,6 +77,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Fetch latest user profile on page refresh
   useEffect(() => {
+    // Only fetch profile if not on a public page
+    const publicPages = ['/', '/homepage', '/login', '/activate-account','/forgot-password', '/reset-password'];
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isPublicPage = publicPages.includes(pathname) ||
+      pathname.startsWith('/department/') ||
+      pathname.startsWith('/degree/') ||
+      pathname.startsWith('/course/');
+    if (isPublicPage) {
+      dispatch(setLoading(false));
+      setInitialized(true);
+      return;
+    }
     // If we already have a user in the store (e.g. restored from SSR or a previous action),
     // don't call the profile endpoint again. This prevents unnecessary /auth/me calls on
     // client-side navigations where AuthProvider remains mounted.

@@ -59,10 +59,10 @@ api.interceptors.response.use(
       // Only redirect to login if we're on a protected page (not on public pages)
       const publicPages = ['/', '/homepage', '/login', '/forgot-password', '/reset-password'];
       const isPublicPage = publicPages.includes(window.location.pathname) || 
-                          window.location.pathname.startsWith('/department/') ||
-                          window.location.pathname.startsWith('/degree/') ||
-                          window.location.pathname.startsWith('/course/');
-      
+        window.location.pathname.startsWith('/department/') ||
+        window.location.pathname.startsWith('/degree/') ||
+        window.location.pathname.startsWith('/course/');
+
       if (!isPublicPage && window.location.pathname !== '/login') {
         console.log('Authentication failed on protected page, redirecting to login');
         window.location.href = '/login';
@@ -127,6 +127,13 @@ export const authAPI = {
   getProfile: async () => {
     try {
       return (await api.get('/auth/me')).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  validateToken: async (token: string) => {
+    try {
+      return (await api.get(`/auth/validate-token?token=${encodeURIComponent(token)}`)).data;
     } catch (err: any) {
       return handleApiError(err);
     }

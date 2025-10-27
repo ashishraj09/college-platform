@@ -473,9 +473,9 @@ router.get(
         limit = 50,
         all_creators
       } = req.query;
-      const whereClause = {};
-      if (department_code) whereClause['$departmentByCode.code$'] = department_code;
-      if (status) whereClause.status = status;
+  const whereClause = {};
+  if (department_code) whereClause['department_code'] = department_code;
+  if (status) whereClause.status = status;
       // Filter by department and ownership/collaboration for non-admin users
       let isRestrictedFaculty = false;
       if (req.user && req.user.user_type !== 'admin') {

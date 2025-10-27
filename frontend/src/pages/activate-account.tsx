@@ -27,17 +27,42 @@ const ActivateAccountPage: React.FC = () => {
     password: '',
     confirmPassword: '',
   });
+  const [tokenValid, setTokenValid] = useState<boolean>(true);
 
   const token = router.query.token as string | undefined;
   const isPasswordReset = router.pathname === '/reset-password';
 
   useEffect(() => {
+    if (!router.isReady) return;
     if (!token) {
       const message = isPasswordReset 
         ? 'Invalid password reset link. Please request a new password reset.' 
         : 'Invalid activation link. Please contact your administrator.';
       setError(message);
+      setTokenValid(false);
+      return;
     }
+    // Proactively validate token with backend
+    const validateToken = async () => {
+      try {
+        const result = await authAPI.validateToken(token);
+        if (result && result.error) {
+          setError(result.error);
+          setTokenValid(false);
+        } else {
+          setTokenValid(true);
+        }
+      } catch (err: any) {
+        const backendError =
+          err?.error ||
+          (typeof err === 'string' ? err : null);
+        setError(
+          backendError || 'This activation link is invalid or has expired. Please contact your administrator.'
+        );
+        setTokenValid(false);
+      }
+    };
+    validateToken();
   }, [token, isPasswordReset]);
 
   const handleInputChange = (field: keyof PasswordForm) => (
@@ -120,7 +145,7 @@ const ActivateAccountPage: React.FC = () => {
               Invalid Activation Link
             </Typography>
             <Alert severity="error" sx={{ mb: 2 }}>
-              The activation link is invalid or missing. Please contact your administrator for assistance.
+              {error || 'The activation link is invalid or missing. Please contact your administrator for assistance.'}
             </Alert>
             <Button
               fullWidth
@@ -147,6 +172,9 @@ const ActivateAccountPage: React.FC = () => {
         }}
       >
         <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
+          <Box textAlign="center" mb={2}>
+            <img src="/static/college-logo.png" alt="College Platform Logo" style={{ width: 120, height: 120, marginBottom: 16 }} />
+          </Box>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
             {isPasswordReset ? 'Reset Your Password' : 'Activate Your Account'}
           </Typography>

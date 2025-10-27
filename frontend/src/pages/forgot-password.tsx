@@ -144,6 +144,7 @@ const ForgotPasswordPage: React.FC = () => {
         >
           <CardContent sx={{ p: 4 }}>
             <Box textAlign="center" mb={4}>
+              <img src="/static/college-logo.png" alt="College Platform Logo" style={{ width: 120, height: 120, marginBottom: 16 }} />
               <Typography variant="h5" component="h1" gutterBottom fontWeight="bold">
                 Reset Password
               </Typography>

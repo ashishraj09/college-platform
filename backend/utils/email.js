@@ -142,7 +142,7 @@ async function sendTemplateEmail(templateName, to, subject, variables = {}) {
 async function sendWelcomeEmail(user, resetToken) {
   const appName = process.env.FROM_NAME;
   const subject = `Welcome to ${appName} - Activate Your Account`;
-  const activationUrl = `${process.env.FRONTEND_URL}/activate?token=${resetToken}`;
+  const activationUrl = `${process.env.FRONTEND_URL}/activate-account?token=${resetToken}`;
   return await sendTemplateEmail('welcome', user.email, subject, {
     FIRST_NAME: user.first_name,
     LAST_NAME: user.last_name,
