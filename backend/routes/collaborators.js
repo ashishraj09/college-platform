@@ -1,7 +1,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { Course, Degree, User } = require('../models');
+const models = require('../utils/models');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -28,6 +28,8 @@ function isSameDepartment(user, entity) {
 router.post('/course/:courseId/add', authenticateToken, async (req, res) => {
   const { courseId } = req.params;
   const { userId } = req.body;
+  const Course = await models.Course();
+  const User = await models.User();
   const course = await Course.findByPk(courseId);
   if (!course) return res.status(404).json({ error: 'Course not found' });
   const user = await User.findByPk(userId);
@@ -42,6 +44,8 @@ router.post('/course/:courseId/add', authenticateToken, async (req, res) => {
 router.post('/course/:courseId/remove', authenticateToken, async (req, res) => {
   const { courseId } = req.params;
   const { userId } = req.body;
+  const Course = await models.Course();
+  const User = await models.User();
   const course = await Course.findByPk(courseId);
   if (!course) return res.status(404).json({ error: 'Course not found' });
   const user = await User.findByPk(userId);
@@ -55,6 +59,8 @@ router.post('/course/:courseId/remove', authenticateToken, async (req, res) => {
 router.post('/degree/:degreeId/add', authenticateToken, async (req, res) => {
   const { degreeId } = req.params;
   const { userId } = req.body;
+  const Degree = await models.Degree();
+  const User = await models.User();
   const degree = await Degree.findByPk(degreeId);
   if (!degree) return res.status(404).json({ error: 'Degree not found' });
   const user = await User.findByPk(userId);
@@ -69,6 +75,8 @@ router.post('/degree/:degreeId/add', authenticateToken, async (req, res) => {
 router.post('/degree/:degreeId/remove', authenticateToken, async (req, res) => {
   const { degreeId } = req.params;
   const { userId } = req.body;
+  const Degree = await models.Degree();
+  const User = await models.User();
   const degree = await Degree.findByPk(degreeId);
   if (!degree) return res.status(404).json({ error: 'Degree not found' });
   const user = await User.findByPk(userId);
@@ -81,6 +89,8 @@ router.post('/degree/:degreeId/remove', authenticateToken, async (req, res) => {
 // Get collaborators for a degree
 router.get('/degree/:degreeId', authenticateToken, async (req, res) => {
   const { degreeId } = req.params;
+  const Degree = await models.Degree();
+  const User = await models.User();
   const degree = await Degree.findByPk(degreeId, {
     include: [{ model: User, as: 'collaborators', attributes: { exclude: ['password'] } }]
   });
@@ -91,6 +101,8 @@ router.get('/degree/:degreeId', authenticateToken, async (req, res) => {
 // Get collaborators for a course
 router.get('/course/:courseId', authenticateToken, async (req, res) => {
   const { courseId } = req.params;
+  const Course = await models.Course();
+  const User = await models.User();
   const course = await Course.findByPk(courseId, {
     include: [{ model: User, as: 'collaborators', attributes: { exclude: ['password'] } }]
   });
