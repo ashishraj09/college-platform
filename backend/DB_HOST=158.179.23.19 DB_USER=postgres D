@@ -1,1 +1,0 @@
-DB_HOST=158.179.23.19 DB_USER=postgres DB_PASSWORD=IbI6AdQ+GCoEdNICIvlk++uM5cQAq/apcY/6tdxG10s= DB_NAME=college_platform DB_PORT=5432 JWT_SECRET=superlongrandomstring1234567890 JWT_REFRESH_SECRET=anotherlongrandomstring0987654321 node backend/scripts/test-data.js
