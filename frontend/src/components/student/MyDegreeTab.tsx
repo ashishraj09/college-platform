@@ -887,7 +887,7 @@ useEffect(() => {
                                 <Box sx={{ flex: 1 }}>
                                   <Typography variant="body1" component="div">
                                     <a
-                                      href={`/student/course/${encodeURIComponent(course.code)}`}
+                                      href={`/course/${encodeURIComponent(course.code)}`}
                                       style={{ textDecoration: 'none', color: '#1976d2', fontWeight: 500 }}
                                       target="_blank"
                                       rel="noopener noreferrer"
