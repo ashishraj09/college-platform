@@ -205,56 +205,76 @@ router.get('/',
       if (status) whereClause.status = status;
       if (faculty_id) whereClause.faculty_id = faculty_id;
 
-      // Filter by department and ownership for non-admin users
+      // Filter by department and ownership/collaboration for non-admin users
+      let isRestrictedFaculty = false;
       if (req.user && req.user.user_type !== 'admin') {
-        // All non-admin users can only see courses from their department
         whereClause.department_code = req.user.department_code;
-        
-        // Non-HOD users can only see courses they created
         if (!req.user.is_head_of_department) {
-          whereClause.created_by = req.user.id;
+          isRestrictedFaculty = true;
         }
       }
 
       const offset = (page - 1) * limit;
 
       // Use findAndCountAll for pagination meta
-      const { count, rows: coursesRaw } = await Course.findAndCountAll({
-        where: whereClause,
-        include: [
-          {
-            model: Department,
-            as: 'departmentByCode',
-            attributes: ['id', 'name', 'code']
-          },
-          {
-            model: Degree,
-            as: 'degreeByCode',
-            attributes: ['id', 'name', 'code']
-          },
-          {
-            model: User,
-            as: 'creator',
-            attributes: ['id', 'first_name', 'last_name', 'email']
-          },
-          {
-            model: User,
-            as: 'updater',
-            attributes: ['id', 'first_name', 'last_name', 'email'],
-            required: false
-          },
-          {
-            model: User,
-            as: 'approver',
-            attributes: ['id', 'first_name', 'last_name', 'email'],
-            required: false
-          }
-        ],
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        order: [['created_at', 'DESC']],
-        distinct: true
-      });
+      let coursesRaw = [];
+      let count = 0;
+      if (isRestrictedFaculty) {
+        // Fetch created_by
+        const createdCourses = await Course.findAll({
+          where: { ...whereClause, created_by: req.user.id, ...(status ? { status } : {}) },
+          include: [
+            { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+            { model: Degree, as: 'degreeByCode', attributes: ['id', 'name', 'code'] },
+            { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+            { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
+            { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
+            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+          ]
+        });
+        // Fetch collaborated
+        const collaboratedCourses = await Course.findAll({
+          where: { ...whereClause, ...(status ? { status } : {}) },
+          include: [
+            { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+            { model: Degree, as: 'degreeByCode', attributes: ['id', 'name', 'code'] },
+            { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+            { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
+            { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
+            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: true, where: { id: req.user.id } }
+          ]
+        });
+        // Merge and deduplicate by id
+        const allCourses = [...createdCourses, ...collaboratedCourses];
+        const seen = new Set();
+        coursesRaw = allCourses.filter(c => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        });
+        count = coursesRaw.length;
+        // Paginate in JS
+        coursesRaw = coursesRaw.sort((a, b) => b.createdAt - a.createdAt).slice(offset, offset + parseInt(limit));
+      } else {
+        // HOD/admin/office: normal query
+        const result = await Course.findAndCountAll({
+          where: whereClause,
+          include: [
+            { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+            { model: Degree, as: 'degreeByCode', attributes: ['id', 'name', 'code'] },
+            { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+            { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
+            { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
+            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+          ],
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          order: [['created_at', 'DESC']],
+          distinct: true
+        });
+        coursesRaw = result.rows;
+        count = result.count;
+      }
 
       // Deduplicate courses by id
       const seen = new Set();
@@ -305,6 +325,13 @@ router.get('/',
         obj.textbooks = course.textbooks;
         obj.references = course.references;
         obj.faculty_details = course.faculty_details;
+        // Add is_collaborating flag (true if user is a collaborator but not creator)
+        if (req.user && obj.collaborators && Array.isArray(obj.collaborators)) {
+          const isCollaborator = obj.collaborators.some(u => u.id === req.user.id);
+          obj.is_collaborating = isCollaborator && obj.created_by !== req.user.id;
+        } else {
+          obj.is_collaborating = false;
+        }
         // Remove old fields if present
         delete obj.overview;
         delete obj.study_details;
@@ -1000,13 +1027,23 @@ router.post('/:id/create-version',
         created_by: originalCourse.created_by
       });
       
-      // Check if user is admin or the creator of the course
+
+      // Check if user is admin, creator, or collaborator
       const isAdmin = req.user.user_type === 'admin';
       const isCreator = originalCourse.created_by === req.user.id;
-      
+      let isCollaborator = false;
       if (!isAdmin && !isCreator) {
-        console.log(`[ERROR] Permission denied. User ${req.user.id} is not admin or creator of course ${originalCourse.id}`);
-        return res.status(403).json({ error: 'You do not have permission to create a version of this course' });
+        // Check if user is a collaborator
+        if (typeof originalCourse.getCollaborators === 'function') {
+          const collaborators = await originalCourse.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === req.user.id);
+        } else if (originalCourse.collaborators && Array.isArray(originalCourse.collaborators)) {
+          isCollaborator = originalCourse.collaborators.some(u => u.id === req.user.id);
+        }
+        if (!isCollaborator) {
+          console.log(`[ERROR] Permission denied. User ${req.user.id} is not admin, creator, or collaborator of course ${originalCourse.id}`);
+          return res.status(403).json({ error: 'You do not have permission to create a version of this course' });
+        }
       }
 
       // Only allow versioning for approved or active courses
@@ -1246,9 +1283,20 @@ router.patch('/:id/submit',
         return res.status(400).json({ error: 'User context required' });
       }
 
-      // Only course creator can submit
+
+      // Only course creator or collaborator can submit
+      let isCollaborator = false;
       if (course.created_by !== user.id) {
-        return res.status(403).json({ error: 'Only course creator can submit for approval' });
+        // Check if user is a collaborator
+        if (typeof course.getCollaborators === 'function') {
+          const collaborators = await course.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === user.id);
+        } else if (course.collaborators && Array.isArray(course.collaborators)) {
+          isCollaborator = course.collaborators.some(u => u.id === user.id);
+        }
+        if (!isCollaborator) {
+          return res.status(403).json({ error: 'Only course creator or collaborator can submit for approval' });
+        }
       }
 
       // Faculty can only submit courses in their own department
@@ -1485,9 +1533,20 @@ router.patch('/:id/publish',
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Only course creator or faculty in the same department can publish
+
+      // Only course creator, department faculty, admin, or collaborator can publish
+      let isCollaborator = false;
       if (course.created_by !== user.id && user.department_id !== course.department_id) {
-        return res.status(403).json({ error: 'Only course creator or department faculty can publish courses' });
+        // Check if user is a collaborator
+        if (typeof course.getCollaborators === 'function') {
+          const collaborators = await course.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === user.id);
+        } else if (course.collaborators && Array.isArray(course.collaborators)) {
+          isCollaborator = course.collaborators.some(u => u.id === user.id);
+        }
+        if (!isCollaborator) {
+          return res.status(403).json({ error: 'Only course creator, department faculty, admin, or collaborator can publish courses' });
+        }
       }
 
       if (course.status !== 'approved') {
@@ -1569,9 +1628,20 @@ router.put('/:id',
         return res.status(400).json({ error: 'User context required - missing user or department_code in auth' });
       }
 
-      // Only course creator can update (except admins)
-      if (course.created_by !== user.id && user.user_type !== 'admin') {
-        return res.status(403).json({ error: 'Only course creator can update this course' });
+
+      // Only course creator, admin, or collaborator can update
+      let isCollaborator = false;
+      if (user.user_type !== 'admin' && course.created_by !== user.id) {
+        // Check if user is a collaborator
+        if (typeof course.getCollaborators === 'function') {
+          const collaborators = await course.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === user.id);
+        } else if (course.collaborators && Array.isArray(course.collaborators)) {
+          isCollaborator = course.collaborators.some(u => u.id === user.id);
+        }
+        if (!isCollaborator) {
+          return res.status(403).json({ error: 'Only course creator or collaborator can update this course' });
+        }
       }
 
       // Faculty can only update courses in their own department

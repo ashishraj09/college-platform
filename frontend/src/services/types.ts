@@ -70,7 +70,7 @@ export interface Enrollment {
   id: string;
   student_id: string;
   course_id: string;
-  enrollment_status: 'pending_hod_approval' | 'pending_office_approval' | 'approved' | 'rejected' | 'withdrawn';
+  enrollment_status: 'pending_approval' | 'pending_office_approval' | 'approved' | 'rejected' | 'withdrawn';
   semester: number;
   rejection_reason?: string;
   grade?: string;

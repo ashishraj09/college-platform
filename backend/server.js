@@ -125,6 +125,7 @@ const degreeRoutes = require('./routes/degrees');
 const enrollmentRoutes = require('./routes/enrollments');
 const enrollmentNewRoutes = require('./routes/enrollment');
 const timelineRoutes = require('./routes/timeline');
+const collaboratorsRoutes = require('./routes/collaborators');
 
 // --------------------
 // Request/Response Logging
@@ -338,6 +339,7 @@ app.use('/api/degrees', degreeRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/enrollment', enrollmentNewRoutes);
 app.use('/api/timeline', timelineRoutes);
+app.use('/api/collaborators', collaboratorsRoutes);
 
 // --------------------
 // Error Handling

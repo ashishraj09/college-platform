@@ -33,7 +33,7 @@ function TabPanel(props: TabPanelProps) {
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'draft': return 'default';
-    case 'pending_hod_approval': return 'warning';
+    case 'pending_approval': return 'warning';
     // Keep this case for backward compatibility with existing data
     case 'pending_office_approval': return 'info';
     case 'approved': return 'success';
@@ -46,7 +46,7 @@ const getStatusColor = (status: string) => {
 const getStatusLabel = (status: string) => {
   switch (status) {
     case 'draft': return 'Draft';
-    case 'pending_hod_approval': return 'Pending Approval';
+    case 'pending_approval': return 'Pending Approval';
     // Keep this case for backward compatibility with existing data
     case 'pending_office_approval': return 'Pending Approval';
     case 'approved': return 'Approved';

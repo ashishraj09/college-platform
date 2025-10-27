@@ -58,7 +58,7 @@ router.post('/approve',
       const enrollments = await EnrollmentModel.findAll({
         where: {
           id: { [Op.in]: enrollment_ids },
-          enrollment_status: 'pending_hod_approval'
+          enrollment_status: 'pending_approval'
         },
         include: [{ model: UserModel, as: 'student' }]
       });
@@ -176,7 +176,7 @@ router.post('/reject',
       const enrollments = await EnrollmentModel.findAll({
         where: { 
           id: { [Op.in]: enrollment_ids },
-          enrollment_status: 'pending_hod_approval'
+          enrollment_status: 'pending_approval'
         },
         include: [{ model: UserModel, as: 'student' }]
       });

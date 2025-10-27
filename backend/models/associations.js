@@ -31,6 +31,41 @@ let associationsInitialized = false;
 
 // Async function to initialize associations
 async function initializeAssociations() {
+  // Collaborator associations (many-to-many)
+  // Course collaborators
+  Course.belongsToMany(User, {
+    through: 'CourseCollaborators',
+    as: 'collaborators',
+    foreignKey: 'course_id',
+    otherKey: 'user_id',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+  User.belongsToMany(Course, {
+    through: 'CourseCollaborators',
+    as: 'collaboratingCourses',
+    foreignKey: 'user_id',
+    otherKey: 'course_id',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+  // Degree collaborators
+  Degree.belongsToMany(User, {
+    through: 'DegreeCollaborators',
+    as: 'collaborators',
+    foreignKey: 'degree_id',
+    otherKey: 'user_id',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+  User.belongsToMany(Degree, {
+    through: 'DegreeCollaborators',
+    as: 'collaboratingDegrees',
+    foreignKey: 'user_id',
+    otherKey: 'degree_id',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
   // --------------------
   // Message associations
   // --------------------

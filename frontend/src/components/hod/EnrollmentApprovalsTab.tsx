@@ -142,7 +142,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
   const params: any = {
     page: pagination.page,
     limit: pagination.limit,
-    status: 'pending_hod_approval' // Only fetch enrollments pending HOD approval
+    status: 'pending_approval' // Only fetch enrollments pending HOD approval
   };
   if (selectedDegree) params.degree_id = selectedDegree;
   if (selectedSemester) params.semester = selectedSemester;

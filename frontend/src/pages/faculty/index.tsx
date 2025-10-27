@@ -20,7 +20,9 @@ import {
   DialogActions,
   TablePagination,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
+import GroupsIcon from '@mui/icons-material/Groups';
 import {
   Add as AddIcon,
   School as SchoolIcon,
@@ -47,8 +49,13 @@ import {
 import TimelineIcon from '@mui/icons-material/Timeline';
 import TimelineDialog, { TimelineEvent } from '../../components/common/TimelineDialog';
 import { timelineAPI } from '../../services/api';
+import CollaboratorManager from '../../components/common/CollaboratorManager';
 
 const FacultyDashboard: React.FC = () => {
+  // Unified state for collaborator dialog (course/degree)
+  const [collabDialogOpen, setCollabDialogOpen] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState<any>(null);
+  const [collabEntityType, setCollabEntityType] = useState<'course' | 'degree' | null>(null);
   // Helper to reload stats after entity actions
   const reloadStats = async () => {
   // console.log('[DEBUG] reloadStats called');
@@ -298,22 +305,7 @@ useEffect(() => {
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Code: {item.code}{item.version > 1 ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
             </Typography>
-            <Typography variant="body2" sx={{ mb: 2 }} noWrap>{item.overview || item.description}</Typography>
-            {item.rejection_reason && item.status === 'draft' && (
-              <Alert severity="error" variant="outlined" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
-                  📋 Requires Revision
-                </Typography>
-                <Typography variant="body2" sx={{ lineHeight: 1.5, color: 'error.dark' }}>
-                  {item.rejection_reason}
-                </Typography>
-                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'error.light' }}>
-                  <Typography variant="caption" sx={{ color: 'error.main', fontStyle: 'italic' }}>
-                    💡 Please address the feedback above and resubmit for approval.
-                  </Typography>
-                </Box>
-              </Alert>
-            )}
+            <Typography variant="body2" sx={{ mb: 2 }} noWrap>{item.description}</Typography>
           </CardContent>
           <CardActions sx={{ pt: 0 }}>
             {actions.map((action, index) => (
@@ -598,122 +590,174 @@ useEffect(() => {
   ];
 
   // Entity card renderer
-  const FacultyItemCard = ({ item, actions, onAction }: { item: any; actions: any[]; onAction: (action: string, item: any) => void }) => (
-    <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2, boxShadow: 3 }}>
-      <CardContent sx={{ flexGrow: 1, pb: 1 }}>
-        <Box sx={{ mb: 1.5 }}>
-          <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>{item.name}</Typography>
-        </Box>
-        <Typography variant="subtitle2" color="primary" sx={{ mb: 0.5, fontWeight: 500 }}>
-          Code: {item.code}{item.version ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
-        </Typography>
-        {item.is_elective && (
-          <Chip label="Elective" variant="outlined" size="small" sx={{ mb: 1 }} />
-        )}
-        {item.department && (
-          <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
-            Dept: {item.department.name}
-          </Typography>
-        )}
-        {item.degree && (
-          <Typography variant="caption" display="block" sx={{ mb: 1 }}>
-            Degree: {item.degree.name}
-          </Typography>
-        )}
-        <Box sx={{ mb: 2 }}>
-          {/* Truncate long descriptions to a few lines with an ellipsis */}
-          <Box
-            component="div"
-            sx={{
-              color: '#616161',
-              fontSize: '1rem',
-              lineHeight: 1.6,
-              display: '-webkit-box',
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.overview || item.description || '') }}
-          />
-        </Box>
-        {item.rejection_reason && item.status === 'draft' && (
-          <Alert severity="error" variant="outlined" sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
-              📋 Requires Revision
-            </Typography>
-            <Typography variant="body2" sx={{ lineHeight: 1.5, color: 'error.dark' }}>
-              {item.rejection_reason}
-            </Typography>
-            <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'error.light' }}>
-              <Typography variant="caption" sx={{ color: 'error.main', fontStyle: 'italic' }}>
-                💡 Please address the feedback above and resubmit for approval.
-              </Typography>
-            </Box>
-          </Alert>
-        )}
-      </CardContent>
-      <Box sx={{ px: 2, pb: 2 }}>
-        <Box sx={{ borderTop: '1px solid', borderColor: 'grey.200', pt: 1.5, display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-          {actions.map((action, index) => (
+  const FacultyItemCard = ({ item, actions, onAction }: { item: any; actions: any[]; onAction: (action: string, item: any) => void }) => {
+    // Only show Collaborate if user is admin, HOD, or course creator
+    const { user, effectiveRole } = useAuth();
+    const canCollaborate = user && (effectiveRole === 'admin' || effectiveRole === 'hod' || item.creator?.id === user.id);
+    // Helper: show either Collaborating (is_collaborating) or Collaborator (collaborators array non-empty), not both
+    let collabLabel = null;
+    let collabTooltip = null;
+    let collabColor = '#1976d2';
+    if (item.is_collaborating) {
+      collabLabel = 'Collaborator';
+      collabTooltip = `You are collaborating on this ${item.entityType === 'degree' ? 'Degree' : 'Course'}`;
+      collabColor = 'secondary.main';
+    } else if (Array.isArray(item.collaborators) && item.collaborators.length > 0) {
+      collabLabel = 'Collaborating';
+      collabTooltip = `Collaborators exist for this ${item.entityType === 'degree' ? 'Degree' : 'Course'}`;
+      collabColor = '#1976d2';
+    }
+    return (
+      <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 1, boxShadow: 1, px: 0.5, py: 0.5 }}>
+        <CardContent sx={{ flexGrow: 1, pb: 0.5, pt: 1, position: 'relative' }}>
+          {/* Collaborate IconButton at top right for both course and degree */}
+          {canCollaborate && (
             <Button
-              key={index}
-              size="small"
-              startIcon={action.icon}
               onClick={() => {
-                onAction(action.action, item);
+                setSelectedEntity(item);
+                setCollabEntityType(item.entityType);
+                setCollabDialogOpen(true);
               }}
-              sx={{ minWidth: 0, flex: 1, fontWeight: 500 }}
+              sx={{ position: 'absolute', top: 8, right: 8, minWidth: 0, padding: 1, color: 'secondary.main' }}
+              aria-label="Collaborate"
             >
-              {action.label}
+              <GroupsIcon fontSize="medium" />
             </Button>
-          ))}
-          <Button
-            size="small"
-            startIcon={<TimelineIcon />}
-            onClick={async () => {
-              setTimelineEntityName(item.name || item.code || item.id);
-              try {
-                // Use explicit entityType prop
-                const data = await timelineAPI.getTimeline(item.entityType, item.id);
-                // Merge audit and messages into a single timeline array
-                const auditEvents = Array.isArray(data.audit) ? data.audit.map((a: any) => ({
-                  type: 'audit',
-                  id: a.id,
-                  action: a.action,
-                  user: a.user,
-                  description: a.description,
-                  timestamp: a.timestamp || a.createdAt || null
-                })) : [];
-                const messageEvents = Array.isArray(data.messages) ? data.messages.map((m: any) => ({
-                  type: 'message',
-                  id: m.id,
-                  message: m.message,
-                  user: m.user,
-                  timestamp: m.timestamp || m.createdAt || null
-                })) : [];
-                // Sort by timestamp descending (most recent first)
-                const timeline = [...auditEvents, ...messageEvents].sort((a, b) => {
-                  if (!a.timestamp || !b.timestamp) return 0;
-                  return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-                });
-                setTimelineEvents(timeline);
-              } catch (err) {
-                setTimelineEvents([]);
-              }
-              setTimelineDialogOpen(true);
-            }}
-            sx={{ minWidth: 0, flex: 1, fontWeight: 500 }}
-          >
-            Timeline
-          </Button>
+          )}
+          <Box sx={{ mb: 1.5 }}>
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>{item.name}</Typography>
+          </Box>
+          <Typography variant="subtitle2" color="primary" sx={{ mb: 0.5, fontWeight: 500 }}>
+            Code: {item.code}{item.version ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
+          </Typography>
+          {item.is_elective && (
+            <Chip label="Elective" variant="outlined" size="small" sx={{ mb: 1 }} />
+          )}
+          {item.department && (
+            <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+              Dept: {item.department.name}
+            </Typography>
+          )}
+          {item.degree && (
+            <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+              Degree: {item.degree.name}
+            </Typography>
+          )}
+          <Box sx={{ mb: 2 }}>
+            {/* Truncate long descriptions to a few lines with an ellipsis */}
+            <Box
+              component="div"
+              sx={{
+                color: '#616161',
+                fontSize: '1rem',
+                lineHeight: 1.6,
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.overview || item.description || '') }}
+            />
+          </Box>
+        </CardContent>
+        {/* Collaborator icon and label at bottom right above action buttons */}
+        {collabLabel && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', px: 1, pb: 0.25 }}>
+            <Tooltip title={collabTooltip}>
+              <GroupsIcon fontSize="small" sx={{ color: collabColor, mr: 0.5 }} />
+            </Tooltip>
+            <Typography variant="caption" sx={{ color: collabColor, fontWeight: 500 }}>
+              {collabLabel}
+            </Typography>
+          </Box>
+        )}
+        <Box sx={{ px: 0.5, pb: 0.5 }}>
+          <Box sx={{ borderTop: '1px solid', borderColor: 'grey.200', pt: 0.75, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+            {actions.map((action, index) => (
+              <Button
+                key={index}
+                size="small"
+                startIcon={action.icon}
+                onClick={() => {
+                  onAction(action.action, item);
+                }}
+                sx={{ minWidth: 0, flex: 1, fontWeight: 400, fontSize: '0.75rem !important', py: 0.25, px: 0.25, lineHeight: 1.1, letterSpacing: 0, textTransform: 'none' }}
+              >
+                {action.label}
+              </Button>
+            ))}
+            <Button
+              size="small"
+              startIcon={<TimelineIcon />}
+              onClick={async () => {
+                setTimelineEntityName(item.name || item.code || item.id);
+                try {
+                  // Use explicit entityType prop
+                  const data = await timelineAPI.getTimeline(item.entityType, item.id);
+                  // Merge audit and messages into a single timeline array
+                  const auditEvents = Array.isArray(data.audit) ? data.audit.map((a: any) => ({
+                    type: 'audit',
+                    id: a.id,
+                    action: a.action,
+                    user: a.user,
+                    description: a.description,
+                    timestamp: a.timestamp || a.createdAt || null
+                  })) : [];
+                  const messageEvents = Array.isArray(data.messages) ? data.messages.map((m: any) => ({
+                    type: 'message',
+                    id: m.id,
+                    message: m.message,
+                    user: m.user,
+                    timestamp: m.timestamp || m.createdAt || null
+                  })) : [];
+                  // Sort by timestamp descending (most recent first)
+                  const timeline = [...auditEvents, ...messageEvents].sort((a, b) => {
+                    if (!a.timestamp || !b.timestamp) return 0;
+                    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+                  });
+                  setTimelineEvents(timeline);
+                } catch (err) {
+                  setTimelineEvents([]);
+                }
+                setTimelineDialogOpen(true);
+              }}
+              sx={{ minWidth: 0, flex: 1, fontWeight: 400, fontSize: '0.75rem !important', py: 0.25, px: 0.25, lineHeight: 1.1, letterSpacing: 0, textTransform: 'none' }}
+            >
+              Timeline
+            </Button>
+          </Box>
         </Box>
-      </Box>
-    </Card>
-  );
+      </Card>
+    );
+  };
 
   return (
     <Container maxWidth="xl">
+      {/* Collaborator Dialog (unified for course/degree) */}
+      <Dialog open={collabDialogOpen} onClose={() => setCollabDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Manage {collabEntityType === 'degree' ? 'Degree' : 'Course'} Collaborators
+        </DialogTitle>
+        <DialogContent>
+          <div>Collaborator management for: <b>{selectedEntity?.name}</b></div>
+          <CollaboratorManager
+            entity={selectedEntity}
+            entityType={collabEntityType}
+            onClose={() => setCollabDialogOpen(false)}
+            onCollaboratorsChanged={(newCollaborators) => {
+              if (collabEntityType === 'degree' && selectedEntity) {
+                setDegrees(prev => prev.map(d => d.id === selectedEntity.id ? { ...d, collaborators: newCollaborators } : d));
+              } else if (collabEntityType === 'course' && selectedEntity) {
+                setCourses(prev => prev.map(c => c.id === selectedEntity.id ? { ...c, collaborators: newCollaborators } : c));
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCollabDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>Confirm Delete</DialogTitle>

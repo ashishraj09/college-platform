@@ -30,7 +30,7 @@ const router = express.Router();
  */
 router.get('/public', async (req, res) => {
   try {
-    const { Degree, Department, Course } = await models.getMany('Degree', 'Department', 'Course');
+  const { Degree, Department, Course } = await models.getMany('Degree', 'Department', 'Course');
     const { department_code } = req.query;
     
     const whereClause = { status: 'active' };
@@ -88,6 +88,13 @@ router.get('/public', async (req, res) => {
       contact_information: degree.contact_information,
       application_deadlines: degree.application_deadlines,
       application_process: degree.application_process,
+      created_by: degree.created_by,
+      creator: degree.creator ? {
+        id: degree.creator.id,
+        first_name: degree.creator.first_name,
+        last_name: degree.creator.last_name,
+        email: degree.creator.email,
+      } : null,
     }));
 
     res.json({ degrees: formattedDegrees });
@@ -320,11 +327,21 @@ router.post(
       if (!degree) {
         return res.status(404).json({ error: 'Degree not found' });
       }
-      // Only admin or degree creator can create a new version
+      // Only admin, degree creator, or collaborator can create a new version
       const isAdmin = req.user.user_type === 'admin';
       const isCreator = degree.created_by === req.user.id;
+      let isCollaborator = false;
       if (!isAdmin && !isCreator) {
-        return res.status(403).json({ error: 'You do not have permission to create a version of this degree' });
+        // Check if user is a collaborator
+        if (typeof degree.getCollaborators === 'function') {
+          const collaborators = await degree.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === req.user.id);
+        } else if (degree.collaborators && Array.isArray(degree.collaborators)) {
+          isCollaborator = degree.collaborators.some(u => u.id === req.user.id);
+        }
+        if (!isCollaborator) {
+          return res.status(403).json({ error: 'You do not have permission to create a version of this degree' });
+        }
       }
       // Only allow versioning for approved or active degrees
       if (!['approved', 'active'].includes(degree.status)) {
@@ -448,7 +465,7 @@ router.get(
   authenticateToken,
   async (req, res) => {
     try {
-      const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
+  const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
       const {
         department_code,
         status,
@@ -459,30 +476,64 @@ router.get(
       const whereClause = {};
       if (department_code) whereClause['$departmentByCode.code$'] = department_code;
       if (status) whereClause.status = status;
-      // Filter by department and ownership for non-admin users
+      // Filter by department and ownership/collaboration for non-admin users
+      let isRestrictedFaculty = false;
       if (req.user && req.user.user_type !== 'admin') {
-        // All non-admin users can only see degrees from their department
         whereClause.department_code = req.user.department_code;
-        // Non-HOD users can only see degrees they created, unless all_creators=true
         if (!req.user.is_head_of_department && String(all_creators) !== 'true') {
-          whereClause.created_by = req.user.id;
+          isRestrictedFaculty = true;
         }
       }
       const offset = (page - 1) * limit;
       // Use findAndCountAll for pagination meta
-      const { count, rows: degrees } = await Degree.findAndCountAll({
-        where: whereClause,
-        include: [
-          {
-            model: Department,
-            as: 'departmentByCode',
-            attributes: ['id', 'name', 'code'],
-          },
-        ],
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        order: [['created_at', 'DESC']],
-      });
+      let degrees = [];
+      let count = 0;
+      if (isRestrictedFaculty) {
+        // Fetch created_by
+        const createdDegrees = await Degree.findAll({
+          where: { ...whereClause, created_by: req.user.id, ...(status ? { status } : {}) },
+          include: [
+            { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+            { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+          ]
+        });
+        // Fetch collaborated
+        const collaboratedDegrees = await Degree.findAll({
+          where: { ...whereClause, ...(status ? { status } : {}) },
+          include: [
+            { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+            { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: true, where: { id: req.user.id } }
+          ]
+        });
+        // Merge and deduplicate by id
+        const allDegrees = [...createdDegrees, ...collaboratedDegrees];
+        const seen = new Set();
+        degrees = allDegrees.filter(d => {
+          if (seen.has(d.id)) return false;
+          seen.add(d.id);
+          return true;
+        });
+        count = degrees.length;
+        // Paginate in JS
+        degrees = degrees.sort((a, b) => b.createdAt - a.createdAt).slice(offset, offset + parseInt(limit));
+      } else {
+        // HOD/admin/office: normal query
+        const result = await Degree.findAndCountAll({
+          where: whereClause,
+          include: [
+            { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+            { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+          ],
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          order: [['created_at', 'DESC']]
+        });
+        degrees = result.rows;
+        count = result.count;
+      }
       // For each degree, check if a pending child version exists
       const degreesWithPendingFlag = await Promise.all(
         degrees.map(async (degree) => {
@@ -516,6 +567,20 @@ router.get(
         obj.contact_information = degree.contact_information;
         obj.application_deadlines = degree.application_deadlines;
         obj.application_process = degree.application_process;
+        // Add is_collaborating flag (true if user is a collaborator but not creator)
+        if (req.user && obj.collaborators && Array.isArray(obj.collaborators)) {
+          const isCollaborator = obj.collaborators.some(u => u.id === req.user.id);
+          obj.is_collaborating = isCollaborator && obj.created_by !== req.user.id;
+        } else {
+          obj.is_collaborating = false;
+        }
+        // Add creator object for frontend (like course API)
+        obj.creator = degree.creator ? {
+          id: degree.creator.id,
+          first_name: degree.creator.first_name,
+          last_name: degree.creator.last_name,
+          email: degree.creator.email,
+        } : null;
         return obj;
       });
       // Pagination object
@@ -785,9 +850,18 @@ router.put(
       const isHod = user.is_head_of_department && user.department_code === degree.department_code;
       const isDepartmentFaculty =
         user.user_type === 'faculty' && (user.department_id === degree.department_id || user.department_code === degree.department_code);
-
+      let isCollaborator = false;
       if (!isAdmin && !isCreator && !isHod && !isDepartmentFaculty) {
-        return res.status(403).json({ error: 'Access denied: you do not have permission to update this degree' });
+        // Check if user is a collaborator
+        if (typeof degree.getCollaborators === 'function') {
+          const collaborators = await degree.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === user.id);
+        } else if (degree.collaborators && Array.isArray(degree.collaborators)) {
+          isCollaborator = degree.collaborators.some(u => u.id === user.id);
+        }
+        if (!isCollaborator) {
+          return res.status(403).json({ error: 'Access denied: you do not have permission to update this degree' });
+        }
       }
 
       // Allow list for updatable fields
@@ -877,17 +951,25 @@ router.patch(
       const isAdmin = user.user_type === 'admin';
       const isCreator = degree.created_by === user.id;
       const isDeptFaculty = user.user_type === 'faculty' && user.department_code === degree.department_code;
-
-      // Only admin, degree creator, or faculty of the same department can submit
+      let isCollaborator = false;
       if (!isAdmin && !isCreator && !isDeptFaculty) {
-        return res.status(403).json({ error: 'Access denied: cannot submit this degree for approval' });
+        // Check if user is a collaborator
+        if (typeof degree.getCollaborators === 'function') {
+          const collaborators = await degree.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === user.id);
+        } else if (degree.collaborators && Array.isArray(degree.collaborators)) {
+          isCollaborator = degree.collaborators.some(u => u.id === user.id);
+        }
+        if (!isCollaborator) {
+          return res.status(403).json({ error: 'Access denied: cannot submit this degree for approval' });
+        }
       }
 
       if (degree.status !== 'draft') {
         return res.status(400).json({ error: 'Only draft degrees can be submitted' });
       }
 
-  await degree.update({ status: 'pending_approval', updated_by: user.id, submitted_at: new Date() });
+      await degree.update({ status: 'pending_approval', updated_by: user.id, submitted_at: new Date() });
 
       // Optionally add a message to the timeline
       if (req.body && req.body.message) {
@@ -1137,9 +1219,20 @@ router.patch('/:id/publish',
         return res.status(400).json({ error: 'User context required' });
       }
 
-      // Only degree creator or faculty in the same department can publish (admin bypasses dept check)
+
+      // Only degree creator, department faculty, admin, or collaborator can publish
+      let isCollaborator = false;
       if (degree.created_by !== user.id && user.user_type !== 'admin' && user.department_code !== degree.department_code) {
-        return res.status(403).json({ error: 'Only degree creator or department faculty can publish degrees' });
+        // Check if user is a collaborator
+        if (typeof degree.getCollaborators === 'function') {
+          const collaborators = await degree.getCollaborators();
+          isCollaborator = collaborators.some(u => u.id === user.id);
+        } else if (degree.collaborators && Array.isArray(degree.collaborators)) {
+          isCollaborator = degree.collaborators.some(u => u.id === user.id);
+        }
+        if (!isCollaborator) {
+          return res.status(403).json({ error: 'Only degree creator, department faculty, admin, or collaborator can publish degrees' });
+        }
       }
 
       if (degree.status !== 'approved') {

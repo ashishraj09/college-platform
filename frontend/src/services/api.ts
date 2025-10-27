@@ -310,13 +310,6 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
-  getDepartmentCourses: async (params?: { departmentId?: string }) => {
-    try {
-      return (await api.get('/courses/department-courses', { params })).data;
-    } catch (err: any) {
-      return handleApiError(err);
-    }
-  },
   getAvailableCourses: async (semester?: number) => {
     try {
       return (await api.get('/courses/available', { params: { semester } })).data;
@@ -385,7 +378,7 @@ export const degreesAPI = {
   // Authenticated endpoint - requires login, filtered by user access
   getDegrees: async (params?: any) => {
     try {
-      const { data } = await api.get('/degrees', { params });
+  const { data } = await api.get('/degrees', { params });
       // Return the full response object with pagination metadata
       if (data && data.degrees && data.pagination) {
         return data;
@@ -582,7 +575,7 @@ export const departmentsAPI = {
 export const enrollmentsAPI = {
   getEnrollments: async (params?: any) => {
     try {
-      return (await api.get('/enrollments', { params })).data;
+  return (await api.get('/enrollments', { params })).data;
     } catch (err: any) {
       return handleApiError(err);
     }

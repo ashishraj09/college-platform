@@ -41,25 +41,35 @@ router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), asyn
     if (req.user.is_head_of_department && req.query.userId) {
       targetUserId = req.query.userId;
     }
-    // Degree stats for the user's department and created_by
+    // Degree stats for the user's department and created_by or collaborator
     const degreeStats = await Degree.findAll({
       where: {
         department_code: req.user.department_code,
-        created_by: targetUserId
+        [Op.or]: [
+          { created_by: targetUserId },
+          { '$collaborators.id$': targetUserId }
+        ]
       },
       include: [
-        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
-      ]
+        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+        { model: Degree.sequelize.models.User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+      ],
+      distinct: true
     });
-    // Course stats for the user's department and created_by
+    // Course stats for the user's department and created_by or collaborator
     const courseStats = await Course.findAll({
       where: {
         department_code: req.user.department_code,
-        created_by: targetUserId
+        [Op.or]: [
+          { created_by: targetUserId },
+          { '$collaborators.id$': targetUserId }
+        ]
       },
       include: [
-        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] }
-      ]
+        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+        { model: Course.sequelize.models.User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+      ],
+      distinct: true
     });
     // Aggregate status counts for degrees and courses
     const degreeStatusCounts = {
@@ -93,7 +103,21 @@ router.get('/',
  * Query params: page, limit, user_type, department_code, status, search
  */
   authenticateToken,
-  authorizeRoles('admin', 'office'),
+  // Allow admin, office, and HOD/faculty for their own department
+  async (req, res, next) => {
+    // If admin or office, allow
+    if (['admin', 'office'].includes(req.user.user_type)) return next();
+    // If faculty or HOD, only allow if filtering by their own department
+    if (
+      req.user.user_type === 'faculty' &&
+      req.query.department_code &&
+      req.query.department_code === req.user.department_code
+    ) {
+      return next();
+    }
+    // Otherwise, forbidden
+    return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
+  },
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),

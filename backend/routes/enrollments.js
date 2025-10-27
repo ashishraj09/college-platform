@@ -335,7 +335,7 @@ router.post('/draft/submit',
           student_id: req.user.id,
           academic_year: academicYear,
           semester: req.user.current_semester,
-          enrollment_status: ['pending_hod_approval', 'pending_office_approval']
+          enrollment_status: ['pending_approval', 'pending_office_approval']
         }
       });
 
@@ -391,9 +391,9 @@ router.post('/draft/submit',
         return res.status(400).json({ error: 'No courses selected' });
       }
 
-      // Update enrollment record to pending_hod_approval status
+      // Update enrollment record to pending_approval status
       await draft.update({
-        enrollment_status: 'pending_hod_approval',
+        enrollment_status: 'pending_approval',
         submitted_at: new Date()
       });
 
@@ -453,7 +453,7 @@ router.post('/draft/submit',
         
         // Format status for email template
         let emailStatus = 'Submitted';
-        if (draft.enrollment_status === 'pending_hod_approval') {
+        if (draft.enrollment_status === 'pending_approval') {
           emailStatus = 'Submitted';
         } else if (draft.enrollment_status === 'approved') {
           emailStatus = 'Approved';

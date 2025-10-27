@@ -11,7 +11,7 @@ export const formatEnrollmentStatus = (status: string): string => {
   switch (status?.toLowerCase()) {
     case 'pending':
       return 'Pending Approval';
-    case 'pending_hod_approval':
+    case 'pending_approval':
       return 'Pending Approval';
     case 'pending_office_approval':
       return 'Pending Approval';

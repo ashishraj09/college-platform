@@ -37,7 +37,7 @@ const Enrollment = defineModel('Enrollment', {
   },
   enrollment_status: {
   // Current status of the enrollment
-    type: DataTypes.ENUM('draft', 'pending_hod_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
+    type: DataTypes.ENUM('draft', 'pending_approval', 'pending_office_approval', 'approved', 'rejected', 'withdrawn'),
     defaultValue: 'draft',
   },
   submitted_at: {

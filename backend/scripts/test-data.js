@@ -334,13 +334,6 @@ async function seedTestData() {
               degree_code: degreeCodeToUse, department_code: code, status: 'active', email_verified: true,
               enrolled_year: new Date().getFullYear(), current_semester: 1,
             });
-            const yearStart = new Date().getFullYear();
-            const academicYear = `${yearStart}-${yearStart + 1}`;
-            await create(Enrollment, {
-              created_at: new Date(),
-              id: uuidv4(), student_id: student.id, course_codes: [], enrollment_status: 'draft', submitted_at: null,
-              academic_year: academicYear, semester: 1, department_code: code,
-            });
           }
         }
         studentsCreated = true;
