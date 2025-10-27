@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const models = require('../utils/models');
+const { logAuditEvent } = require('../middleware/audit');
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -37,6 +38,22 @@ router.post('/course/:courseId/add', authenticateToken, async (req, res) => {
   if (!isSameDepartment(user, course)) return res.status(400).json({ error: 'Faculty must be in same department' });
   if (!(await canModifyCollaborators(req, course, 'course'))) return res.status(403).json({ error: 'Not authorized' });
   await course.addCollaborator(user);
+  // Audit log
+  if (req.user) {
+    const userName = `${user.first_name} ${user.last_name}`;
+    await logAuditEvent(
+      req.user.id,
+      'add_collaborator',
+      'course',
+      course.id,
+      null,
+      { collaboratorId: user.id },
+      { method: req.method, url: req.originalUrl },
+      `${userName} added as collaborator.`,
+      req.ip,
+      req.get('User-Agent')
+    );
+  }
   res.json({ success: true });
 });
 
@@ -52,6 +69,22 @@ router.post('/course/:courseId/remove', authenticateToken, async (req, res) => {
   if (!user) return res.status(400).json({ error: 'Invalid user' });
   if (!(await canModifyCollaborators(req, course, 'course'))) return res.status(403).json({ error: 'Not authorized' });
   await course.removeCollaborator(user);
+  // Audit log
+  if (req.user) {
+    const userName = `${user.first_name} ${user.last_name}`;
+    await logAuditEvent(
+      req.user.id,
+      'remove_collaborator',
+      'course',
+      course.id,
+      { collaboratorId: user.id },
+      null,
+      { method: req.method, url: req.originalUrl },
+      `${userName} removed as collaborator.`,
+      req.ip,
+      req.get('User-Agent')
+    );
+  }
   res.json({ success: true });
 });
 
@@ -68,6 +101,22 @@ router.post('/degree/:degreeId/add', authenticateToken, async (req, res) => {
   if (!isSameDepartment(user, degree)) return res.status(400).json({ error: 'Faculty must be in same department' });
   if (!(await canModifyCollaborators(req, degree, 'degree'))) return res.status(403).json({ error: 'Not authorized' });
   await degree.addCollaborator(user);
+  // Audit log
+  if (req.user) {
+    const userName = `${user.first_name} ${user.last_name}`;
+    await logAuditEvent(
+      req.user.id,
+      'add_collaborator',
+      'degree',
+      degree.id,
+      null,
+      { collaboratorId: user.id },
+      { method: req.method, url: req.originalUrl },
+      `${userName} added as collaborator.`,
+      req.ip,
+      req.get('User-Agent')
+    );
+  }
   res.json({ success: true });
 });
 
@@ -83,6 +132,22 @@ router.post('/degree/:degreeId/remove', authenticateToken, async (req, res) => {
   if (!user) return res.status(400).json({ error: 'Invalid user' });
   if (!(await canModifyCollaborators(req, degree, 'degree'))) return res.status(403).json({ error: 'Not authorized' });
   await degree.removeCollaborator(user);
+  // Audit log
+  if (req.user) {
+    const userName = `${user.first_name} ${user.last_name}`;
+    await logAuditEvent(
+      req.user.id,
+      'remove_collaborator',
+      'degree',
+      degree.id,
+      { collaboratorId: user.id },
+      null,
+      { method: req.method, url: req.originalUrl },
+      `${userName} removed as collaborator.`,
+      req.ip,
+      req.get('User-Agent')
+    );
+  }
   res.json({ success: true });
 });
 

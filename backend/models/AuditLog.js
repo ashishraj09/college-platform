@@ -33,7 +33,7 @@ const AuditLog = defineModel('AuditLog', {
     type: DataTypes.ENUM(
       'create', 'update', 'delete', 'approve', 'reject', 'submit',
       'activate', 'deactivate', 'archive', 'login', 'logout',
-      'password_change', 'email_verification', 'password_reset', 'read'
+      'password_change', 'email_verification', 'password_reset', 'read', 'add_collaborator', 'remove_collaborator'
     ),
     allowNull: false,
   },
