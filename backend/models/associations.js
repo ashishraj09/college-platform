@@ -17,20 +17,22 @@
 
 const { getSequelize, sequelize } = require('../config/database');
 
-// Import models
-const User = require('./User');
-const Department = require('./Department');
-const Degree = require('./Degree');
-const Course = require('./Course');
-const Enrollment = require('./Enrollment');
-const AuditLog = require('./AuditLog');
-const Message = require('./Message');
+const getModel = require('../utils/getModel');
 
 // Track whether associations have been initialized
 let associationsInitialized = false;
 
 // Async function to initialize associations
 async function initializeAssociations() {
+  // Always get the real model classes from Sequelize
+  const User = await getModel('User');
+  const Department = await getModel('Department');
+  const Degree = await getModel('Degree');
+  const Course = await getModel('Course');
+  const Enrollment = await getModel('Enrollment');
+  const AuditLog = await getModel('AuditLog');
+  const Message = await getModel('Message');
+
   // Collaborator associations (many-to-many)
   // Course collaborators
   Course.belongsToMany(User, {
