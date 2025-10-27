@@ -229,7 +229,7 @@ router.get('/',
             { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
             { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
             { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
-            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+            { model: User, as: 'courseCollaborators', attributes: ['id'], through: { attributes: [] }, required: false }
           ]
         });
         // Fetch collaborated
@@ -241,7 +241,7 @@ router.get('/',
             { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
             { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
             { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
-            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: true, where: { id: req.user.id } }
+            { model: User, as: 'courseCollaborators', attributes: ['id'], through: { attributes: [] }, required: true, where: { id: req.user.id } }
           ]
         });
         // Merge and deduplicate by id
@@ -265,7 +265,7 @@ router.get('/',
             { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
             { model: User, as: 'updater', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
             { model: User, as: 'approver', attributes: ['id', 'first_name', 'last_name', 'email'], required: false },
-            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+            { model: User, as: 'courseCollaborators', attributes: ['id'], through: { attributes: [] }, required: false }
           ],
           limit: parseInt(limit),
           offset: parseInt(offset),
@@ -325,6 +325,13 @@ router.get('/',
         obj.textbooks = course.textbooks;
         obj.references = course.references;
         obj.faculty_details = course.faculty_details;
+
+        // Rename courseCollaborators to collaborators in response
+        if (obj.courseCollaborators && Array.isArray(obj.courseCollaborators)) {
+          obj.collaborators = obj.courseCollaborators.map(u => ({ id: u.id }));
+        } else {
+          obj.collaborators = [];
+        }
         // Add is_collaborating flag (true if user is a collaborator but not creator)
         if (req.user && obj.collaborators && Array.isArray(obj.collaborators)) {
           const isCollaborator = obj.collaborators.some(u => u.id === req.user.id);
@@ -335,6 +342,7 @@ router.get('/',
         // Remove old fields if present
         delete obj.overview;
         delete obj.study_details;
+        delete obj.courseCollaborators;
         return obj;
       });
 

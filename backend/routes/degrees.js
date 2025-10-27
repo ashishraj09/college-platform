@@ -495,7 +495,7 @@ router.get(
           include: [
             { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
             { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
-            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+            { model: User, as: 'degreeCollaborators', attributes: ['id'], through: { attributes: [] }, required: false }
           ]
         });
         // Fetch collaborated
@@ -504,7 +504,7 @@ router.get(
           include: [
             { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
             { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
-            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: true, where: { id: req.user.id } }
+            { model: User, as: 'degreeCollaborators', attributes: ['id'], through: { attributes: [] }, required: true, where: { id: req.user.id } }
           ]
         });
         // Merge and deduplicate by id
@@ -525,7 +525,7 @@ router.get(
           include: [
             { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
             { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
-            { model: User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+            { model: User, as: 'degreeCollaborators', attributes: ['id'], through: { attributes: [] }, required: false }
           ],
           limit: parseInt(limit),
           offset: parseInt(offset),
@@ -567,6 +567,13 @@ router.get(
         obj.contact_information = degree.contact_information;
         obj.application_deadlines = degree.application_deadlines;
         obj.application_process = degree.application_process;
+
+        // Rename degreeCollaborators to collaborators in response
+        if (obj.degreeCollaborators && Array.isArray(obj.degreeCollaborators)) {
+          obj.collaborators = obj.degreeCollaborators.map(u => ({ id: u.id }));
+        } else {
+          obj.collaborators = [];
+        }
         // Add is_collaborating flag (true if user is a collaborator but not creator)
         if (req.user && obj.collaborators && Array.isArray(obj.collaborators)) {
           const isCollaborator = obj.collaborators.some(u => u.id === req.user.id);
@@ -581,6 +588,7 @@ router.get(
           last_name: degree.creator.last_name,
           email: degree.creator.email,
         } : null;
+        delete obj.degreeCollaborators;
         return obj;
       });
       // Pagination object

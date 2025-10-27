@@ -287,7 +287,14 @@ const DepartmentManagementPage = () => {
                               </TableCell>
                               <TableCell>
                                 <Chip
-                                  label={degree.status}
+                                  label={
+                                    degree.status === 'pending_approval' ? 'Pending Approval'
+                                    : degree.status === 'active' ? 'Active'
+                                    : degree.status === 'approved' ? 'Approved'
+                                    : degree.status === 'draft' ? 'Draft'
+                                    : degree.status === 'archived' ? 'Archived'
+                                    : degree.status ? degree.status.charAt(0).toUpperCase() + degree.status.slice(1) : ''
+                                  }
                                   size="small"
                                   color={
                                     degree.status?.toLowerCase() === 'approved' ? 'success'
@@ -379,7 +386,14 @@ const DepartmentManagementPage = () => {
                             </TableCell>
                             <TableCell>
                               <Chip
-                                label={course.status}
+                                label={
+                                  course.status === 'pending_approval' ? 'Pending Approval'
+                                  : course.status === 'active' ? 'Active'
+                                  : course.status === 'approved' ? 'Approved'
+                                  : course.status === 'draft' ? 'Draft'
+                                  : course.status === 'archived' ? 'Archived'
+                                  : course.status ? course.status.charAt(0).toUpperCase() + course.status.slice(1) : ''
+                                }
                                 size="small"
                                 color={
                                   course.status?.toLowerCase() === 'approved' ? 'success'
@@ -492,7 +506,14 @@ const DepartmentManagementPage = () => {
                             <TableCell>{enr.student?.degree?.name || ''}</TableCell>
                             <TableCell>
                               <Chip
-                                label={enr.enrollment_status}
+                                label={
+                                  enr.enrollment_status === 'pending_approval' ? 'Pending Approval'
+                                  : enr.enrollment_status === 'approved' ? 'Approved'
+                                  : enr.enrollment_status === 'draft' ? 'Draft'
+                                  : enr.enrollment_status === 'active' ? 'Active'
+                                  : enr.enrollment_status === 'archived' ? 'Archived'
+                                  : enr.enrollment_status ? enr.enrollment_status.charAt(0).toUpperCase() + enr.enrollment_status.slice(1) : ''
+                                }
                                 size="small"
                                 color={
                                   enr.enrollment_status?.toLowerCase() === 'approved' ? 'success'

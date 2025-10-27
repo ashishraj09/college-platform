@@ -15,6 +15,7 @@ const Course = require('./Course');
 const Enrollment = require('./Enrollment');
 const AuditLog = require('./AuditLog');
 const Message = require('./Message');
+const Collaborator = require('./Collaborator');
 
 
 // Import and initialize associations
@@ -33,5 +34,6 @@ module.exports = {
   Enrollment,
   AuditLog,
   Message,
+  Collaborator,
   initializeAssociations
 };

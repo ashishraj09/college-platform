@@ -42,35 +42,35 @@ router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), asyn
       targetUserId = req.query.userId;
     }
     // Degree stats for the user's department and created_by or collaborator
-    const degreeStats = await Degree.findAll({
-      where: {
-        department_code: req.user.department_code,
-        [Op.or]: [
-          { created_by: targetUserId },
-          { '$collaborators.id$': targetUserId }
-        ]
-      },
-      include: [
-        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
-        { model: Degree.sequelize.models.User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
-      ],
-      distinct: true
-    });
+      const degreeStats = await Degree.findAll({
+        where: {
+          department_code: req.user.department_code,
+          [Op.or]: [
+            { created_by: targetUserId },
+            { '$degreeCollaborators.id$': targetUserId }
+          ]
+        },
+        include: [
+          { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+          { model: Degree.sequelize.models.User, as: 'degreeCollaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+        ],
+        distinct: true
+      });
     // Course stats for the user's department and created_by or collaborator
-    const courseStats = await Course.findAll({
-      where: {
-        department_code: req.user.department_code,
-        [Op.or]: [
-          { created_by: targetUserId },
-          { '$collaborators.id$': targetUserId }
-        ]
-      },
-      include: [
-        { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
-        { model: Course.sequelize.models.User, as: 'collaborators', attributes: ['id'], through: { attributes: [] }, required: false }
-      ],
-      distinct: true
-    });
+      const courseStats = await Course.findAll({
+        where: {
+          department_code: req.user.department_code,
+          [Op.or]: [
+            { created_by: targetUserId },
+            { '$courseCollaborators.id$': targetUserId }
+          ]
+        },
+        include: [
+          { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+          { model: Course.sequelize.models.User, as: 'courseCollaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+        ],
+        distinct: true
+      });
     // Aggregate status counts for degrees and courses
     const degreeStatusCounts = {
       total: degreeStats.length,

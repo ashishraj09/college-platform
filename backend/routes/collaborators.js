@@ -37,7 +37,7 @@ router.post('/course/:courseId/add', authenticateToken, async (req, res) => {
   if (!user || user.user_type !== 'faculty') return res.status(400).json({ error: 'Invalid faculty user' });
   if (!isSameDepartment(user, course)) return res.status(400).json({ error: 'Faculty must be in same department' });
   if (!(await canModifyCollaborators(req, course, 'course'))) return res.status(403).json({ error: 'Not authorized' });
-  await course.addCollaborator(user);
+  await course.addCourseCollaborator(user);
   // Audit log
   if (req.user) {
     const userName = `${user.first_name} ${user.last_name}`;
@@ -68,7 +68,7 @@ router.post('/course/:courseId/remove', authenticateToken, async (req, res) => {
   const user = await User.findByPk(userId);
   if (!user) return res.status(400).json({ error: 'Invalid user' });
   if (!(await canModifyCollaborators(req, course, 'course'))) return res.status(403).json({ error: 'Not authorized' });
-  await course.removeCollaborator(user);
+  await course.removeCourseCollaborator(user);
   // Audit log
   if (req.user) {
     const userName = `${user.first_name} ${user.last_name}`;
@@ -100,7 +100,7 @@ router.post('/degree/:degreeId/add', authenticateToken, async (req, res) => {
   if (!user || user.user_type !== 'faculty') return res.status(400).json({ error: 'Invalid faculty user' });
   if (!isSameDepartment(user, degree)) return res.status(400).json({ error: 'Faculty must be in same department' });
   if (!(await canModifyCollaborators(req, degree, 'degree'))) return res.status(403).json({ error: 'Not authorized' });
-  await degree.addCollaborator(user);
+  await degree.addDegreeCollaborator(user);
   // Audit log
   if (req.user) {
     const userName = `${user.first_name} ${user.last_name}`;
@@ -131,7 +131,7 @@ router.post('/degree/:degreeId/remove', authenticateToken, async (req, res) => {
   const user = await User.findByPk(userId);
   if (!user) return res.status(400).json({ error: 'Invalid user' });
   if (!(await canModifyCollaborators(req, degree, 'degree'))) return res.status(403).json({ error: 'Not authorized' });
-  await degree.removeCollaborator(user);
+  await degree.removeDegreeCollaborator(user);
   // Audit log
   if (req.user) {
     const userName = `${user.first_name} ${user.last_name}`;
@@ -157,10 +157,10 @@ router.get('/degree/:degreeId', authenticateToken, async (req, res) => {
   const Degree = await models.Degree();
   const User = await models.User();
   const degree = await Degree.findByPk(degreeId, {
-    include: [{ model: User, as: 'collaborators', attributes: { exclude: ['password'] } }]
+    include: [{ model: User, as: 'degreeCollaborators', attributes: { exclude: ['password'] } }]
   });
   if (!degree) return res.status(404).json({ error: 'Degree not found' });
-  res.json({ collaborators: degree.collaborators || [] });
+  res.json({ collaborators: degree.degreeCollaborators || [] });
 });
 
 // Get collaborators for a course
@@ -169,10 +169,10 @@ router.get('/course/:courseId', authenticateToken, async (req, res) => {
   const Course = await models.Course();
   const User = await models.User();
   const course = await Course.findByPk(courseId, {
-    include: [{ model: User, as: 'collaborators', attributes: { exclude: ['password'] } }]
+    include: [{ model: User, as: 'courseCollaborators', attributes: { exclude: ['password'] } }]
   });
   if (!course) return res.status(404).json({ error: 'Course not found' });
-  res.json({ collaborators: course.collaborators || [] });
+  res.json({ collaborators: course.courseCollaborators || [] });
 });
 
 module.exports = router;

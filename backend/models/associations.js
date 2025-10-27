@@ -33,38 +33,54 @@ async function initializeAssociations() {
   const AuditLog = await getModel('AuditLog');
   const Message = await getModel('Message');
 
-  // Collaborator associations (many-to-many)
+  // Collaborator associations (many-to-many, polymorphic)
   // Course collaborators
   Course.belongsToMany(User, {
-    through: 'CourseCollaborators',
-    as: 'collaborators',
-    foreignKey: 'course_id',
+    through: {
+      model: 'collaborators',
+      scope: { entity_type: 'course' }
+    },
+    as: 'courseCollaborators',
+    foreignKey: 'entity_id', // course.id
     otherKey: 'user_id',
+    constraints: false,
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
   User.belongsToMany(Course, {
-    through: 'CourseCollaborators',
+    through: {
+      model: 'collaborators',
+      scope: { entity_type: 'course' }
+    },
     as: 'collaboratingCourses',
     foreignKey: 'user_id',
-    otherKey: 'course_id',
+    otherKey: 'entity_id', // course.id
+    constraints: false,
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
   // Degree collaborators
   Degree.belongsToMany(User, {
-    through: 'DegreeCollaborators',
-    as: 'collaborators',
-    foreignKey: 'degree_id',
+    through: {
+      model: 'collaborators',
+      scope: { entity_type: 'degree' }
+    },
+    as: 'degreeCollaborators',
+    foreignKey: 'entity_id', // degree.id
     otherKey: 'user_id',
+    constraints: false,
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
   User.belongsToMany(Degree, {
-    through: 'DegreeCollaborators',
+    through: {
+      model: 'collaborators',
+      scope: { entity_type: 'degree' }
+    },
     as: 'collaboratingDegrees',
     foreignKey: 'user_id',
-    otherKey: 'degree_id',
+    otherKey: 'entity_id', // degree.id
+    constraints: false,
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
