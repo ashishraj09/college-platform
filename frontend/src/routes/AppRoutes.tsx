@@ -6,9 +6,9 @@ import { CircularProgress, Box } from '@mui/material';
 // Import components (will be created)
 import LoginPage from '../pages/login';
 import CreateDegreePage from '../pages/create-degree';
-import ActivateAccountPage from '../pages/auth/activate-account';
-import ForgotPasswordPage from '../pages/auth/forgot-password';
-import ResetPasswordPage from '../pages/auth/reset-password';
+import ActivateAccountPage from '../pages/activate-account';
+import ForgotPasswordPage from '../pages/forgot-password';
+import ResetPasswordPage from '../pages/reset-password';
 import DashboardLayout from '../layouts/DashboardLayout';
 import AdminDashboard from '../pages/admin';
 import CreateUser from '../pages/admin/user/create';

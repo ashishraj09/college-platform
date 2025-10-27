@@ -251,9 +251,9 @@ router.post('/login',
       const { email, password } = req.body;
 
       // Find user with related data
-  const User = await models.User();
-  const Department = await models.Department();
-  const Degree = await models.Degree();
+      const User = await models.User();
+      const Department = await models.Department();
+      const Degree = await models.Degree();
 
       const user = await User.findOne({
         where: { email },
@@ -395,6 +395,8 @@ router.post('/reset-password',
     try {
       const { token, password } = req.body;
 
+      // Load User model
+      const User = await models.User();
       let user;
       
       // Temporary testing bypass for test user

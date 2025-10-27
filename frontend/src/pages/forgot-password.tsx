@@ -13,7 +13,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { ArrowBack } from '@mui/icons-material';
-import { authAPI } from '../../services/api';
+import { authAPI } from '../services/api';
 import { useRouter } from 'next/router';
 
 // Validation schema

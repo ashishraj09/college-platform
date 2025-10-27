@@ -15,7 +15,7 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { authAPI } from '../../services/api';
+import { authAPI } from '../services/api';
 import { useRouter } from 'next/router';
 
 // Validation schema
@@ -62,11 +62,16 @@ const ResetPasswordPage: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!token) {
-      setError('Invalid or missing reset token');
-      setTokenValid(false);
-    } else {
-      setTokenValid(true);
+    // Only show error if token is explicitly missing from the URL (not just undefined during SSR/first render)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get('token');
+      if (!urlToken) {
+        setError('Invalid or missing reset token');
+        setTokenValid(false);
+      } else {
+        setTokenValid(true);
+      }
     }
   }, [token]);
 

@@ -10,7 +10,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import { authAPI } from '../../services/api';
+import { authAPI } from '../services/api';
 import { useRouter } from 'next/router';
 
 interface PasswordForm {

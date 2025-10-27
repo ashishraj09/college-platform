@@ -1,6 +1,27 @@
+
 # College Platform - Enterprise Course Management System
 
-A comprehensive enterprise-level web application for managing college courses, enrollments, and user workflows with role-based access control.
+**College Platform** is a modern, enterprise-grade web application designed to streamline and automate the management of academic courses, degree programs, user roles, and student enrollments for colleges and universities. It provides a robust workflow for course creation, approval, and enrollment, with fine-grained role-based access control for administrators, faculty, office staff, and students.
+
+**Key goals:**
+- Centralize all course, degree, and enrollment data in a secure, auditable system
+- Automate multi-step approval workflows for courses and enrollments
+- Enable collaboration between faculty and departments
+- Provide a seamless, responsive user experience for all roles
+- Ensure compliance, auditability, and security for sensitive academic data
+
+**Who is this for?**
+- Colleges and universities seeking to digitize and modernize their academic administration
+- Developers and IT teams building custom academic management solutions
+- Faculty and staff who need a transparent, collaborative workflow for course and degree management
+
+**What does it do?**
+- Lets admins, faculty, and office staff manage users, courses, degrees, and enrollments
+- Supports multi-level approval and collaboration for both courses and enrollments
+- Provides students with a self-service portal for course selection and enrollment tracking
+- Sends automated email notifications for all major workflow events
+- Tracks all changes and approvals for compliance and reporting
+
 
 ## 🏗️ Architecture
 
@@ -79,54 +100,57 @@ A comprehensive enterprise-level web application for managing college courses, e
 
 ## 🚀 Getting Started
 
+## 🚀 Getting Started
+
 ### Prerequisites
-- Node.js 14+ 
-- PostgreSQL 12+
+- Node.js 14+ (recommended: latest LTS)
+- PostgreSQL 12+ (local or remote)
 - npm or yarn
 
-### Installation
+### 1. Clone the repository
+```bash
+git clone <repository-url>
+cd collage-platform
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd collage-platform
-   ```
+### 2. Set up the backend
+```bash
+cd backend
+npm install
 
-2. **Backend Setup**
-   ```bash
-   cd backend
-   npm install
-   
-   # Copy environment configuration
-   cp .env.example .env.development
-   # Edit .env.development with your database and email settings
-   
-   # Start development server
-   npm run dev
-   ```
+# Copy and edit environment configuration
+cp .env.example .env.development
+# Edit .env.development with your database and email settings
 
-3. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   
-   # Start development server  
-   npm start
-   ```
+# Create the database (if not already created)
+createdb college_platform_dev
 
-4. **Database Setup**
-   ```bash
-   # Create PostgreSQL database
-   createdb college_platform_dev
-   
-   # Run migrations (if available)
-   cd backend
-   npm run db:migrate
-   
-   # Seed initial data (if available)
-   npm run seed
-   ```
+# Run migrations to set up schema
+npm run db:migrate
 
+# (Optional) Seed initial data
+npm run seed
+
+# Start the backend server (development mode)
+
+# The backend will run on http://localhost:5000 by default
+```
+
+### 3. Set up the frontend
+```bash
+cd ../frontend
+npm install
+
+# Start the frontend development server
+npm start
+# The frontend will run on http://localhost:3000 by default
+```
+
+### 4. Access the application
+- Open your browser and go to http://localhost:3000
+- Log in with an admin or test account (see seed data or ask your admin)
+
+---
 ## 📋 Environment Configuration
 
 ### Backend (.env.development)
@@ -159,9 +183,9 @@ BACKEND_URL=http://localhost:5000
 
 ### Frontend (.env.development)
 ```env
-REACT_APP_API_BASE_URL=http://localhost:5000/api
-REACT_APP_ENVIRONMENT=development
-REACT_APP_APP_NAME=College Platform
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api
+NEXT_PUBLIC_ENVIRONMENT=development
+NEXT_PUBLIC_APP_NAME=College Platform
 ```
 
 ## 📁 Project Structure
@@ -225,31 +249,85 @@ collage-platform/
 
 ## 🔄 API Endpoints
 
-### Authentication
-- `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - User logout  
-- `POST /api/auth/refresh` - Refresh token
-- `GET /api/auth/profile` - Get user profile
-- `POST /api/auth/forgot-password` - Request password reset
-- `POST /api/auth/reset-password` - Reset password
-- `POST /api/auth/register` - Register new user (Admin only)
+### Auth
+- `POST /api/auth/register` — Register a new user (admin only)
+- `POST /api/auth/login` — User login
+- `POST /api/auth/forgot-password` — Request password reset
+- `POST /api/auth/reset-password` — Reset password
+- `GET /api/auth/profile` — Get current user profile
+- `POST /api/auth/logout` — Logout user
+- `GET /api/auth/me` — Get authenticated user's profile
 
 ### Users
-- `GET /api/users` - Get all users (Admin/Office)
-- `GET /api/users/:id` - Get user by ID
-- `PUT /api/users/:id` - Update user
-- `DELETE /api/users/:id` - Delete user (Admin only)
+- `GET /api/users` — List all users
+- `GET /api/users/:id` — Get user by ID
+- `PUT /api/users/:id` — Update user
+- `DELETE /api/users/:id` — Delete user
+- `GET /api/users/stats` — Get user/collaborator stats
+- `GET /api/users/department/:code` — Get users by department
+- `POST /api/users/:id/reset-password` — Admin reset user password
 
 ### Courses
-- `GET /api/courses` - Get courses
-- `POST /api/courses` - Create course (Faculty)
-- `PUT /api/courses/:id` - Update course
-- `PATCH /api/courses/:id/approve` - Approve course (HOD)
+- `GET /api/courses` — List courses (with filters)
+- `GET /api/courses/public/:code` — Public course details
+- `GET /api/courses/preview/:id` — Preview course (with meta)
+- `GET /api/courses/my-courses` — Faculty's courses
+- `GET /api/courses/department-courses` — Department courses
+- `GET /api/courses/:id` — Get course by ID
+- `GET /api/courses/:id/edit` — Get course for editing
+- `POST /api/courses` — Create course
+- `POST /api/courses/:id/create-version` — Create new version
+- `GET /api/courses/:id/can-edit` — Can edit check
+- `PATCH /api/courses/:id/submit` — Submit for approval
+- `PATCH /api/courses/:id/approve` — Approve course
+- `PATCH /api/courses/:id/reject` — Reject course
+- `PATCH /api/courses/:id/publish` — Publish/activate course
+- `PUT /api/courses/:id` — Update course
+- `DELETE /api/courses/:id` — Delete course
+
+### Degrees
+- `GET /api/degrees/public` — List public degrees
+- `GET /api/degrees/public/:code` — Public degree details
+- `GET /api/degrees/preview/:id` — Preview degree
+- `GET /api/degrees` — List degrees (with filters)
+- `GET /api/degrees/:id` — Get degree by ID
+- `POST /api/degrees` — Create degree
+- `PUT /api/degrees/:id` — Update degree
+- `DELETE /api/degrees/:id` — Delete degree
+- `PATCH /api/degrees/:id/submit` — Submit for approval
+- `PATCH /api/degrees/:id/approve` — Approve degree
+- `PATCH /api/degrees/:id/reject` — Reject degree
+- `PATCH /api/degrees/:id/publish` — Publish/activate degree
 
 ### Enrollments
-- `GET /api/enrollments` - Get enrollments  
-- `POST /api/enrollments` - Create enrollment (Student)
-- `PATCH /api/enrollments/:id/approve` - Approve enrollment
+- `GET /api/enrollments` — List enrollments
+- `GET /api/enrollments/draft` — List draft enrollments
+- `PUT /api/enrollments/draft` — Update draft enrollment
+- `POST /api/enrollments/draft/submit` — Submit draft enrollment
+- `POST /api/enrollments` — Create enrollment
+- `PATCH /api/enrollments/:id/approve` — Approve enrollment
+- `PATCH /api/enrollments/:id/reject` — Reject enrollment
+
+### Departments
+- `GET /api/departments` — List departments
+- `GET /api/departments/:id` — Get department by ID
+- `POST /api/departments` — Create department
+- `PUT /api/departments/:id` — Update department
+- `DELETE /api/departments/:id` — Delete department
+- `GET /api/departments/:id/degrees` — Get degrees in department
+- `GET /api/departments/public/:code` — Public department info
+
+### Collaborators
+- `POST /api/collaborators/course/:courseId/add` — Add course collaborator
+- `POST /api/collaborators/course/:courseId/remove` — Remove course collaborator
+- `GET /api/collaborators/course/:courseId` — List course collaborators
+- `POST /api/collaborators/degree/:degreeId/add` — Add degree collaborator
+- `POST /api/collaborators/degree/:degreeId/remove` — Remove degree collaborator
+- `GET /api/collaborators/degree/:degreeId` — List degree collaborators
+
+### Timeline & Health
+- `GET /api/timeline/:entityType/:entityId` — Get timeline for entity
+- `GET /api/health` — Health check
 
 ## 🗃️ Database Schema
 
@@ -348,7 +426,11 @@ Ensure all production environment variables are properly configured:
 
 ## 📄 License
 
-MIT License - see LICENSE file for details
+## 📄 License
+
+This project is proprietary and all rights are reserved. Copying, redistribution, or use of any part of this codebase is not permitted unless explicitly agreed to or approved in writing by the project owner.
+
+For any licensing inquiries or requests for permission, please contact the project maintainer.
 
 ## 🆘 Support
 
