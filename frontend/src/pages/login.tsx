@@ -145,7 +145,7 @@ const LoginPage: React.FC = () => {
                 />
               </Box>
               <Typography variant="h4" component="h1" gutterBottom fontWeight="bold">
-                College Platform
+                {process.env.NEXT_PUBLIC_APP_NAME}
               </Typography>
               <Typography variant="body1" color="text.secondary">
                 Sign in to your account

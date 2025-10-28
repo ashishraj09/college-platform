@@ -429,7 +429,7 @@ const Homepage: React.FC = () => {
       {/* Why Choose Us Section */}
   <Container maxWidth="md" sx={{ py: { xs: 5, md: 8 } }}>
         <Typography variant="h4" fontWeight={700} align="center" gutterBottom sx={{ mb: 6 }}>
-          Why Choose {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}
+          Why Choose {process.env.NEXT_PUBLIC_APP_NAME}
         </Typography>
         
         <Grid container spacing={{ xs: 3, md: 6 }} justifyContent="center" alignItems="stretch" sx={{ maxWidth: 1100, mx: 'auto' }}>

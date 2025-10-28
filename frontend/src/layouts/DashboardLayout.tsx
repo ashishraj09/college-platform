@@ -187,7 +187,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         fontSize: { xs: '0.95rem', sm: '1rem' },
         color: 'text.secondary',
       }}>
-  © {new Date().getFullYear()} {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}. All rights reserved.
+  © {new Date().getFullYear()} {process.env.NEXT_PUBLIC_APP_NAME}. All rights reserved.
       </Box>
     </Box>
   );
