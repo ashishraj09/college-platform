@@ -733,7 +733,7 @@ useEffect(() => {
   };
 
   return (
-    <Container maxWidth="xl">
+  <Container maxWidth="xl">
       {/* Collaborator Dialog (unified for course/degree) */}
       <Dialog open={collabDialogOpen} onClose={() => setCollabDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
@@ -852,23 +852,20 @@ useEffect(() => {
   events={timelineEvents}
         entityName={timelineEntityName}
       />
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%' }}>
         <Typography variant="h4" gutterBottom>Faculty Dashboard</Typography>
-        <Typography variant="body1" color="text.secondary">Manage your courses and degrees</Typography>
-        
-        {/* Add HOD dashboard link if user is a Head of Department */}
-        {isHOD && (
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={() => router.push('/hod')}
-            sx={{ mt: 2 }}
-          >
-            Go to HOD Dashboard
-          </Button>
-        )}
-      </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 3 }}>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>Manage your courses and degrees</Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 2,
+            mb: 3,
+            alignSelf: { xs: 'center', sm: 'flex-end' },
+            width: { xs: '100%', sm: 'auto' },
+            justifyContent: { xs: 'center', sm: 'flex-end' },
+            mt: { xs: 0, sm: 2 },
+          }}
+        >
           <Button
             variant="outlined"
             startIcon={<SchoolIcon />}
@@ -890,6 +887,7 @@ useEffect(() => {
           >
             Create New Course
           </Button>
+        </Box>
       </Box>
       <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)} sx={{ mb: 3 }}>
         <Tab label="Courses" />
@@ -922,7 +920,9 @@ useEffect(() => {
             ))}
           </Tabs>
           {courseTabsConfig[courseTab].count === 0 ? (
-            <Alert severity="info">No courses in {courseTabsConfig[courseTab].label.toLowerCase()} status.</Alert>
+            <Alert severity="info" sx={{ justifyContent: 'center', textAlign: 'center', alignItems: 'center', mt: 12 }}>
+              No courses in {courseTabsConfig[courseTab].label.toLowerCase()} status.
+            </Alert>
           ) : coursesLoading ? (
             <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="200px">
               <CircularProgress size={50} sx={{ mb: 2 }} />
@@ -984,7 +984,9 @@ useEffect(() => {
             ))}
           </Tabs>
           {degreeTabsConfig[degreeTab].count === 0 ? (
-            <Alert severity="info">No degrees in {degreeTabsConfig[degreeTab].label.toLowerCase()} status.</Alert>
+            <Alert severity="info" sx={{ justifyContent: 'center', textAlign: 'center', alignItems: 'center', mt: 12 }}>
+              No degrees in {degreeTabsConfig[degreeTab].label.toLowerCase()} status.
+            </Alert>
           ) : degreesLoading ? (
             <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="200px">
               <CircularProgress size={50} sx={{ mb: 2 }} />
@@ -1205,6 +1207,11 @@ useEffect(() => {
           </LoadingButton>
         </DialogActions>
       </Dialog>
+
+      {/* Add extra bottom padding before footer if no courses and no degrees */}
+      {(!courses.length && !degrees.length) && (
+        <Box sx={{ height: { xs: 56, sm: 80 } }} />
+      )}
     </Container>
   );
 };

@@ -369,13 +369,6 @@ const FacultyApprovalPage: React.FC = () => {
     <Container maxWidth="xl">
       <Box sx={{ py: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <IconButton 
-            onClick={() => router.push('/hod')}
-            sx={{ ml: { xs: 0, sm: 0, md: 0 }, mr: 4, p: 0 }}
-            aria-label="Back to dashboard"
-          >
-            <ArrowBackIcon sx={{ fontSize: 36, color: '#1565c0', fontWeight: 900 }} />
-          </IconButton>
           <Box sx={{ textAlign: 'center', flex: 1 }}>
             <Typography variant="h4" component="h1" align="center">
               Faculty Course Approval

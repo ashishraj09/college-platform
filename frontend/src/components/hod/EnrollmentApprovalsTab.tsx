@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Box,
@@ -110,6 +110,7 @@ const EnrollmentApprovalsTab: React.FC = () => {
   const [selectedDegree, setSelectedDegree] = useState<string>('');
   const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
   // Selection and approval
   const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([]);
@@ -246,12 +247,21 @@ const EnrollmentApprovalsTab: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedDegree, selectedSemester, searchTerm]);
+  }, [selectedDegree, selectedSemester, debouncedSearchTerm]);
+
+
+  // Debounce searchTerm before triggering API call
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms debounce
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   useEffect(() => {
     // Just load pending approvals - degrees will be extracted from the response
     loadPendingApprovals();
-  }, [loadPendingApprovals, pagination.page, pagination.limit, selectedDegree, selectedSemester, searchTerm]);
+  }, [loadPendingApprovals, pagination.page, pagination.limit, selectedDegree, selectedSemester, debouncedSearchTerm]);
 
   const toggleGroupExpansion = (groupKey: string) => {
     setExpandedGroups(prev => ({

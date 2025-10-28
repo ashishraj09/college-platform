@@ -53,13 +53,25 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+  <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <CssBaseline />
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
           <Box
             sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            onClick={() => router.push('/')}
+            onClick={() => {
+              if (user && effectiveRole === 'student') {
+                router.push('/student');
+              } else if (user && effectiveRole === 'hod') {
+                router.push('/hod');
+              } else if (user && effectiveRole === 'faculty') {
+                router.push('/faculty');
+              } else if (user && effectiveRole === 'admin') {
+                router.push('/admin');
+              } else {
+                router.push('/');
+              }
+            }}
           >
             <img
               src="/static/college-logo.png"
@@ -163,6 +175,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         }}
       >
         {children}
+      </Box>
+      <Box component="footer" sx={{
+        width: '100%',
+        mt: 'auto',
+        py: 2,
+        bgcolor: 'grey.100',
+        borderTop: '1px solid',
+        borderColor: 'grey.200',
+        textAlign: 'center',
+        fontSize: { xs: '0.95rem', sm: '1rem' },
+        color: 'text.secondary',
+      }}>
+  © {new Date().getFullYear()} {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}. All rights reserved.
       </Box>
     </Box>
   );

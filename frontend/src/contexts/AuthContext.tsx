@@ -78,12 +78,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Fetch latest user profile on page refresh
   useEffect(() => {
     // Only fetch profile if not on a public page
-    const publicPages = ['/', '/homepage', '/login', '/activate-account','/forgot-password', '/reset-password'];
+    const publicPages = [ '/login', '/activate-account','/forgot-password', '/reset-password'];
     const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-    const isPublicPage = publicPages.includes(pathname) ||
-      pathname.startsWith('/department/') ||
-      pathname.startsWith('/degree/') ||
-      pathname.startsWith('/course/');
+    const isPublicPage = publicPages.includes(pathname);
     if (isPublicPage) {
       dispatch(setLoading(false));
       setInitialized(true);

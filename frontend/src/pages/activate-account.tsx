@@ -30,14 +30,11 @@ const ActivateAccountPage: React.FC = () => {
   const [tokenValid, setTokenValid] = useState<boolean>(true);
 
   const token = router.query.token as string | undefined;
-  const isPasswordReset = router.pathname === '/reset-password';
-
+  
   useEffect(() => {
     if (!router.isReady) return;
     if (!token) {
-      const message = isPasswordReset 
-        ? 'Invalid password reset link. Please request a new password reset.' 
-        : 'Invalid activation link. Please contact your administrator.';
+      const message = 'Invalid activation link. Please contact your administrator.';
       setError(message);
       setTokenValid(false);
       return;
@@ -63,7 +60,7 @@ const ActivateAccountPage: React.FC = () => {
       }
     };
     validateToken();
-  }, [token, isPasswordReset]);
+  }, [token]);
 
   const handleInputChange = (field: keyof PasswordForm) => (
     event: React.ChangeEvent<HTMLInputElement>
@@ -79,9 +76,7 @@ const ActivateAccountPage: React.FC = () => {
     event.preventDefault();
     
     if (!token) {
-      const message = isPasswordReset 
-        ? 'Invalid password reset link. Please request a new password reset.' 
-        : 'Invalid activation link. Please contact your administrator.';
+      const message = 'Invalid activation link. Please contact your administrator.';
       setError(message);
       return;
     }
@@ -105,9 +100,7 @@ const ActivateAccountPage: React.FC = () => {
         password: form.password,
       });
 
-      const successMessage = isPasswordReset 
-        ? 'Password reset successfully! You can now log in with your new password.'
-        : 'Account activated successfully! You can now log in.';
+      const successMessage = 'Account activated successfully! You can now log in.';
       
       enqueueSnackbar(successMessage, { 
         variant: 'success',
@@ -117,8 +110,7 @@ const ActivateAccountPage: React.FC = () => {
       // Redirect to login page
   router.push('/login');
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 
-        (isPasswordReset ? 'Failed to reset password. Please try again.' : 'Failed to activate account. Please try again.');
+      const errorMessage = 'Failed to activate account. Please try again.';
       setError(errorMessage);
       enqueueSnackbar(errorMessage, { 
         variant: 'error',
@@ -176,13 +168,10 @@ const ActivateAccountPage: React.FC = () => {
             <img src="/static/college-logo.png" alt="College Platform Logo" style={{ width: 120, height: 120, marginBottom: 16 }} />
           </Box>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
-            {isPasswordReset ? 'Reset Your Password' : 'Activate Your Account'}
+            {'Activate Your Account'}
           </Typography>
           <Typography variant="body1" align="center" color="text.secondary" gutterBottom>
-            {isPasswordReset 
-              ? 'Please enter your new password below.' 
-              : 'Please set your password to activate your account.'
-            }
+            {'Please set your password to activate your account.'}
           </Typography>
 
           {error && (
@@ -224,7 +213,7 @@ const ActivateAccountPage: React.FC = () => {
               sx={{ mt: 3, mb: 2 }}
               disabled={loading || !form.password || !form.confirmPassword}
             >
-              {loading ? <CircularProgress size={24} /> : (isPasswordReset ? 'Reset Password' : 'Activate Account')}
+              {loading ? <CircularProgress size={24} /> : 'Activate Account'}
             </Button>
           </Box>
         </Paper>
