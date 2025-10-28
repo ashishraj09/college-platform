@@ -199,11 +199,22 @@ router.get('/',
         limit = 50
       } = req.query;
 
+
       const whereClause = {};
       if (department_code) whereClause.department_code = department_code;
       if (degree_code) whereClause.degree_code = degree_code;
       if (status) whereClause.status = status;
       if (faculty_id) whereClause.faculty_id = faculty_id;
+
+      // Add search filter if present
+      if (req.query.search && req.query.search.trim() !== '') {
+        const search = req.query.search.trim();
+        whereClause[Op.or] = [
+          { name: { [Op.iLike]: `%${search}%` } },
+          { code: { [Op.iLike]: `%${search}%` } },
+          { description: { [Op.iLike]: `%${search}%` } }
+        ];
+      }
 
       // Filter by department and ownership/collaboration for non-admin users
       let isRestrictedFaculty = false;
@@ -221,8 +232,13 @@ router.get('/',
       let count = 0;
       if (isRestrictedFaculty) {
         // Fetch created_by
+        // For restricted faculty, apply search to both queries
         const createdCourses = await Course.findAll({
-          where: { ...whereClause, created_by: req.user.id, ...(status ? { status } : {}) },
+          where: {
+            ...whereClause,
+            created_by: req.user.id,
+            ...(status ? { status } : {})
+          },
           include: [
             { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
             { model: Degree, as: 'degreeByCode', attributes: ['id', 'name', 'code'] },
@@ -234,7 +250,10 @@ router.get('/',
         });
         // Fetch collaborated
         const collaboratedCourses = await Course.findAll({
-          where: { ...whereClause, ...(status ? { status } : {}) },
+          where: {
+            ...whereClause,
+            ...(status ? { status } : {}),
+          },
           include: [
             { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
             { model: Degree, as: 'degreeByCode', attributes: ['id', 'name', 'code'] },

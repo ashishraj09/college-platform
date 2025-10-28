@@ -133,6 +133,7 @@ const DepartmentManagementPage = () => {
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   // State for student name filter and course popup
   const [studentNameFilter, setStudentNameFilter] = useState('');
+  const [courseSearch, setCourseSearch] = useState('');
   const [coursePopupOpen, setCoursePopupOpen] = useState(false);
   const [popupCourses, setPopupCourses] = useState<any[]>([]);
   const [popupStudent, setPopupStudent] = useState<string>('');
@@ -162,17 +163,21 @@ const DepartmentManagementPage = () => {
       .finally(() => setLoadingDegrees(false));
   }, [degreesStatusFilter, degreesPage, degreesRowsPerPage]);
 
-  // Fetch courses with filters and pagination
+  // Fetch courses with filters, pagination, and search
   useEffect(() => {
-    setLoadingCourses(true);
-    coursesAPI.getCourses({
-      status: mapStatusToBackend(coursesStatusFilter),
-      page: coursesPage + 1,
-      pageSize: coursesRowsPerPage
-    })
-      .then((res: any) => setCourses(res.courses || []))
-      .finally(() => setLoadingCourses(false));
-  }, [coursesStatusFilter, coursesPage, coursesRowsPerPage]);
+    const handler = setTimeout(() => {
+      setLoadingCourses(true);
+      coursesAPI.getCourses({
+        status: mapStatusToBackend(coursesStatusFilter),
+        page: coursesPage + 1,
+        pageSize: coursesRowsPerPage,
+        search: courseSearch && courseSearch.trim() !== '' ? courseSearch.trim() : undefined
+      })
+        .then((res: any) => setCourses(res.courses || []))
+        .finally(() => setLoadingCourses(false));
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [coursesStatusFilter, coursesPage, coursesRowsPerPage, courseSearch]);
 
   // Fetch enrollments with filters and pagination
   useEffect(() => {
@@ -199,7 +204,53 @@ const DepartmentManagementPage = () => {
     return () => clearTimeout(handler);
   }, [enrollmentsStatusFilter, yearFilter, degreeFilter, courseFilter, semesterFilter, enrollmentsPage, enrollmentsRowsPerPage, studentNameFilter]);
 
-  // Dummy filter helpers (replace with your actual logic)
+
+  // Generic sorting state for all tables (tab: 0=Degrees, 1=Courses, 2=Enrollments)
+  const [sortConfig, setSortConfig] = useState<{ tab: number; column: string; direction: 'asc' | 'desc' }>({ tab: 0, column: '', direction: 'asc' });
+
+  // Generic sort handler
+  const handleSort = (tab: number, column: string) => {
+    setSortConfig(prev => ({
+      tab,
+      column,
+      direction: prev.tab === tab && prev.column === column ? (prev.direction === 'asc' ? 'desc' : 'asc') : 'asc'
+    }));
+  };
+
+  // Generic sort function
+  const getSortedData = (data: any[], tab: number) => {
+    if (!Array.isArray(data)) return [];
+    if (!sortConfig.column || sortConfig.tab !== tab) return data;
+    return [...data].sort((a, b) => {
+      let aVal = a[sortConfig.column];
+      let bVal = b[sortConfig.column];
+      // Special cases for nested fields
+      if (tab === 2 && sortConfig.column === 'student') {
+        aVal = a.student ? `${a.student.first_name} ${a.student.last_name}` : a.student_id;
+        bVal = b.student ? `${b.student.first_name} ${b.student.last_name}` : b.student_id;
+      }
+      if (tab === 2 && sortConfig.column === 'degree') {
+        aVal = a.student?.degree?.name || '';
+        bVal = b.student?.degree?.name || '';
+      }
+      if (tab === 2 && sortConfig.column === 'year') {
+        aVal = a.createdAt ? new Date(a.createdAt).getFullYear() : '';
+        bVal = b.createdAt ? new Date(b.createdAt).getFullYear() : '';
+      }
+      if (tab === 2 && sortConfig.column === 'createdAt') {
+        aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      }
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
   const filterByStatus = (items: any[], status: string) => {
     if (status === 'all') return items;
     return items.filter(item => item.status === status);
@@ -261,17 +312,28 @@ const DepartmentManagementPage = () => {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell>Code</TableCell>
+                        <TableCell onClick={() => handleSort(0, 'name')} style={{ cursor: 'pointer' }}>Name {sortConfig.tab === 0 && sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(0, 'code')} style={{ cursor: 'pointer' }}>Code {sortConfig.tab === 0 && sortConfig.column === 'code' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                         <TableCell>Creator</TableCell>
-                        <TableCell>Status</TableCell>
+                        <TableCell onClick={() => handleSort(0, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 0 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                         <TableCell>Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filterByStatus(degrees, degreesStatusFilter)
-                        .slice(degreesPage * degreesRowsPerPage, degreesPage * degreesRowsPerPage + degreesRowsPerPage)
-                        .map(degree => {
+                      {(() => {
+                        const filtered = filterByStatus(degrees, degreesStatusFilter);
+                        const sorted = getSortedData(filtered, 0);
+                        const paged = sorted.slice(degreesPage * degreesRowsPerPage, degreesPage * degreesRowsPerPage + degreesRowsPerPage);
+                        if (filtered.length === 0) {
+                          return (
+                            <TableRow>
+                              <TableCell colSpan={5} align="center">
+                                <Typography color="text.secondary">No data found.</Typography>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        return paged.map(degree => {
                           const fullDegree = degrees.find(d => d.id === degree.id) || degree;
                           return (
                             <TableRow key={degree.id}>
@@ -325,7 +387,8 @@ const DepartmentManagementPage = () => {
                               </TableCell>
                             </TableRow>
                           );
-                        })}
+                        });
+                      })()}
                     </TableBody>
                   </Table>
                   <TablePagination
@@ -351,6 +414,23 @@ const DepartmentManagementPage = () => {
                     <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
                   ))}
                 </select>
+                <TextField
+                  size="small"
+                  sx={{ minWidth: 220, flex: 1 }}
+                  placeholder="Search courses..."
+                  value={courseSearch}
+                  onChange={e => { setCourseSearch(e.target.value); setCoursesPage(0); }}
+                  InputProps={{
+                    startAdornment: (
+                      <span style={{ marginRight: 8, color: '#888' }}>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="9" cy="9" r="7" stroke="#888" strokeWidth="2" />
+                          <line x1="14.4142" y1="14" x2="18" y2="17.5858" stroke="#888" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </span>
+                    )
+                  }}
+                />
               </Box>
               {loadingCourses ? (
                 <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" py={8}>
@@ -362,17 +442,28 @@ const DepartmentManagementPage = () => {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell>Code</TableCell>
+                        <TableCell onClick={() => handleSort(1, 'name')} style={{ cursor: 'pointer' }}>Name {sortConfig.tab === 1 && sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(1, 'code')} style={{ cursor: 'pointer' }}>Code {sortConfig.tab === 1 && sortConfig.column === 'code' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                         <TableCell>Creator</TableCell>
-                        <TableCell>Status</TableCell>
+                        <TableCell onClick={() => handleSort(1, 'status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 1 && sortConfig.column === 'status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                         <TableCell>Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filterByStatus(courses, coursesStatusFilter)
-                        .slice(coursesPage * coursesRowsPerPage, coursesPage * coursesRowsPerPage + coursesRowsPerPage)
-                        .map(course => (
+                      {(() => {
+                        // Use API-filtered results directly (already filtered by status & search)
+                        const sorted = getSortedData(courses, 1);
+                        const paged = sorted.slice(coursesPage * coursesRowsPerPage, coursesPage * coursesRowsPerPage + coursesRowsPerPage);
+                        if (courses.length === 0) {
+                          return (
+                            <TableRow>
+                              <TableCell colSpan={5} align="center">
+                                <Typography color="text.secondary">No data found.</Typography>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        return paged.map(course => (
                           <TableRow key={course.id}>
                             <TableCell>{course.name}</TableCell>
                             <TableCell>{course.code}</TableCell>
@@ -423,12 +514,13 @@ const DepartmentManagementPage = () => {
                               </Tooltip>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ));
+                      })()}
                     </TableBody>
                   </Table>
                   <TablePagination
                     component="div"
-                    count={filterByStatus(courses, coursesStatusFilter).length}
+                    count={courses.length}
                     page={coursesPage}
                     onPageChange={(_, newPage) => setCoursesPage(newPage)}
                     rowsPerPage={coursesRowsPerPage}
@@ -443,7 +535,6 @@ const DepartmentManagementPage = () => {
           <TabPanel value={currentTab} index={2}>
             <Box sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap', rowGap: 1 }}>
-                <Typography>Status:</Typography>
                 <Typography>Student Name:</Typography>
                 <TextField
                   size="small"
@@ -488,19 +579,30 @@ const DepartmentManagementPage = () => {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Student</TableCell>
-                        <TableCell>Degree</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Semester</TableCell>
-                        <TableCell>Year</TableCell>
-                        <TableCell>Created At</TableCell>
+                        <TableCell onClick={() => handleSort(2, 'student')} style={{ cursor: 'pointer' }}>Student {sortConfig.tab === 2 && sortConfig.column === 'student' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(2, 'degree')} style={{ cursor: 'pointer' }}>Degree {sortConfig.tab === 2 && sortConfig.column === 'degree' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(2, 'enrollment_status')} style={{ cursor: 'pointer' }}>Status {sortConfig.tab === 2 && sortConfig.column === 'enrollment_status' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(2, 'semester')} style={{ cursor: 'pointer' }}>Semester {sortConfig.tab === 2 && sortConfig.column === 'semester' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(2, 'year')} style={{ cursor: 'pointer' }}>Year {sortConfig.tab === 2 && sortConfig.column === 'year' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
+                        <TableCell onClick={() => handleSort(2, 'createdAt')} style={{ cursor: 'pointer' }}>Created At {sortConfig.tab === 2 && sortConfig.column === 'createdAt' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}</TableCell>
                         <TableCell>Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filteredEnrollments
-                        .slice(enrollmentsPage * enrollmentsRowsPerPage, enrollmentsPage * enrollmentsRowsPerPage + enrollmentsRowsPerPage)
-                        .map(enr => (
+                      {(() => {
+                        const filtered = filteredEnrollments;
+                        const sorted = getSortedData(filtered, 2);
+                        const paged = sorted.slice(enrollmentsPage * enrollmentsRowsPerPage, enrollmentsPage * enrollmentsRowsPerPage + enrollmentsRowsPerPage);
+                        if (filtered.length === 0) {
+                          return (
+                            <TableRow>
+                              <TableCell colSpan={7} align="center">
+                                <Typography color="text.secondary">No data found.</Typography>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        return paged.map(enr => (
                           <TableRow key={enr.id}>
                             <TableCell>{enr.student ? `${enr.student.first_name} ${enr.student.last_name}` : enr.student_id}</TableCell>
                             <TableCell>{enr.student?.degree?.name || ''}</TableCell>
@@ -540,7 +642,6 @@ const DepartmentManagementPage = () => {
                                   <VisibilityIcon />
                                 </IconButton>
                               </Tooltip>
-                            </TableCell>
                               {/* Enrolled Courses Popup */}
                               <Dialog
                                 open={coursePopupOpen}
@@ -568,21 +669,23 @@ const DepartmentManagementPage = () => {
                                   <Button onClick={() => setCoursePopupOpen(false)}>Close</Button>
                                 </DialogActions>
                               </Dialog>
+                            </TableCell>
                           </TableRow>
-                        ))}
+                        ));
+                      })()}
                     </TableBody>
                   </Table>
-                  <TablePagination
-                    component="div"
-                    count={filteredEnrollments.length}
-                    page={enrollmentsPage}
-                    onPageChange={(_, newPage) => setEnrollmentsPage(newPage)}
-                    rowsPerPage={enrollmentsRowsPerPage}
-                    onRowsPerPageChange={e => { setEnrollmentsRowsPerPage(parseInt(e.target.value, 10)); setEnrollmentsPage(0); }}
-                    rowsPerPageOptions={[5, 10, 25, 50]}
-                  />
-                </TableContainer>
-              )}
+                    <TablePagination
+                      component="div"
+                      count={filteredEnrollments.length}
+                      page={enrollmentsPage}
+                      onPageChange={(_, newPage) => setEnrollmentsPage(newPage)}
+                      rowsPerPage={enrollmentsRowsPerPage}
+                      onRowsPerPageChange={e => { setEnrollmentsRowsPerPage(parseInt(e.target.value, 10)); setEnrollmentsPage(0); }}
+                      rowsPerPageOptions={[5, 10, 25, 50]}
+                    />
+                  </TableContainer>
+                )}
             </Box>
           </TabPanel>
         </Paper>
