@@ -32,7 +32,33 @@ async function getModels() {
 
 const router = express.Router();
 
-// Unified stats endpoint: returns both degree and course stats for the authenticated user
+/**
+ * GET /users/active-stats
+ * Get total active user counts for dashboard cards.
+ * Admin/office only.
+ */
+router.get('/active-stats', authenticateToken, authorizeRoles('admin', 'office'), async (req, res) => {
+  try {
+    const { User, Department } = await getModels();
+    // Get user type counts
+    const [students, faculty, office] = await Promise.all([
+      User.count({ where: { user_type: 'student', status: 'active' } }),
+      User.count({ where: { user_type: 'faculty', status: 'active' } }),
+      User.count({ where: { user_type: 'office', status: 'active' } })
+    ]);
+
+    // Get department count
+    const departments = await Department.count({ where: { status: 'active' } });
+    res.json({ students, faculty, office, departments });
+  } catch (error) {
+    handleCaughtError(res, error, 'Failed to fetch active counts');
+  }
+});
+
+/**
+ * GET /users/stats
+ * Get degree and course stats for the authenticated user (faculty/admin).
+ */
 router.get('/stats', authenticateToken, authorizeRoles('faculty', 'admin'), async (req, res) => {
   try {
     const { Degree, Course, Department } = await getModels();
@@ -99,8 +125,7 @@ router.get('/',
 /**
  * GET /users
  * List users with pagination and filtering.
- * Only accessible to admin and office roles.
- * Query params: page, limit, user_type, department_code, status, search
+ * Only accessible to admin and office roles (faculty/HOD can view their own department).
  */
   authenticateToken,
   // Allow admin, office, and HOD/faculty for their own department
@@ -139,7 +164,15 @@ router.get('/',
       const where = {};
       if (req.query.user_type) where.user_type = req.query.user_type;
       if (req.query.department_code) where.department_code = req.query.department_code;
-      if (req.query.status) where.status = req.query.status;
+      // Default to only active users if no status filter is provided
+      if (req.query.status) {
+        where.status = req.query.status;
+      } else {
+        where.status = 'active';
+      }
+      if (req.query.current_semester) where.current_semester = req.query.current_semester;
+      if (req.query.enrolled_year) where.enrolled_year = req.query.enrolled_year;
+      if (req.query.degree_code) where.degree_code = req.query.degree_code;
       if (req.query.search) {
         where[Op.or] = [
           { first_name: { [Op.iLike]: `%${req.query.search}%` } },
@@ -254,8 +287,7 @@ router.put('/:id',
 /**
  * PUT /users/:id
  * Update user profile by user ID.
- * Validates department_code and degree_code if provided.
- * Audits all changes for compliance.
+ * Admin/office only. Audited.
  */
   authenticateToken,
   authorizeRoles('admin', 'office'),
@@ -313,9 +345,7 @@ router.put('/:id',
 router.delete('/:id',
 /**
  * DELETE /users/:id
- * Delete user by user ID.
- * Prevents users from deleting their own account.
- * Audits all deletions for compliance.
+ * Delete user by user ID. Admin only. Audited.
  */
   authenticateToken,
   authorizeRoles('admin'),
@@ -346,8 +376,7 @@ router.delete('/:id',
 router.get('/department/:code',
 /**
  * GET /users/department/:code
- * List users by department code.
- * Faculty can only view their own department.
+ * List users by department code. Faculty can only view their own department.
  */
   authenticateToken,
   authorizeRoles('faculty', 'admin', 'office'),
@@ -399,8 +428,7 @@ router.get('/department/:code',
 router.post('/:id/reset-password',
 /**
  * POST /users/:id/reset-password
- * Admin-only: Reset a user's password and send reset email.
- * Generates a secure token and sets expiry.
+ * Admin only. Reset a user's password and send reset email.
  */
   // Error handling: all errors are logged and a generic message is returned
   authenticateToken,

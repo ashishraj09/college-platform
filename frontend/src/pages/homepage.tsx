@@ -169,20 +169,20 @@ const Homepage: React.FC = () => {
         sx={{
           position: 'relative',
           color: 'white',
-          py: { xs: 8, md: 12 },
+          py: { xs: 6, md: 12 },
           overflow: 'visible',
           backgroundImage: 'url(/static/students-homepage.jpg)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       >
-        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-          <Box sx={{ textAlign: 'center', maxWidth: 800, mx: 'auto' }}>
+        <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, px: { xs: 1, sm: 2, md: 0 } }}>
+          <Box sx={{ textAlign: 'center', maxWidth: { xs: '100%', md: 800 }, mx: 'auto' }}>
             <Typography
               variant="h2"
               fontWeight={700}
               gutterBottom
-              sx={{ fontSize: { xs: '2rem', md: '3rem' }, lineHeight: 1.2, mb: 2 }}
+              sx={{ fontSize: { xs: '2rem', md: '3rem' }, lineHeight: 1.2, mb: 2, wordBreak: 'break-word' }}
             >
               Shape Your Future
             </Typography>
@@ -191,7 +191,7 @@ const Homepage: React.FC = () => {
             </Typography>
 
             {/* Search Box with Dropdown */}
-            <Box className="search-container" sx={{ position: 'relative', maxWidth: 1000, mx: 'auto', mb: 4, zIndex: 10 }}>
+            <Box className="search-container" sx={{ position: 'relative', maxWidth: { xs: '100%', sm: 500, md: 700 }, mx: 'auto', mb: 4, zIndex: 10 }}>
               <Paper
                 elevation={0}
                 sx={{
@@ -233,7 +233,7 @@ const Homepage: React.FC = () => {
                   sx={{
                     '& .MuiInputBase-root': {
                       fontSize: '1.1rem',
-                      padding: '18px 24px',
+                      padding: { xs: '12px 12px', sm: '16px 24px' },
                     },
                     '& .MuiInputBase-input::placeholder': {
                       color: 'text.secondary',
@@ -347,14 +347,16 @@ const Homepage: React.FC = () => {
       </Box>
 
       {/* Explore Area of Study Section */}
-      <Box sx={{ bgcolor: '#f8f9fa', py: 10 }}>
-        <Container maxWidth="lg">
+      <Box sx={{ bgcolor: '#f8f9fa', py: { xs: 5, md: 10 } }}>
+        <Container maxWidth="lg" sx={{ px: { xs: 0.5, sm: 2, md: 4, lg: 6 } }}>
           <Paper
             elevation={0}
             sx={{
               bgcolor: 'white',
               borderRadius: 3,
-              p: { xs: 4, md: 6 },
+              p: { xs: 1, sm: 3, md: 4, lg: 5 },
+              mx: 'auto',
+              maxWidth: { xs: '100%', md: '1000px', lg: '1200px' },
             }}
           >
             <Typography 
@@ -377,7 +379,7 @@ const Homepage: React.FC = () => {
                 sm: 'repeat(2, 1fr)', 
                 md: 'repeat(4, 1fr)' 
               },
-              gap: 4,
+              gap: { xs: 2, sm: 3, md: 4 },
             }}>
               {Array.from(new Set(degrees.map((d) => d.department?.code).filter(Boolean))).map((deptCode) => {
                 const dept = degrees.find((d) => d.department?.code === deptCode)?.department;
@@ -425,13 +427,13 @@ const Homepage: React.FC = () => {
       </Box>
 
       {/* Why Choose Us Section */}
-      <Container maxWidth="lg" sx={{ py: 8 }}>
+  <Container maxWidth="md" sx={{ py: { xs: 5, md: 8 } }}>
         <Typography variant="h4" fontWeight={700} align="center" gutterBottom sx={{ mb: 6 }}>
           Why Choose {process.env.NEXT_PUBLIC_APP_NAME || 'College Platform'}
         </Typography>
         
-        <Grid container spacing={6} justifyContent="center" alignItems="stretch" sx={{ maxWidth: 1100, mx: 'auto' }}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid container spacing={{ xs: 3, md: 6 }} justifyContent="center" alignItems="stretch" sx={{ maxWidth: 1100, mx: 'auto' }}>
+          <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ textAlign: 'center', px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
               <Box
                 sx={{
@@ -458,7 +460,7 @@ const Homepage: React.FC = () => {
             </Box>
           </Grid>
           
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid item xs={12} sm={6}>
             <Box sx={{ textAlign: 'center', px: 2 }}>
               <Box
                 sx={{
@@ -485,7 +487,7 @@ const Homepage: React.FC = () => {
             </Box>
           </Grid>
           
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ textAlign: 'center', px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
               <Box
                 sx={{
@@ -512,7 +514,7 @@ const Homepage: React.FC = () => {
             </Box>
           </Grid>
           
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ textAlign: 'center', px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
               <Box
                 sx={{

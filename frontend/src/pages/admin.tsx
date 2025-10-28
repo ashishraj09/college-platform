@@ -1,3 +1,10 @@
+/**
+ * Admin Dashboard Page
+ *
+ * Manage users, departments, and system administration.
+ * Includes dashboard stats, tabbed user/department tables, filters, search, pagination, and actions.
+ * Accessible to admin users.
+ */
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -29,6 +36,8 @@ import {
   MenuItem,
   TablePagination,
   CircularProgress,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import { 
   People, 
@@ -53,6 +62,7 @@ interface TabPanelProps {
 }
 
 function TabPanel(props: TabPanelProps) {
+// Tab panel for tabbed dashboard UI
   const { children, value, index, ...other } = props;
 
   return (
@@ -73,14 +83,41 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const AdminDashboard: React.FC = () => {
-  // ...existing code...
+  // Main admin dashboard component logic
+  // Dashboard card counts (active users, departments)
+  const [activeCounts, setActiveCounts] = useState({ students: 0, faculty: 0, office: 0 });
+
+  // Fetch true active user counts for dashboard cards
+  useEffect(() => {
+    async function fetchCounts() {
+      const res = await usersAPI.getActiveCounts();
+      if (res && typeof res.students === 'number') setActiveCounts(res);
+    }
+    fetchCounts();
+  }, []);
+  // Per-tab filter state (students, faculty, office, departments)
+  const [tabFilters, setTabFilters] = useState({
+    student: { department: 'all', semester: 'all', showInactive: false },
+    faculty: { department: 'all', showInactive: false },
+    office: { department: 'all', showInactive: false },
+    department: { showInactive: false },
+  });
+  // Per-tab search state (students, faculty, office, departments)
+  const [tabSearch, setTabSearch] = useState({
+    student: '',
+    faculty: '',
+    office: '',
+    department: '',
+  });
   useEffect(() => {
     fetchAllUsers();
     loadDepartments();
   }, []);
   const [tabValue, setTabValue] = useState(0);
   const [createDepartmentOpen, setCreateDepartmentOpen] = useState(false);
-  const [users, setUsers] = useState<any[] | null>(null);
+  const [students, setStudents] = useState<any[]>([]);
+  const [faculty, setFaculty] = useState<any[]>([]);
+  const [office, setOffice] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [passwordResetLoading, setPasswordResetLoading] = useState<Record<string, boolean>>({});
@@ -101,11 +138,9 @@ const AdminDashboard: React.FC = () => {
   const [editDepartmentOpen, setEditDepartmentOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<any>(null);
   
-  // Toggle switches for showing inactive items
-  const [showInactiveUsers, setShowInactiveUsers] = useState(false);
-  const [showInactiveDepartments, setShowInactiveDepartments] = useState(false);
+  // Remove old toggles, use tabFilters instead
   
-  // Confirmation dialog state
+  // Confirmation dialog state (for user/department actions)
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
     title: '',
@@ -115,11 +150,12 @@ const AdminDashboard: React.FC = () => {
     userId: undefined as string | undefined,
   });
   
-  // Add pagination state for each user type
+  // Pagination state for each tab (students, faculty, office, departments)
   const [pagination, setPagination] = useState({
     student: { page: 1, limit: 20, total: 0, pages: 1 },
     faculty: { page: 1, limit: 20, total: 0, pages: 1 },
     office: { page: 1, limit: 20, total: 0, pages: 1 },
+    department: { page: 1, limit: 20, total: 0, pages: 1 },
   });
   const [pageLoading, setPageLoading] = useState(false);
 
@@ -206,7 +242,6 @@ const AdminDashboard: React.FC = () => {
 
   const confirmToggleDepartmentStatus = async (departmentId: string, action: string) => {
     setDepartmentActionLoading(prev => ({ ...prev, [departmentId]: true }));
-    
     const newStatus = action === 'activate' ? 'active' : 'inactive';
     const result = await departmentsAPI.updateDepartment(departmentId, { status: newStatus });
     if (result.error) {
@@ -215,8 +250,10 @@ const AdminDashboard: React.FC = () => {
       setConfirmDialog({ ...confirmDialog, open: false });
       return;
     }
-    
     loadDepartments();
+    // Refresh dashboard counts
+    const res = await usersAPI.getActiveCounts();
+    if (res && typeof res.students === 'number') setActiveCounts(res);
     enqueueSnackbar(`Department ${action}d successfully!`, { variant: 'success' });
     setDepartmentActionLoading(prev => ({ ...prev, [departmentId]: false }));
     setConfirmDialog({ ...confirmDialog, open: false });
@@ -236,7 +273,6 @@ const AdminDashboard: React.FC = () => {
 
   const confirmToggleUserStatus = async (userId: string, action: string) => {
     setUserActionLoading(prev => ({ ...prev, [userId]: true }));
-    
     const newStatus = action === 'activate' ? 'active' : 'inactive';
     const result = await usersAPI.updateUser(userId, { status: newStatus });
     if (result.error) {
@@ -245,9 +281,11 @@ const AdminDashboard: React.FC = () => {
       setConfirmDialog({ ...confirmDialog, open: false });
       return;
     }
-    
     // loadUsers();
     fetchAllUsers();
+    // Refresh dashboard counts
+    const res = await usersAPI.getActiveCounts();
+    if (res && typeof res.students === 'number') setActiveCounts(res);
     enqueueSnackbar(`User ${action}d successfully!`, { variant: 'success' });
     setUserActionLoading(prev => ({ ...prev, [userId]: false }));
     setConfirmDialog({ ...confirmDialog, open: false });
@@ -277,6 +315,11 @@ const AdminDashboard: React.FC = () => {
       setDepartments([]);
     }
   };
+
+  // Move loadDepartments to mount-only effect
+  useEffect(() => {
+    loadDepartments();
+  }, []);
 
   // Generic sorting state for all tables
   const [sortConfig, setSortConfig] = useState<{ tab: number; column: string; direction: 'asc' | 'desc' }>({ tab: 0, column: '', direction: 'asc' });
@@ -329,50 +372,58 @@ const AdminDashboard: React.FC = () => {
     });
   };
 
-  // Fetch all users for all types and update state
-  const fetchAllUsers = async () => {
+  // Fetch all users for all types and update state, with filters
+  const fetchAllUsers = async (opts?: { search?: string, department?: string, semester?: string, showInactive?: boolean, userType?: 'student' | 'faculty' | 'office', page?: number, limit?: number }) => {
     setLoading(true);
     try {
-      const studentRes = await loadUsers('student', pagination.student.page, pagination.student.limit);
-      const facultyRes = await loadUsers('faculty', pagination.faculty.page, pagination.faculty.limit);
-      const officeRes = await loadUsers('office', pagination.office.page, pagination.office.limit);
-      const allUsers = [
-        ...studentRes.users,
-        ...facultyRes.users,
-        ...officeRes.users,
-      ];
-      setUsers(allUsers);
+      const userType = opts?.userType || (tabValue === 0 ? 'student' : tabValue === 1 ? 'faculty' : 'office');
+      const page = opts?.page || 1;
+      const limit = opts?.limit || pagination[userType].limit;
+      const params: any = {
+        user_type: userType,
+        page,
+        limit,
+      };
+      if (opts?.department && opts.department !== 'all') params.department_code = opts.department;
+      if (opts?.semester && opts.semester !== 'all') params.current_semester = opts.semester;
+      if (opts?.showInactive) params.status = 'inactive';
+      else params.status = 'active';
+      if (opts?.search) params.search = opts.search;
+      const res = await usersAPI.getUsers(params);
+      if (userType === 'student') setStudents(res.users);
+      if (userType === 'faculty') setFaculty(res.users);
+      if (userType === 'office') setOffice(res.users);
       setPagination(prev => ({
         ...prev,
-        student: studentRes.pagination,
-        faculty: facultyRes.pagination,
-        office: officeRes.pagination,
+        [userType]: res.pagination || prev[userType],
       }));
     } catch (error) {
       enqueueSnackbar('Failed to fetch users', { variant: 'error' });
-      setUsers([]);
+      if (opts?.userType === 'student') setStudents([]);
+      if (opts?.userType === 'faculty') setFaculty([]);
+      if (opts?.userType === 'office') setOffice([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Stats for dashboard cards
+  // Stats for dashboard cards (use true active counts)
   const stats = [
     {
       title: 'Students',
-      count: pagination.student.total,
+      count: activeCounts.students,
       color: 'primary',
       icon: <People />,
     },
     {
       title: 'Faculty',
-      count: pagination.faculty.total,
+      count: activeCounts.faculty,
       color: 'secondary',
       icon: <School />,
     },
     {
       title: 'Office Staff',
-      count: pagination.office.total,
+      count: activeCounts.office,
       color: 'info',
       icon: <Class />,
     },
@@ -386,62 +437,86 @@ const AdminDashboard: React.FC = () => {
 
   // Filter data based on search query and current tab
   useEffect(() => {
-    const getCurrentData = () => {
-      switch (tabValue) {
-        case 0: // Students
-          return Array.isArray(users) ? users.filter(u => u.user_type === 'student') : [];
-        case 1: // Faculty
-          return Array.isArray(users) ? users.filter(u => u.user_type === 'faculty') : [];
-        case 2: // Office
-          return Array.isArray(users) ? users.filter(u => u.user_type === 'office') : [];
-        case 3: // Departments
-          return Array.isArray(departments) ? departments : [];
-        default:
-          return [];
-      }
-    };
+    let data: any[] = [];
+    if (tabValue === 0) data = students;
+    else if (tabValue === 1) data = faculty;
+    else if (tabValue === 2) data = office;
+    else if (tabValue === 3) data = Array.isArray(departments) ? departments : [];
 
-    let data: any[] = getCurrentData();
-
-    // Filter based on inactive toggle - exclusive filtering
-    if (tabValue === 3) { // Departments
-      if (showInactiveDepartments) {
-        data = Array.isArray(data) ? data.filter(item => item.status === 'inactive') : [];
-      } else {
-        data = Array.isArray(data) ? data.filter(item => item.status !== 'inactive') : [];
-      }
-    } else { // Users
-      if (showInactiveUsers) {
-        data = Array.isArray(data) ? data.filter(item => item.status === 'inactive') : [];
-      } else {
-        data = Array.isArray(data) ? data.filter(item => item.status !== 'inactive') : [];
-      }
+    // Per-tab inactive filter
+    if (tabValue === 3) {
+      data = Array.isArray(data) ? data.filter(item => tabFilters.department.showInactive ? item.status === 'inactive' : item.status !== 'inactive') : [];
+    } else if (tabValue === 0) {
+      data = Array.isArray(data) ? data.filter(item => tabFilters.student.showInactive ? item.status === 'inactive' : item.status !== 'inactive') : [];
+    } else if (tabValue === 1) {
+      data = Array.isArray(data) ? data.filter(item => tabFilters.faculty.showInactive ? item.status === 'inactive' : item.status !== 'inactive') : [];
+    } else if (tabValue === 2) {
+      data = Array.isArray(data) ? data.filter(item => tabFilters.office.showInactive ? item.status === 'inactive' : item.status !== 'inactive') : [];
     }
 
-    // Apply search filter
-    if (searchQuery) {
+    // Per-tab search
+    const search = tabValue === 0 ? tabSearch.student : tabValue === 1 ? tabSearch.faculty : tabValue === 2 ? tabSearch.office : tabSearch.department;
+    if (search) {
       const filtered = Array.isArray(data) ? data.filter(item => {
-        if (tabValue === 3) { // Departments
-          return item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 item.code?.toLowerCase().includes(searchQuery.toLowerCase());
-        } else { // Users
-          return item.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 item.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 item.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 item.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 item.employee_id?.toLowerCase().includes(searchQuery.toLowerCase());
+        if (tabValue === 3) {
+          return item.name?.toLowerCase().includes(search.toLowerCase()) ||
+                 item.code?.toLowerCase().includes(search.toLowerCase());
+        } else {
+          return item.first_name?.toLowerCase().includes(search.toLowerCase()) ||
+                 item.last_name?.toLowerCase().includes(search.toLowerCase()) ||
+                 item.email?.toLowerCase().includes(search.toLowerCase()) ||
+                 item.student_id?.toLowerCase().includes(search.toLowerCase()) ||
+                 item.employee_id?.toLowerCase().includes(search.toLowerCase());
         }
       }) : [];
       setFilteredData(filtered);
     } else {
       setFilteredData(Array.isArray(data) ? data : []);
     }
-  }, [tabValue, searchQuery, users, departments, showInactiveUsers, showInactiveDepartments]);
+  }, [tabValue, students, faculty, office, departments, tabFilters, tabSearch]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-    setSearchQuery(''); // Reset search when changing tabs
-  };
+  // Add effect to reset pagination to page 1 on filter change
+  useEffect(() => {
+    let userType: 'student' | 'faculty' | 'office';
+    if (tabValue === 0) userType = 'student';
+    else if (tabValue === 1) userType = 'faculty';
+    else if (tabValue === 2) userType = 'office';
+    else return;
+    setPagination(prev => ({
+      ...prev,
+      [userType]: {
+        ...prev[userType],
+        page: 1,
+      },
+    }));
+    // eslint-disable-next-line
+  }, [tabFilters, tabValue]);
+
+  // Update fetchAllUsers effect to depend on pagination for the active tab
+  useEffect(() => {
+    let userType: 'student' | 'faculty' | 'office';
+    if (tabValue === 0) userType = 'student';
+    else if (tabValue === 1) userType = 'faculty';
+    else if (tabValue === 2) userType = 'office';
+    else return;
+    // Debounce search
+    const handler = setTimeout(() => {
+      const opts: any = {
+        search: tabSearch[userType],
+        department: tabFilters[userType]?.department,
+        showInactive: tabFilters[userType]?.showInactive,
+        userType,
+        page: pagination[userType].page,
+        limit: pagination[userType].limit,
+      };
+      if (userType === 'student') {
+        opts.semester = tabFilters.student.semester;
+      }
+      fetchAllUsers(opts);
+    }, 400);
+    return () => clearTimeout(handler);
+    // eslint-disable-next-line
+  }, [tabFilters, tabSearch, tabValue, pagination.student.page, pagination.faculty.page, pagination.office.page]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -470,7 +545,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   // Loader logic: block dashboard content until all API data is loaded
-  const isLoading = users === null || departments === null;
+  const isLoading = departments === null;
 
   // Pagination controls for each tab (move above return)
   const handleChangePage = async (userType: 'student' | 'faculty' | 'office', newPage: number) => {
@@ -488,17 +563,10 @@ const AdminDashboard: React.FC = () => {
     
     try {
       // Fetch data for the new page
-      const response = await loadUsers(userType, newPage, pagination[userType].limit);
-      
-      // Update the users list by replacing only the users of the current type
-      setUsers(prevUsers => {
-        // Handle null case
-        if (!prevUsers) return response.users;
-        
-        // Filter out users of the current type and add the new ones
-        const otherTypeUsers = prevUsers.filter(user => user.user_type !== userType);
-        return [...otherTypeUsers, ...response.users];
-      });
+      const response = await usersAPI.getUsers({ user_type: userType, page: newPage, limit: pagination[userType].limit });
+      if (userType === 'student') setStudents(response.users);
+      if (userType === 'faculty') setFaculty(response.users);
+      if (userType === 'office') setOffice(response.users);
       
       // Update pagination info
       setPagination(prev => ({
@@ -528,17 +596,10 @@ const AdminDashboard: React.FC = () => {
     
     try {
       // Fetch data with new limit, starting from page 1
-      const response = await loadUsers(userType, 1, newLimit);
-      
-      // Update the users list by replacing only the users of the current type
-      setUsers(prevUsers => {
-        // Handle null case
-        if (!prevUsers) return response.users;
-        
-        // Filter out users of the current type and add the new ones
-        const otherTypeUsers = prevUsers.filter(user => user.user_type !== userType);
-        return [...otherTypeUsers, ...response.users];
-      });
+      const response = await usersAPI.getUsers({ user_type: userType, page: 1, limit: newLimit });
+      if (userType === 'student') setStudents(response.users);
+      if (userType === 'faculty') setFaculty(response.users);
+      if (userType === 'office') setOffice(response.users);
       
       // Update pagination info
       setPagination(prev => ({
@@ -552,6 +613,12 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Tab change handler
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+
+  // Render dashboard UI
   return (
     <Box>
       {isLoading ? (
@@ -617,14 +684,51 @@ const AdminDashboard: React.FC = () => {
                   <CircularProgress color="primary" />
                 </Box>
               )}
-              {/* Students Table */}
-              <Box sx={{ mb: 2 }}>
+              {/* Students Table Filters */}
+              <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                <FormControl sx={{ minWidth: 160 }} size="small">
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={tabFilters.student.department}
+                    label="Department"
+                    onChange={e => setTabFilters(f => ({ ...f, student: { ...f.student, department: e.target.value as string } }))}
+                  >
+                    <MenuItem value="all">All</MenuItem>
+                    {Array.isArray(departments) && departments.map(dep => (
+                      <MenuItem key={dep.code} value={dep.code}>{dep.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl sx={{ minWidth: 120 }} size="small">
+                  <InputLabel>Semester</InputLabel>
+                  <Select
+                    value={tabFilters.student.semester}
+                    label="Semester"
+                    onChange={e => setTabFilters(f => ({ ...f, student: { ...f.student, semester: e.target.value as string } }))}
+                  >
+                    <MenuItem value="all">All</MenuItem>
+                    {[...Array(8)].map((_, i) => (
+                      <MenuItem key={i+1} value={i+1}>{i+1}{getOrdinalSuffix(i+1)} Semester</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tabFilters.student.showInactive}
+                      onChange={(_, checked) => setTabFilters(f => ({ ...f, student: { ...f.student, showInactive: checked } }))}
+                      color="warning"
+                    />
+                  }
+                  label={tabFilters.student.showInactive ? 'Show Inactive' : 'Show Active'}
+                  sx={{ ml: 2 }}
+                />
                 <TextField
-                  fullWidth
+                  sx={{ flex: 1, minWidth: 200 }}
                   placeholder="Search students..."
                   variant="outlined"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={tabSearch.student}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTabSearch(s => ({ ...s, student: e.target.value }))}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -650,7 +754,7 @@ const AdminDashboard: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getSortedData((filteredData.length > 0 ? filteredData : users)?.filter((user: any) => user.user_type === 'student') || [], 0).map((user) => (
+                    {getSortedData(filteredData, 0).map((user) => (
                       <TableRow key={user.id}>
                         <TableCell>{user.first_name}</TableCell>
                         <TableCell>{user.last_name}</TableCell>
@@ -708,14 +812,38 @@ const AdminDashboard: React.FC = () => {
                   <CircularProgress color="primary" />
                 </Box>
               )}
-              {/* Faculty Table */}
-              <Box sx={{ mb: 2 }}>
+              {/* Faculty Table Filters */}
+              <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                <FormControl sx={{ minWidth: 160 }} size="small">
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={tabFilters.faculty.department}
+                    label="Department"
+                    onChange={e => setTabFilters(f => ({ ...f, faculty: { ...f.faculty, department: e.target.value as string } }))}
+                  >
+                    <MenuItem value="all">All</MenuItem>
+                    {Array.isArray(departments) && departments.map(dep => (
+                      <MenuItem key={dep.code} value={dep.code}>{dep.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tabFilters.faculty.showInactive}
+                      onChange={(_, checked) => setTabFilters(f => ({ ...f, faculty: { ...f.faculty, showInactive: checked } }))}
+                      color="warning"
+                    />
+                  }
+                  label={tabFilters.faculty.showInactive ? 'Show Inactive' : 'Show Active'}
+                  sx={{ ml: 2 }}
+                />
                 <TextField
-                  fullWidth
+                  sx={{ flex: 1, minWidth: 200 }}
                   placeholder="Search faculty..."
                   variant="outlined"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={tabSearch.faculty}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTabSearch(s => ({ ...s, faculty: e.target.value }))}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -741,7 +869,7 @@ const AdminDashboard: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getSortedData((filteredData.length > 0 ? filteredData : users)?.filter((user: any) => user.user_type === 'faculty') || [], 1).map((user) => (
+                    {getSortedData(faculty, 1).map((user) => (
                       <TableRow key={user.id}>
                         <TableCell>{user.first_name}</TableCell>
                         <TableCell>{user.last_name}</TableCell>
@@ -799,14 +927,38 @@ const AdminDashboard: React.FC = () => {
                   <CircularProgress color="primary" />
                 </Box>
               )}
-              {/* Office Staff Table */}
-              <Box sx={{ mb: 2 }}>
+              {/* Office Staff Table Filters */}
+              <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                <FormControl sx={{ minWidth: 160 }} size="small">
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={tabFilters.office.department}
+                    label="Department"
+                    onChange={e => setTabFilters(f => ({ ...f, office: { ...f.office, department: e.target.value as string } }))}
+                  >
+                    <MenuItem value="all">All</MenuItem>
+                    {Array.isArray(departments) && departments.map(dep => (
+                      <MenuItem key={dep.code} value={dep.code}>{dep.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tabFilters.office.showInactive}
+                      onChange={(_, checked) => setTabFilters(f => ({ ...f, office: { ...f.office, showInactive: checked } }))}
+                      color="warning"
+                    />
+                  }
+                  label={tabFilters.office.showInactive ? 'Show Inactive' : 'Show Active'}
+                  sx={{ ml: 2 }}
+                />
                 <TextField
-                  fullWidth
+                  sx={{ flex: 1, minWidth: 200 }}
                   placeholder="Search office staff..."
                   variant="outlined"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={tabSearch.office}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTabSearch(s => ({ ...s, office: e.target.value }))}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -830,7 +982,7 @@ const AdminDashboard: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getSortedData((filteredData.length > 0 ? filteredData : users)?.filter((user: any) => user.user_type === 'office') || [], 2).map((user) => (
+                    {getSortedData(office, 2).map((user) => (
                       <TableRow key={user.id}>
                         <TableCell>{user.first_name}</TableCell>
                         <TableCell>{user.last_name}</TableCell>
@@ -891,13 +1043,23 @@ const AdminDashboard: React.FC = () => {
                 </Box>
               )}
               {/* Departments Table */}
-              <Box sx={{ mb: 2 }}>
+              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tabFilters.department.showInactive}
+                      onChange={(_, checked) => setTabFilters(f => ({ ...f, department: { ...f.department, showInactive: checked } }))}
+                      color="warning"
+                    />
+                  }
+                  label={tabFilters.department.showInactive ? 'Show Inactive' : 'Show Active'}
+                />
                 <TextField
                   fullWidth
                   placeholder="Search departments..."
                   variant="outlined"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={tabSearch.department}
+                  onChange={(e) => setTabSearch(s => ({ ...s, department: e.target.value }))}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">

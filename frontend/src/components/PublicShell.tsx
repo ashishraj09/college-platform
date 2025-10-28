@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Container, Button, Typography, Grid, Divider, IconButton, Menu, MenuItem, ListItemIcon } from '@mui/material';
+import { Box, Container, Button, Typography, Divider, IconButton, Menu, MenuItem, ListItemIcon } from '@mui/material';
+import Grid from '@mui/material/Grid';
 import { Login as LoginIcon, AccountCircle, ExitToApp } from '@mui/icons-material';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
@@ -117,7 +118,8 @@ const PublicHeader: React.FC = () => {
                 variant="outlined"
                 startIcon={<LoginIcon />}
                 onClick={() => router.push('/login')}
-                sx={{ fontWeight: 600, px: 3 }}
+                sx={{ fontWeight: 600, px: { xs: 1, sm: 3 }, width: { xs: '100%', sm: 'auto' } }}
+                fullWidth
               >
                 Login
               </Button>
@@ -141,9 +143,9 @@ const PublicFooter: React.FC<{ extraCountText?: string }> = ({ extraCountText })
         mt: 8,
       }}
     >
-      <Container maxWidth="lg">
-        <Grid container spacing={4}>
-          <Grid size={{ xs: 12, md: 3 }}>
+      <Container maxWidth="lg" sx={{ px: { xs: 1, sm: 2, md: 0 } }}>
+        <Grid container spacing={4} alignItems="flex-start" justifyContent={{ xs: 'center', md: 'space-between' }}>
+          <Grid item xs={12} sm={6} md={3} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
               <Box
                 component="img"
@@ -164,7 +166,7 @@ const PublicFooter: React.FC<{ extraCountText?: string }> = ({ extraCountText })
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+          <Grid item xs={12} sm={6} md={2} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
             <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
               Quick Links
             </Typography>
@@ -186,7 +188,7 @@ const PublicFooter: React.FC<{ extraCountText?: string }> = ({ extraCountText })
               </Box>
           </Grid>
 
-          <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+          <Grid item xs={12} sm={6} md={2} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
             <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
               Information For
             </Typography>
@@ -203,7 +205,7 @@ const PublicFooter: React.FC<{ extraCountText?: string }> = ({ extraCountText })
             </Box>
           </Grid>
 
-          <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+          <Grid item xs={12} sm={6} md={2} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
             <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
               About
             </Typography>
@@ -220,7 +222,7 @@ const PublicFooter: React.FC<{ extraCountText?: string }> = ({ extraCountText })
             </Box>
           </Grid>
 
-          <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+          <Grid item xs={12} sm={6} md={3} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
             <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ mb: 2 }}>
               Contact
             </Typography>

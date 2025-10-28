@@ -1,6 +1,26 @@
-// src/services/api.ts
-
+/**
+ * API Service Layer
+ *
+ * Provides typed API functions for authentication, users, courses, degrees, departments, enrollments, and timeline.
+ * Uses axios for HTTP requests. Handles errors and authentication redirects.
+ */
 import axios from 'axios';
+// --- Auth API ---
+// Authentication endpoints: login, register, logout, profile, password reset
+// --- Users API ---
+// User management endpoints: CRUD, stats, department users, password reset, active counts
+// --- Courses API ---
+// Course management endpoints: CRUD, public/private, approval, faculty/HOD views
+// --- Degrees API ---
+// Degree management endpoints: CRUD, public/private, approval, faculty/HOD views
+// --- Departments API ---
+// Department management endpoints: CRUD, public/private
+// --- Enrollments API ---
+// Enrollment management endpoints: CRUD, approval, HOD/office actions, student flows
+// --- New Enrollment API (Using course codes) ---
+// Modern enrollment endpoints for student and HOD flows
+// --- Timeline API ---
+// Timeline endpoints for entity, user, and department events
 
 // Next.js requires NEXT_PUBLIC_ prefix for client-side env vars
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -82,6 +102,7 @@ function handleApiError(err: any) {
 }
 
 export const authAPI = {
+  // Login user
   login: async (data: any) => {
     try {
       return (await api.post('/auth/login', data)).data;
@@ -89,6 +110,7 @@ export const authAPI = {
       return handleApiError(err);
     }
   },
+  // Register new user
   register: async (data: any) => {
     try {
       return (await api.post('/auth/register', data)).data;
@@ -96,6 +118,7 @@ export const authAPI = {
       return handleApiError(err);
     }
   },
+  // Logout user
   logout: async () => {
     try {
       return (await api.post('/auth/logout')).data;
@@ -103,6 +126,7 @@ export const authAPI = {
       return handleApiError(err);
     }
   },
+  // Get current user profile
   me: async () => {
     try {
       return (await api.get('/auth/me')).data;
@@ -110,6 +134,7 @@ export const authAPI = {
       return handleApiError(err);
     }
   },
+  // Request password reset email
   forgotPassword: async (email: string) => {
     try {
       return (await api.post('/auth/forgot-password', { email })).data;
@@ -117,6 +142,7 @@ export const authAPI = {
       return handleApiError(err);
     }
   },
+  // Reset password with token
   resetPassword: async (payload: { token: string; password: string }) => {
     try {
       return (await api.post('/auth/reset-password', payload)).data;
@@ -124,6 +150,7 @@ export const authAPI = {
       return handleApiError(err);
     }
   },
+  // Get current user profile (alias)
   getProfile: async () => {
     try {
       return (await api.get('/auth/me')).data;
@@ -131,6 +158,7 @@ export const authAPI = {
       return handleApiError(err);
     }
   },
+  // Validate password reset or activation token
   validateToken: async (token: string) => {
     try {
       return (await api.get(`/auth/validate-token?token=${encodeURIComponent(token)}`)).data;
@@ -142,6 +170,7 @@ export const authAPI = {
 
 // --- Users API ---
 export const usersAPI = {
+  // Get user and degree/course stats
   getStats: async () => {
     try {
       return (await api.get('/users/stats')).data;
@@ -149,6 +178,7 @@ export const usersAPI = {
       return handleApiError(err);
     }
   },
+  // Get paginated users list
   getUsers: async (params?: any) => {
     try {
       return (await api.get('/users', { params })).data;
@@ -156,6 +186,7 @@ export const usersAPI = {
       return handleApiError(err);
     }
   },
+  // Get user by ID
   getUserById: async (id: string) => {
     try {
       return (await api.get(`/users/${id}`)).data;
@@ -163,6 +194,7 @@ export const usersAPI = {
       return handleApiError(err);
     }
   },
+  // Create new user
   createUser: async (data: any) => {
     try {
       return (await api.post('/users', data)).data;
@@ -170,6 +202,7 @@ export const usersAPI = {
       return handleApiError(err);
     }
   },
+  // Update user by ID
   updateUser: async (id: string, data: any) => {
     try {
       return (await api.put(`/users/${id}`, data)).data;
@@ -177,6 +210,7 @@ export const usersAPI = {
       return handleApiError(err);
     }
   },
+  // Delete user by ID
   deleteUser: async (id: string) => {
     try {
       return (await api.delete(`/users/${id}`)).data;
@@ -184,6 +218,7 @@ export const usersAPI = {
       return handleApiError(err);
     }
   },
+  // Get users by department
   getUsersByDepartment: async (departmentId: string, options?: { user_type?: string; status?: string }) => {
     try {
       const params = new URLSearchParams();
@@ -195,9 +230,18 @@ export const usersAPI = {
       return handleApiError(err);
     }
   },
+  // Reset user password by ID
   resetUserPassword: async (id: string) => {
     try {
       return (await api.post(`/users/${id}/reset-password`)).data;
+    } catch (err: any) {
+      return handleApiError(err);
+    }
+  },
+  // Get active user counts for dashboard
+  getActiveCounts: async () => {
+    try {
+  return (await api.get('/users/active-stats')).data;
     } catch (err: any) {
       return handleApiError(err);
     }
@@ -207,6 +251,7 @@ export const usersAPI = {
 // --- Courses API (backwards-compatible) ---
 export const coursesAPI = {
   // Public endpoint - get course by code
+  // Get public course by code
   getPublicCourseByCode: async (code: string) => {
     try {
       const { data } = await api.get(`/courses/public/${code}`);
@@ -215,6 +260,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Get paginated courses list
   getCourses: async (params?: any) => {
     try {
       const { data } = await api.get('/courses', { params });
@@ -231,6 +277,7 @@ export const coursesAPI = {
       return { courses: [], pagination: { total: 0, pages: 1 }, error: error.error };
     }
   },
+  // Get course by ID
   getCourseById: async (id: string) => {
     try {
       return (await api.get(`/courses/${id}`)).data;
@@ -239,6 +286,7 @@ export const coursesAPI = {
     }
   },
   // Preview endpoint - authenticated, returns meta (creator/updater/approver)
+  // Get preview course by ID (authenticated)
   getPreviewCourseById: async (id: string) => {
     try {
       const { data } = await api.get(`/courses/preview/${id}`);
@@ -247,6 +295,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Get course for editing
   getCourseForEdit: async (id: string, resolveNames = false) => {
     try {
       return (await api.get(`/courses/${id}/edit?resolve_names=${resolveNames}`)).data;
@@ -254,6 +303,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Create new course
   createCourse: async (payload: any, userId?: string, deptId?: string) => {
     try {
       if (userId === undefined && deptId === undefined) {
@@ -264,6 +314,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Update course by ID
   updateCourse: async (id: string, payload: any, userId?: string, deptId?: string) => {
     try {
       if (userId === undefined && deptId === undefined) {
@@ -274,6 +325,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Delete course by ID
   deleteCourse: async (id: string, payload?: any) => {
     try {
       return (await api.delete(`/courses/${id}`, { data: payload })).data;
@@ -281,6 +333,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Approve course by ID
   approveCourse: async (id: string, payload?: any) => {
     try {
       return (await api.patch(`/courses/${id}/approve`, payload)).data;
@@ -288,6 +341,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Reject course by ID
   rejectCourse: async (id: string, reason: string) => {
     try {
       return (await api.patch(`/courses/${id}/reject`, { reason })).data;
@@ -295,6 +349,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Get faculty courses (HOD/faculty view)
   getFacultyCourses: async (deptId?: string, userId?: string) => {
     try {
       if (!deptId) {
@@ -317,6 +372,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Get available courses for semester
   getAvailableCourses: async (semester?: number) => {
     try {
       return (await api.get('/courses/available', { params: { semester } })).data;
@@ -324,6 +380,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Submit course for review
   submitCourse: async (id: string, payload?: any) => {
     try {
       return (await api.patch(`/courses/${id}/submit`, payload)).data;
@@ -331,6 +388,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Publish course by ID
   publishCourse: async (id: string, payload?: any) => {
     try {
       return (await api.patch(`/courses/${id}/publish`, payload)).data;
@@ -338,6 +396,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Check if course can be edited
   checkCanEdit: async (id: string) => {
     try {
       return (await api.get(`/courses/${id}/can-edit`)).data;
@@ -345,6 +404,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Create new course version
   createCourseVersion: async (id: string) => {
     try {
       return (await api.post(`/courses/${id}/create-version`)).data;
@@ -352,6 +412,7 @@ export const coursesAPI = {
       return handleApiError(err);
     }
   },
+  // Submit course for approval with message
   submitCourseForApproval: async (id: string, message: string) => {
     try {
       return (await api.patch(`/courses/${id}/submit`, { message })).data;
@@ -364,6 +425,7 @@ export const coursesAPI = {
 // --- Degrees API (backwards-compatible) ---
 export const degreesAPI = {
   // Public endpoint - no authentication required
+  // Get public degrees list
   getPublicDegrees: async (params?: any) => {
     try {
       const { data } = await api.get('/degrees/public', { params });
@@ -374,6 +436,7 @@ export const degreesAPI = {
     }
   },
   // Public endpoint - get degree by code
+  // Get public degree by code
   getPublicDegreeByCode: async (code: string) => {
     try {
       const { data } = await api.get(`/degrees/public/${code}`);
@@ -383,6 +446,7 @@ export const degreesAPI = {
     }
   },
   // Authenticated endpoint - requires login, filtered by user access
+  // Get paginated degrees list
   getDegrees: async (params?: any) => {
     try {
   const { data } = await api.get('/degrees', { params });
@@ -399,6 +463,7 @@ export const degreesAPI = {
       return { degrees: [], pagination: { total: 0, pages: 1 }, error: error.error };
     }
   },
+  // Get degree by ID
   getDegreeById: async (id: string) => {
     try {
       return (await api.get(`/degrees/${id}`)).data;
@@ -406,6 +471,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Create new degree
   createDegree: async (payload: any) => {
     try {
       return (await api.post('/degrees', payload)).data;
@@ -413,6 +479,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Update degree by ID
   updateDegree: async (id: string, payload: any) => {
     try {
       return (await api.put(`/degrees/${id}`, payload)).data;
@@ -420,6 +487,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Delete degree by ID
   deleteDegree: async (id: string, payload?: any) => {
     try {
       return (await api.delete(`/degrees/${id}`, { data: payload })).data;
@@ -427,6 +495,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Create new degree version
   createDegreeVersion: async (id: string) => {
     try {
       return (await api.post(`/degrees/${id}/create-version`)).data;
@@ -434,6 +503,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Get degrees by department
   getDegreesByDepartment: async (departmentId: string, isHodView: boolean = false) => {
     try {
       if (isHodView) {
@@ -444,6 +514,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Submit degree for approval with message
   submitDegreeForApproval: async (id: string, message: string) => {
     try {
       return (await api.patch(`/degrees/${id}/submit`, { message })).data;
@@ -451,6 +522,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Get faculty degrees (HOD/faculty view)
   getFacultyDegrees: async (deptId?: string, userId?: string, isHodView: boolean = false) => {
     try {
       if (isHodView) {
@@ -461,6 +533,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Submit degree for review
   submitDegree: async (id: string, payload?: any) => {
     try {
       return (await api.patch(`/degrees/${id}/submit`, payload)).data;
@@ -468,6 +541,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Approve degree by ID
   approveDegree: async (id: string, payload?: any) => {
     try {
       return (await api.patch(`/degrees/${id}/approve`, payload)).data;
@@ -475,6 +549,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Reject degree by ID
   rejectDegree: async (id: string, payload: { reason: string; userId?: string }) => {
     try {
       return (await api.patch(`/degrees/${id}/reject`, payload)).data;
@@ -482,6 +557,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Publish degree by ID
   publishDegree: async (id: string, payload?: any) => {
     try {
       return (await api.patch(`/degrees/${id}/publish`, payload)).data;
@@ -489,6 +565,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Post comment on degree
   postComment: async (degreeId: string, text: string, userId: string, userName: string, userType: string) => {
     try {
       return (await api.post(`/degrees/${degreeId}/comment`, { text, userId, userName, userType })).data;
@@ -496,6 +573,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Get comments for degree
   getComments: async (degreeId: string) => {
     try {
       const { data } = await api.get(`/degrees/${degreeId}`);
@@ -504,6 +582,7 @@ export const degreesAPI = {
       return handleApiError(err);
     }
   },
+  // Get active degrees for department
   getActiveDegrees: async (department_code: string, all_creators: boolean = false) => {
     try {
       const params: any = { department_code: department_code, status: 'active' };
@@ -515,6 +594,7 @@ export const degreesAPI = {
     }
   },
   // Authenticated preview endpoint - fetch degree by ID (department-limited)
+  // Get preview degree by ID (authenticated)
   getPreviewDegreeById: async (id: string) => {
     try {
       const { data } = await api.get(`/degrees/preview/${id}`);
@@ -527,6 +607,7 @@ export const degreesAPI = {
 
 // --- Departments API ---
 export const departmentsAPI = {
+  // Get departments list
   getDepartments: async (params?: any) => {
     try {
       return (await api.get('/departments', { params })).data;
@@ -534,6 +615,7 @@ export const departmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Get department by ID
   getDepartmentById: async (id: string) => {
     try {
       return (await api.get(`/departments/${id}`)).data;
@@ -541,6 +623,7 @@ export const departmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Create new department
   createDepartment: async (payload: any) => {
     try {
       return (await api.post('/departments', payload)).data;
@@ -548,6 +631,7 @@ export const departmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Update department by ID
   updateDepartment: async (id: string, payload: any) => {
     try {
       return (await api.put(`/departments/${id}`, payload)).data;
@@ -555,6 +639,7 @@ export const departmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Delete department by ID
   deleteDepartment: async (id: string, payload?: any) => {
     try {
       return (await api.delete(`/departments/${id}`, { data: payload })).data;
@@ -562,6 +647,7 @@ export const departmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Get department by code
   getDepartmentByCode: async (code: string) => {
     try {
       return (await api.get(`/departments/code/${code}`)).data;
@@ -569,6 +655,7 @@ export const departmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Get public department by code
   getPublicDepartmentByCode: async (code: string) => {
     try {
       return (await api.get(`/departments/public/${code}`)).data;
@@ -580,6 +667,7 @@ export const departmentsAPI = {
 
 // --- Enrollments API ---
 export const enrollmentsAPI = {
+  // Get enrollments list
   getEnrollments: async (params?: any) => {
     try {
   return (await api.get('/enrollments', { params })).data;
@@ -587,6 +675,7 @@ export const enrollmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Update enrollment by ID
   updateEnrollment: async (id: string, payload: any) => {
     try {
       return (await api.put(`/enrollments/${id}`, payload)).data;
@@ -594,6 +683,7 @@ export const enrollmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Approve enrollment by ID (HOD/office)
   approveEnrollment: async (id: string, approverType: 'hod' | 'office') => {
     try {
       return (await api.patch(`/enrollments/${id}/approve`, { approver_type: approverType })).data;
@@ -601,6 +691,7 @@ export const enrollmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Reject enrollment by ID
   rejectEnrollment: async (id: string, reason: string) => {
     try {
       return (await api.patch(`/enrollments/${id}/reject`, { reason })).data;
@@ -608,6 +699,7 @@ export const enrollmentsAPI = {
       return handleApiError(err);
     }
   },
+  // Get pending enrollment approvals
   getPendingApprovals: async (params?: any) => {
     try {
       return (await api.get('/enrollments/pending-approvals', { params })).data;
@@ -615,6 +707,7 @@ export const enrollmentsAPI = {
       return handleApiError(err);
     }
   },
+  // HOD: Approve/reject multiple enrollments
   hodDecision: async (payload: { enrollment_ids: string[]; action: 'approve' | 'reject'; rejection_reason?: string }) => {
     try {
       return (await api.post('/enrollments/hod-decision', payload)).data;
@@ -627,6 +720,7 @@ export const enrollmentsAPI = {
 // --- New Enrollment API (Using course codes) ---
 export const enrollmentAPI = {
   // Student endpoints
+  // Get all enrollments for current user
   getAllEnrollments: async () => {
     try {
       return (await api.get('/enrollments')).data;
@@ -634,6 +728,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // Create draft enrollment
   createDraft: async (payload: { course_codes: string[], semester: number, degree_code: string, department_code: string }) => {
     try {
       // Backend no longer exposes /enrollments/draft; fetch drafts via enrollments list
@@ -645,6 +740,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // Save draft enrollment
   saveDraft: async (payload: { enrollment_id: string, course_codes: string[], department_code?: string }) => {
     try {
       return (await api.put('/enrollments/draft', { enrollment_id: payload.enrollment_id, course_codes: payload.course_codes, department_code: payload.department_code })).data;
@@ -652,6 +748,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // Submit draft enrollment for approval
   submitForApproval: async (payload: { enrollment_id: string }) => {
     try {
       return (await api.post('/enrollments/draft/submit')).data;
@@ -659,6 +756,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // Get degree courses for current user
   getMyDegreeCourses: async (params?: any) => {
     try {
       return (await api.get('/enrollments/my-degree-courses', { params })).data;
@@ -666,6 +764,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // Check active enrollment status for current user
   checkActiveEnrollmentStatus: async () => {
     try {
       // Backend now returns a plain array at GET /enrollments.
@@ -687,6 +786,7 @@ export const enrollmentAPI = {
   },
   
   // HOD endpoints
+  // HOD: Get pending approvals
   getPendingApprovals: async (params?: { degree_code?: string, semester?: number, search?: string }) => {
     try {
       const { data } = await api.get('/enrollment/pending-approvals', { params });
@@ -700,6 +800,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // HOD: Approve multiple enrollments
   approveEnrollments: async (payload: { enrollment_ids: string[] }) => {
     try {
       return (await api.post('/enrollment/approve', payload)).data;
@@ -707,6 +808,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // HOD: Reject multiple enrollments
   rejectEnrollments: async (payload: { enrollment_ids: string[], rejection_reason: string }) => {
     try {
       return (await api.post('/enrollment/reject', payload)).data;
@@ -715,6 +817,7 @@ export const enrollmentAPI = {
     }
   },
   // Individual enrollment approval/rejection
+  // Approve individual enrollment
   approveEnrollment: async (enrollmentId: string) => {
     try {
       return (await api.post('/enrollment/approve', { enrollment_ids: [enrollmentId] })).data;
@@ -722,6 +825,7 @@ export const enrollmentAPI = {
       return handleApiError(err);
     }
   },
+  // Reject individual enrollment
   rejectEnrollment: async (enrollmentId: string, rejectionReason: string) => {
     try {
       return (await api.post('/enrollment/reject', { enrollment_ids: [enrollmentId], rejection_reason: rejectionReason })).data;
@@ -730,6 +834,7 @@ export const enrollmentAPI = {
     }
   },
   // Get enrollments by degree code (new helper calling backend /enrollment/degree/:code)
+  // Get enrollments by degree code
   getEnrollmentsByDegree: async (degreeCode: string, params?: { semester?: number; academic_year?: string; status?: string }) => {
     try {
       const { data } = await api.get(`/enrollment/degree/${degreeCode}`, { params });
@@ -748,6 +853,7 @@ export const enrollmentAPI = {
 
 // --- Timeline API (entityType + entityId) ---
 export const timelineAPI = {
+  // Get timeline for entity
   getTimeline: async (entityType: string, entityId: string) => {
     try {
       return (await api.get(`/timeline/${entityType}/${entityId}`)).data;
@@ -755,6 +861,7 @@ export const timelineAPI = {
       return handleApiError(err);
     }
   },
+  // Get timeline for user
   getTimelineForUser: async (userId: string) => {
     try {
       return (await api.get(`/timeline/user/${userId}`)).data;
@@ -762,6 +869,7 @@ export const timelineAPI = {
       return handleApiError(err);
     }
   },
+  // Get timeline for department
   getTimelineForDepartment: async (departmentId: string) => {
     try {
       return (await api.get(`/timeline/department/${departmentId}`)).data;
@@ -769,6 +877,7 @@ export const timelineAPI = {
       return handleApiError(err);
     }
   },
+  // Create timeline event
   createTimelineEvent: async (payload: any) => {
     try {
       return (await api.post('/timeline', payload)).data;
@@ -776,6 +885,7 @@ export const timelineAPI = {
       return handleApiError(err);
     }
   },
+  // Update timeline event by ID
   updateTimelineEvent: async (id: string, payload: any) => {
     try {
       return (await api.put(`/timeline/${id}`, payload)).data;
@@ -783,6 +893,7 @@ export const timelineAPI = {
       return handleApiError(err);
     }
   },
+  // Delete timeline event by ID
   deleteTimelineEvent: async (id: string) => {
     try {
       return (await api.delete(`/timeline/${id}`)).data;

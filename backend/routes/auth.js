@@ -89,6 +89,7 @@ const registerValidation = [
   body('department_code').optional().isString().isLength({ min: 2, max: 10 }).withMessage('Invalid department code'),
   body('degree_id').optional().isUUID().withMessage('Invalid degree ID'),
   body('degree_code').optional().isString().isLength({ min: 2, max: 10 }).withMessage('Invalid degree code'),
+  body('current_semester').optional().isInt({ min: 1, max: 12 }).withMessage('Invalid current semester'),
 ];
 
 // Login validation rules
@@ -133,7 +134,7 @@ router.post('/register',
       const { 
         email, password, first_name, last_name, user_type,
         student_id, employee_id, department_id, department_code, degree_id, degree_code,
-        enrolled_date, enrolled_year, is_head_of_department 
+        enrolled_date, enrolled_year, is_head_of_department, current_semester
       } = req.body;
 
       // Check if user already exists
@@ -206,6 +207,7 @@ router.post('/register',
         degree_code: user_type === 'student' && degree ? degree.code : null,
         enrolled_date: user_type === 'student' ? enrolled_date : null,
         enrolled_year: user_type === 'student' ? enrolled_year : null,
+        current_semester: user_type === 'student' ? current_semester : null,
         is_head_of_department: user_type === 'faculty' ? (is_head_of_department || false) : false,
         status: 'pending',
         password_reset_token: resetToken,
