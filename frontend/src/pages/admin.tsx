@@ -754,45 +754,59 @@ const AdminDashboard: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getSortedData(filteredData, 0).map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.first_name}</TableCell>
-                        <TableCell>{user.last_name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.student_id}</TableCell>
-                        <TableCell>{user.department?.name || '-'}</TableCell>
-                        <TableCell>
-                          {user.current_semester ? `${user.current_semester}${getOrdinalSuffix(user.current_semester)} Semester` : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {user.last_login ?
-                            new Date(user.last_login).toLocaleString('en-GB', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              hour12: false
-                            })
-                            : 'Never'}
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={user.status} color={getStatusColor(user.status)} />
-                        </TableCell>
-                        <TableCell>
-                          <IconButton onClick={() => handleEditUser(user)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handlePasswordReset(user)}>
-                            <PasswordResetIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handleDeactivateUser(user)}>
-                            {user.status === 'active' ? <BlockIcon /> : null}
-                          </IconButton>
+                    {pageLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} align="center">
+                          <CircularProgress size={32} />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : getSortedData(filteredData, 0).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} align="center">
+                          No students found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      getSortedData(filteredData, 0).map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.first_name}</TableCell>
+                          <TableCell>{user.last_name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.student_id}</TableCell>
+                          <TableCell>{user.department?.name || '-'}</TableCell>
+                          <TableCell>
+                            {user.current_semester ? `${user.current_semester}${getOrdinalSuffix(user.current_semester)} Semester` : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {user.last_login ?
+                              new Date(user.last_login).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                              })
+                              : 'Never'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip label={user.status} color={getStatusColor(user.status)} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton onClick={() => handleEditUser(user)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handlePasswordReset(user)}>
+                              <PasswordResetIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDeactivateUser(user)}>
+                              {user.status === 'active' ? <BlockIcon /> : null}
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -869,45 +883,59 @@ const AdminDashboard: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getSortedData(faculty, 1).map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.first_name}</TableCell>
-                        <TableCell>{user.last_name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.employee_id}</TableCell>
-                        <TableCell>{user.department?.name || '-'}</TableCell>
-                        <TableCell>
-                          {user.is_head_of_department ? <Chip label="HOD" color="primary" /> : null}
-                        </TableCell>
-                        <TableCell>
-                          {user.last_login ?
-                            new Date(user.last_login).toLocaleString('en-GB', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              hour12: false
-                            })
-                            : 'Never'}
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={user.status} color={getStatusColor(user.status)} />
-                        </TableCell>
-                        <TableCell>
-                          <IconButton onClick={() => handleEditUser(user)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handlePasswordReset(user)}>
-                            <PasswordResetIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handleDeactivateUser(user)}>
-                            {user.status === 'active' ? <BlockIcon /> : null}
-                          </IconButton>
+                    {pageLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} align="center">
+                          <CircularProgress size={32} />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : getSortedData(faculty, 1).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} align="center">
+                          No faculty found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      getSortedData(faculty, 1).map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.first_name}</TableCell>
+                          <TableCell>{user.last_name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.employee_id}</TableCell>
+                          <TableCell>{user.department?.name || '-'}</TableCell>
+                          <TableCell>
+                            {user.is_head_of_department ? <Chip label="HOD" color="primary" /> : null}
+                          </TableCell>
+                          <TableCell>
+                            {user.last_login ?
+                              new Date(user.last_login).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                              })
+                              : 'Never'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip label={user.status} color={getStatusColor(user.status)} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton onClick={() => handleEditUser(user)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handlePasswordReset(user)}>
+                              <PasswordResetIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDeactivateUser(user)}>
+                              {user.status === 'active' ? <BlockIcon /> : null}
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -982,41 +1010,55 @@ const AdminDashboard: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getSortedData(office, 2).map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.first_name}</TableCell>
-                        <TableCell>{user.last_name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.employee_id}</TableCell>
-                        <TableCell>
-                          {user.last_login ?
-                            new Date(user.last_login).toLocaleString('en-GB', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              hour12: false
-                            })
-                            : 'Never'}
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={user.status} color={getStatusColor(user.status)} />
-                        </TableCell>
-                        <TableCell>
-                          <IconButton onClick={() => handleEditUser(user)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handlePasswordReset(user)}>
-                            <PasswordResetIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handleDeactivateUser(user)}>
-                            {user.status === 'active' ? <BlockIcon /> : null}
-                          </IconButton>
+                    {pageLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} align="center">
+                          <CircularProgress size={32} />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : getSortedData(office, 2).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} align="center">
+                          No office staff found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      getSortedData(office, 2).map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.first_name}</TableCell>
+                          <TableCell>{user.last_name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.employee_id}</TableCell>
+                          <TableCell>
+                            {user.last_login ?
+                              new Date(user.last_login).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                              })
+                              : 'Never'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip label={user.status} color={getStatusColor(user.status)} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton onClick={() => handleEditUser(user)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handlePasswordReset(user)}>
+                              <PasswordResetIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDeactivateUser(user)}>
+                              {user.status === 'active' ? <BlockIcon /> : null}
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -1080,23 +1122,37 @@ const AdminDashboard: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getSortedData(filteredData.length > 0 ? filteredData : departments || [], 3).map((department) => (
-                      <TableRow key={department.id}>
-                        <TableCell>{department.name}</TableCell>
-                        <TableCell>{department.code}</TableCell>
-                        <TableCell>
-                          <Chip label={department.status} color={getStatusColor(department.status)} />
-                        </TableCell>
-                        <TableCell>
-                          <IconButton onClick={() => handleEditDepartment(department)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton onClick={() => handleDeactivateDepartment(department)}>
-                            {department.status === 'active' ? <BlockIcon /> : null}
-                          </IconButton>
+                    {pageLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center">
+                          <CircularProgress size={32} />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : getSortedData(filteredData.length > 0 ? filteredData : departments || [], 3).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center">
+                          No departments found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      getSortedData(filteredData.length > 0 ? filteredData : departments || [], 3).map((department) => (
+                        <TableRow key={department.id}>
+                          <TableCell>{department.name}</TableCell>
+                          <TableCell>{department.code}</TableCell>
+                          <TableCell>
+                            <Chip label={department.status} color={getStatusColor(department.status)} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton onClick={() => handleEditDepartment(department)}>
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDeactivateDepartment(department)}>
+                              {department.status === 'active' ? <BlockIcon /> : null}
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
