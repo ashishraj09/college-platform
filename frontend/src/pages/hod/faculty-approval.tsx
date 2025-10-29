@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -115,7 +116,7 @@ const FacultyApprovalPage: React.FC = () => {
       const transformedCourses = coursesArray.map((course: any) => ({
         ...course,
         type: 'course' as const,
-        description: course.overview,
+        description: course.description,
         faculty: course.creator ? {
           first_name: course.creator.first_name,
           last_name: course.creator.last_name,
@@ -284,9 +285,6 @@ const FacultyApprovalPage: React.FC = () => {
           )}
           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: 14, mb: 0.25 }}>
             Code: {item.code}{item.version > 1 ? ` (v${item.version})` : ''} {item.credits ? ` • ${item.credits} Credits • Semester ${item.semester}` : item.duration_years ? ` • ${item.duration_years} Years` : ''}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'text.primary', fontSize: 15, mb: 1 }}>
-            {item.description}
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 13, mt: 1 }}>
             Submitted: {formatDate(item.submitted_at || item.submittedAt || item.createdAt || item.created_at)}
@@ -481,9 +479,20 @@ const FacultyApprovalPage: React.FC = () => {
                   <Typography variant="subtitle2" gutterBottom>
                     Description:
                   </Typography>
-                  <Typography variant="body2" paragraph>
-                    {selectedItem.description}
-                  </Typography>
+                  <Box
+                    component="div"
+                    sx={{
+                      color: '#616161',
+                      fontSize: '1rem',
+                      lineHeight: 1.6,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedItem.description || '') }}
+                  />
                 </Box>
 
                 <Divider sx={{ my: 2 }} />

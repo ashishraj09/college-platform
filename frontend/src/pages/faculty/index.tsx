@@ -384,8 +384,8 @@ useEffect(() => {
     if (!entityToEdit) return;
     setEditEntityLoading(true);
     try {
-      // If approved or active, create a new version
-      if (["approved", "active"].includes(entityToEdit.status)) {
+      // If active, create a new version. If approved, update in place and set to draft.
+      if (entityToEdit.status === "active") {
         let data;
         if (entityToEdit.entityType === "course") {
           data = await coursesAPI.createCourseVersion(entityToEdit.id);
@@ -414,6 +414,32 @@ useEffect(() => {
           setDegreeTab(0); // 0 = Draft tab
         }
         await reloadStats();
+      } else if (entityToEdit.status === "approved") {
+        // Only update status to draft
+        let updateResult;
+        if (entityToEdit.entityType === "course") {
+          updateResult = await coursesAPI.updateCourse(entityToEdit.id, { status: "draft" });
+        } else {
+          updateResult = await degreesAPI.updateDegree(entityToEdit.id, { status: "draft" });
+        }
+        // Check if response contains an error
+        if (updateResult.error) {
+          enqueueSnackbar(updateResult.error, { variant: "error" });
+          setEditEntityLoading(false);
+          setEditEntityDialogOpen(false);
+          return;
+        }
+        const entityLabel = entityToEdit.entityType === 'course' ? 'Course' : 'Degree';
+        enqueueSnackbar(`${entityLabel} status set to draft!`, { variant: "success" });
+        setEditEntityDialogOpen(false);
+        await fetchEntities(
+          entityToEdit.entityType,
+          entityToEdit.entityType === 'course' ? coursesPagination.page : degreesPagination.page,
+          entityToEdit.entityType === 'course' ? coursesPagination.limit : degreesPagination.limit,
+          entityToEdit.entityType === 'course' ? courseTabsConfig[courseTab]?.key : degreeTabsConfig[degreeTab]?.key,
+          'entity edit (approved to draft)'
+        );
+        await reloadStats();
       } else {
         // For drafts or pending approval, open the edit dialog/modal and only update after user confirms
         if (updatedEntity) {
@@ -423,7 +449,6 @@ useEffect(() => {
           } else {
             updateResult = await degreesAPI.updateDegree(entityToEdit.id, updatedEntity);
           }
-          
           // Check if response contains an error
           if (updateResult.error) {
             enqueueSnackbar(updateResult.error, { variant: "error" });
@@ -431,7 +456,6 @@ useEffect(() => {
             setEditEntityDialogOpen(false);
             return;
           }
-          
           enqueueSnackbar("Entity updated successfully!", { variant: "success" });
           setEditEntityDialogOpen(false);
           // Always reload both entity lists and stats after edit

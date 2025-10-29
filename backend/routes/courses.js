@@ -185,10 +185,10 @@ router.get('/',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const Degree = await models.Degree();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
       
       const {
         department_code,
@@ -389,10 +389,10 @@ router.get('/department-courses',
   async (req, res) => {
   try {
     // Get models for this request
-    const Course = await models.Course();
-    const Department = await models.Department();
-    const Degree = await models.Degree();
-    const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
     
     const { userId, departmentId } = req.query;
     
@@ -478,10 +478,10 @@ router.get('/:id',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const Degree = await models.Degree();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
       
       const course = await Course.findByPk(req.params.id, {
         include: [
@@ -619,10 +619,10 @@ router.get('/:id/edit',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const Degree = await models.Degree();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
       
       const resolveNames = req.query.resolve_names !== 'false'; // Default to true
       
@@ -746,10 +746,10 @@ router.post('/',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const Degree = await models.Degree();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
       
       const {
         name,
@@ -856,10 +856,10 @@ router.post('/:id/create-version',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const Degree = await models.Degree();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
       
       console.log(`[DEBUG] Create version request for course ID: ${req.params.id} by user:`, req.user);
       
@@ -868,6 +868,8 @@ router.post('/:id/create-version',
         include: [
           { model: Department, as: 'departmentByCode' },
           { model: Degree, as: 'degreeByCode' },
+          // Always include course collaborators for permission checks
+          { model: User, as: 'courseCollaborators', attributes: ['id'], through: { attributes: [] }, required: false },
         ],
       });
 
@@ -893,8 +895,8 @@ router.post('/:id/create-version',
         if (typeof originalCourse.getCollaborators === 'function') {
           const collaborators = await originalCourse.getCollaborators();
           isCollaborator = collaborators.some(u => u.id === req.user.id);
-        } else if (originalCourse.collaborators && Array.isArray(originalCourse.collaborators)) {
-          isCollaborator = originalCourse.collaborators.some(u => u.id === req.user.id);
+        } else if (originalCourse.courseCollaborators && Array.isArray(originalCourse.courseCollaborators)) {
+          isCollaborator = originalCourse.courseCollaborators.some(u => u.id === req.user.id);
         }
         if (!isCollaborator) {
           console.log(`[ERROR] Permission denied. User ${req.user.id} is not admin, creator, or collaborator of course ${originalCourse.id}`);
@@ -1118,14 +1120,17 @@ router.patch('/:id/submit',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const User = await models.User();
       
+
+      // Always fetch course with creator and collaborators for email
       const course = await Course.findByPk(req.params.id, {
         include: [
           { model: Department, as: 'departmentByCode' },
-          { model: User, as: 'creator' },
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'courseCollaborators', attributes: ['id', 'first_name', 'last_name', 'email'], through: { attributes: [] }, required: false }
         ],
       });
 
@@ -1181,27 +1186,57 @@ router.patch('/:id/submit',
         });
       }
 
-      // Find HOD of the department using department_code
+
+
+      // Find HOD of the department using department_code (optional)
       let hod = null;
       if (course.department_code) {
-        const department = await Department.findOne({ where: { code: course.department_code } });
-        if (department && department.department_code) {
-          hod = await User.findOne({
-            where: {
-              department_code: course.department_code,
-              user_type: 'faculty',
-              is_head_of_department: true,
-            },
-          });
+        hod = await User.findOne({
+          where: {
+            department_code: course.department_code,
+            user_type: 'faculty',
+            is_head_of_department: true,
+          },
+        });
+        if (hod) {
+          console.log('[DEBUG] HOD lookup for department_code', course.department_code, '=>', hod.id);
+        } else {
+          console.log('[DEBUG] No HOD found for department_code', course.department_code);
         }
       }
 
-      // Send approval email to HOD if found (non-blocking)
-      if (hod) {
-        sendCourseApprovalEmail(course, hod).catch(emailError => {
-          console.error('Failed to send course approval email:', emailError);
-        });
+      // Prepare collaborators array for email utility
+      let collaborators = [];
+      if (course.courseCollaborators && Array.isArray(course.courseCollaborators)) {
+        collaborators = course.courseCollaborators.map(u => ({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          email: u.email
+        }));
       }
+
+      // Prepare plain course object for email utility
+      const courseForEmail = {
+        id: course.id,
+        name: course.name,
+        code: course.code,
+        creator: {
+          id: req.user.id,
+          first_name: req.user.first_name,
+          last_name: req.user.last_name,
+          email: req.user.email
+        },
+        collaborators,
+        notes: req.body.message ? req.body.message : undefined,
+      };
+
+      // Send approval/status emails (non-blocking)
+      sendCourseApprovalEmail(courseForEmail, hod, req.body.message).then(() => {
+        console.log('[DEBUG] sendCourseApprovalEmail resolved');
+      }).catch(emailError => {
+        console.error('Failed to send course approval email:', emailError);
+      });
 
       res.json({
         message: 'Course submitted for approval successfully',
@@ -1278,19 +1313,56 @@ router.patch('/:id/approve',
         updated_by: senderId,
       }, { transaction });
       await transaction.commit();
-      // Fetch refreshed course with associations to return accurate approved_by/approved_at
+      // Fetch refreshed course with associations to return accurate approved_by/approved_at and collaborators
       const refreshedCourse = await Course.findByPk(course.id, {
         include: [
           { model: Department, as: 'departmentByCode' },
           { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'courseCollaborators', attributes: ['id', 'first_name', 'last_name', 'email'], through: { attributes: [] }, required: false }
         ],
       });
+      // Prepare collaborators array
+      let collaborators = [];
+      if (refreshedCourse.courseCollaborators && Array.isArray(refreshedCourse.courseCollaborators)) {
+        collaborators = refreshedCourse.courseCollaborators.map(u => ({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          email: u.email
+        }));
+      }
+      // Send status email to creator and collaborators
+      const { sendTemplateEmail } = require('../utils/email');
+      const statusVars = {
+        FACULTY_NAME: `${refreshedCourse.creator.first_name} ${refreshedCourse.creator.last_name}`,
+        COURSE_NAME: refreshedCourse.name,
+        COURSE_CODE: refreshedCourse.code,
+        COURSE_URL: `${process.env.FRONTEND_URL}/course/${refreshedCourse.id}`,
+        STATUS: 'Approved',
+        REASON: req.body.reason || '',
+        APP_NAME: process.env.FROM_NAME,
+        YEAR: new Date().getFullYear(),
+      };
+      // Creator
+      sendTemplateEmail('course-status', refreshedCourse.creator.email, `Course Approved: ${refreshedCourse.code} - ${process.env.FROM_NAME}`, statusVars).catch(() => {});
+      // Collaborators
+      if (Array.isArray(collaborators)) {
+        collaborators.filter(c => c.email && c.id !== refreshedCourse.creator.id).forEach(collab => {
+          sendTemplateEmail('course-status', collab.email, `Course Approved: ${refreshedCourse.code} - ${process.env.FROM_NAME}`, {
+            ...statusVars,
+            FACULTY_NAME: `${collab.first_name} ${collab.last_name}`
+          }).catch(() => {});
+        });
+      }
       res.json({
         message: 'Course approved successfully',
         course: refreshedCourse,
       });
     } catch (error) {
-      if (transaction) await transaction.rollback();
+      // Only rollback if transaction is not already finished
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
       handleCaughtError(res, error, 'Failed to approve course');
     }
   }
@@ -1308,6 +1380,8 @@ router.patch('/:id/reject',
     try {
       // Get models for this request
       const Course = await models.Course();
+      const Department = await models.Department();
+      const User = await models.User();
       
       const { reason } = req.body;
       const course = await Course.findByPk(req.params.id);
@@ -1344,9 +1418,47 @@ router.patch('/:id/reject',
         message: `Course change requested: ${reason}`,
       });
 
+      // Fetch course with creator and collaborators for email
+      const refreshedCourse = await Course.findByPk(course.id, {
+        include: [
+          { model: Department, as: 'departmentByCode' },
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'courseCollaborators', attributes: ['id', 'first_name', 'last_name', 'email'], through: { attributes: [] }, required: false }
+        ],
+      });
+      let collaborators = [];
+      if (refreshedCourse.courseCollaborators && Array.isArray(refreshedCourse.courseCollaborators)) {
+        collaborators = refreshedCourse.courseCollaborators.map(u => ({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          email: u.email
+        }));
+      }
+      const { sendTemplateEmail } = require('../utils/email');
+      const statusVars = {
+        FACULTY_NAME: `${refreshedCourse.creator.first_name} ${refreshedCourse.creator.last_name}`,
+        COURSE_NAME: refreshedCourse.name,
+        COURSE_CODE: refreshedCourse.code,
+        HOD_NAME: user.first_name + ' ' + user.last_name,
+        REJECTION_REASON: reason || '',
+        APP_NAME: process.env.FROM_NAME,
+        YEAR: new Date().getFullYear(),
+      };
+      // Creator
+      sendTemplateEmail('course-change-requested', refreshedCourse.creator.email, `Course Change Requested: ${refreshedCourse.code} - ${process.env.FROM_NAME}`, statusVars).catch(() => {});
+      // Collaborators
+      if (Array.isArray(collaborators)) {
+        collaborators.filter(c => c.email && c.id !== refreshedCourse.creator.id).forEach(collab => {
+          sendTemplateEmail('course-change-requested', collab.email, `Course Change Requested: ${refreshedCourse.code} - ${process.env.FROM_NAME}`, {
+            ...statusVars,
+            FACULTY_NAME: `${collab.first_name} ${collab.last_name}`
+          }).catch(() => {});
+        });
+      }
       res.json({
         message: 'Course change requested successfully',
-        course,
+        course: refreshedCourse,
       });
     } catch (error) {
       handleCaughtError(res, error, 'Failed to reject course');
@@ -1362,9 +1474,9 @@ router.patch('/:id/publish',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const User = await models.User();
       
       const course = await Course.findByPk(req.params.id, {
         include: [
@@ -1458,17 +1570,24 @@ router.patch('/:id/publish',
 router.put('/:id',
   authenticateToken,
   authorizeRoles('faculty', 'admin'),
-  courseValidation,
-  handleValidationErrors,
+  // Custom validation skip logic for status-only updates
+  (req, res, next) => {
+    const keys = Object.keys(req.body || {});
+    if (keys.length === 1 && keys[0] === 'status') {
+      // Skip validation for status-only updates
+      return next();
+    }
+    return courseValidation.concat([handleValidationErrors])(req, res, next);
+  },
   captureOriginalData('Course', 'id'),
   auditMiddleware('update', 'course', 'Course updated'),
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
-      const Degree = await models.Degree();
-      const User = await models.User();
+  const Course = await models.Course();
+  const Department = await models.Department();
+  const Degree = await models.Degree();
+  const User = await models.User();
       
       const course = await Course.findByPk(req.params.id, {
         include: [{ model: Department, as: 'departmentByCode' }]
@@ -1505,41 +1624,47 @@ router.put('/:id',
         return res.status(403).json({ error: 'Can only update courses in your own department' });
       }
 
-      // Can't update approved courses without changing status
-      if (['approved', 'active'].includes(course.status)) {
-        return res.status(400).json({ error: 'Cannot update approved/active courses directly' });
-      }
 
-
-      const updatedFields = {};
-      const allowedFields = [
-        'name', 'code', 'description', 'credits', 'semester', 'prerequisites',
-        'learning_objectives', 'course_outcomes', 'assessment_methods', 'textbooks', 'references', 'faculty_details',
-        'max_students', 'is_elective', 'department_code', 'degree_code', 'primary_instructor'
-      ];
-
-      allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-          updatedFields[field] = req.body[field];
+      // Only allow status update if only status is provided
+      const keys = Object.keys(req.body || {});
+      if (keys.length === 1 && keys[0] === 'status') {
+        await course.update({ status: req.body.status, updated_by: user.id });
+      } else {
+        // Can't update approved/active courses directly
+        if (['approved', 'active'].includes(course.status)) {
+          return res.status(400).json({ error: 'Cannot update approved/active courses directly' });
         }
-      });
 
-      // Use department_code and degree_code from payload if present
-      if (req.body.department_code) {
-        updatedFields.department_code = req.body.department_code;
+        const updatedFields = {};
+        const allowedFields = [
+          'name', 'code', 'description', 'credits', 'semester', 'prerequisites',
+          'learning_objectives', 'course_outcomes', 'assessment_methods', 'textbooks', 'references', 'faculty_details',
+          'max_students', 'is_elective', 'department_code', 'degree_code', 'primary_instructor'
+        ];
+
+        allowedFields.forEach(field => {
+          if (req.body[field] !== undefined) {
+            updatedFields[field] = req.body[field];
+          }
+        });
+
+        // Use department_code and degree_code from payload if present
+        if (req.body.department_code) {
+          updatedFields.department_code = req.body.department_code;
+        }
+        if (req.body.degree_code) {
+          updatedFields.degree_code = req.body.degree_code;
+        }
+
+        if (updatedFields.code) {
+          updatedFields.code = updatedFields.code.toUpperCase();
+        }
+
+        // Set the updated_by field
+        updatedFields.updated_by = user.id;
+
+        await course.update(updatedFields);
       }
-      if (req.body.degree_code) {
-        updatedFields.degree_code = req.body.degree_code;
-      }
-
-      if (updatedFields.code) {
-        updatedFields.code = updatedFields.code.toUpperCase();
-      }
-
-      // Set the updated_by field
-      updatedFields.updated_by = user.id;
-
-      await course.update(updatedFields);
 
       const updatedCourse = await Course.findByPk(course.id, {
         include: [
@@ -1582,8 +1707,8 @@ router.delete('/:id',
   async (req, res) => {
     try {
       // Get models for this request
-      const Course = await models.Course();
-      const Department = await models.Department();
+  const Course = await models.Course();
+  const Department = await models.Department();
       
       const course = await Course.findByPk(req.params.id, {
         include: [{ model: Department, as: 'departmentByCode' }]

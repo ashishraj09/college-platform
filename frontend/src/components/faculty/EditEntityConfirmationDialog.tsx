@@ -39,7 +39,8 @@ const EditEntityConfirmationDialog: React.FC<EditEntityConfirmationDialogProps> 
 }) => {
   if (!entity) return null;
 
-  const isApprovedOrActive = ['approved', 'active'].includes(entity.status);
+  const isApproved = entity.status === 'approved';
+  const isActive = entity.status === 'active';
   const label = entity.entityType === 'course' ? 'Course' : 'Degree';
 
   return (
@@ -73,38 +74,23 @@ const EditEntityConfirmationDialog: React.FC<EditEntityConfirmationDialogProps> 
           </Typography>
         </Box>
 
-        {isApprovedOrActive && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              🔄 <strong>Creating New Version</strong>
+
+        {isApproved && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              This {label.toLowerCase()} is <strong>approved</strong>.<br />
+              Are you sure you want to modify it? This will set its status to <strong>draft</strong> and require re-approval.
             </Typography>
-            <Typography variant="body2" mb={2}>
-              Since this {label.toLowerCase()} is {entity.status}, editing it will create a new version that follows the complete approval workflow:
-            </Typography>
-            <Box component="ol" sx={{ pl: 2, m: 0 }}>
-              <Typography component="li" variant="body2">
-                <strong>Current version</strong> remains {entity.status} and continues to be available
-              </Typography>
-              <Typography component="li" variant="body2">
-                <strong>New version {entity.version + 1}</strong> will be created in draft status
-              </Typography>
-              <Typography component="li" variant="body2">
-                You can edit the new version and submit it for approval
-              </Typography>
-              <Typography component="li" variant="body2">
-                Once approved and published, the new version becomes active and the old version is archived
-              </Typography>
-            </Box>
           </Alert>
         )}
 
-        {!isApprovedOrActive && (
+        {!isApproved && (
           <Alert severity="success" sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               ✏️ <strong>Direct Edit</strong>
             </Typography>
             <Typography variant="body2">
-              Since this {label.toLowerCase()} is in {entity.status} status, you can edit it directly without creating a new version.
+              Since this {label.toLowerCase()} is in {entity.status} status, you can edit it directly.
             </Typography>
           </Alert>
         )}
@@ -125,7 +111,7 @@ const EditEntityConfirmationDialog: React.FC<EditEntityConfirmationDialogProps> 
           variant="contained"
           disabled={loading}
         >
-          {loading ? 'Processing...' : isApprovedOrActive ? `Create Version ${entity.version + 1}` : `Edit ${label}`}
+          {loading ? 'Processing...' : isApproved ? `Modify Approved ${label}` : `Edit ${label}`}
         </Button>
       </DialogActions>
     </Dialog>

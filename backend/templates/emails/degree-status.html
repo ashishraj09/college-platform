@@ -1,31 +1,53 @@
-{{#> email-base}}
-  {{#*inline "HEADER_TITLE"}}Degree Enrollment Status{{/inline}}
-  {{#*inline "HEADER_SUBTITLE"}}{{APP_NAME}}{{/inline}}
-  {{#*inline "EMAIL_BODY"}}
-    <div class="info">
-      <h2>Hello {{STUDENT_NAME}},</h2>
-      <p>Your degree enrollment status has been updated. Please review the details below:</p>
-      <div class="details">
-        <strong>Department:</strong> {{DEPARTMENT}}<br>
-        <strong>Degree:</strong> {{DEGREE}}<br>
-        <strong>Courses Selected:</strong>
-        <ul>
-          {{#each COURSES}}
-            <li>{{COURSE_NAME}} ({{COURSE_CODE}})</li>
-          {{/each}}
-        </ul>
-      </div>
-      <center>
-        <a href="{{STATUS_URL}}" class="button">View Enrollment Status</a>
-      </center>
-      <p>If the button doesn't work, copy and paste this link into your browser:</p>
-      <p><a href="{{STATUS_URL}}">{{STATUS_URL}}</a></p>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Degree Submission Notification - {{APP_NAME}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1976d2; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .button { display: inline-block; background-color: #1976d2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+        .degree-details {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border: 1px solid #90caf9;
+        }
+        .degree-details h3 {
+            color: #0d47a1;
+            margin-top: 0;
+        }
+        .degree-details p { margin:8px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Degree Submission</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{FACULTY_NAME}},</h2>
+            <p>Your degree has been submitted for approval. Please see the details below:</p>
+            <div class="degree-details">
+                <h3>Degree Details:</h3>
+                <p><strong>Degree Name:</strong> {{DEGREE_NAME}}</p>
+                <p><strong>Degree Code:</strong> {{DEGREE_CODE}}</p>
+                <p><strong>Status:</strong> {{STATUS}}</p>
+            </div>
+            <p>You will be notified when the degree is reviewed by the Head of Department.</p>
+            <a href="{{DEGREE_URL}}" class="button">View Degree</a>
+            <p style="color:#bbb; font-size:14px; margin-top:24px;">This is an automated email from the College Platform System.<br>Please do not reply to this email.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{YEAR}} {{APP_NAME}}. All rights reserved.</p>
+        </div>
     </div>
-  {{/inline}}
-  {{#*inline "YEAR"}}{{YEAR}}{{/inline}}
-{{/email-base}}
-			<p>&copy; 2025 {{APP_NAME}}. All rights reserved.</p>
-		</div>
-	</div>
 </body>
 </html>

@@ -275,7 +275,11 @@ router.patch(
       const { reason } = req.body;
       const Degree = await models.Degree();
       const Message = await models.Message();
-      const degree = await Degree.findByPk(req.params.id);
+      const degree = await Degree.findByPk(req.params.id, {
+        include: [
+          { model: User, as: 'degreeCollaborators', attributes: ['id', 'first_name', 'last_name', 'email'], through: { attributes: [] }, required: false }
+        ],
+      });
       if (!degree) {
         return res.status(404).json({ error: 'Degree not found' });
       }
@@ -298,7 +302,45 @@ router.patch(
         sender_id: user.id,
         message: `Degree change requested: ${reason}`,
       });
-      res.json({ message: 'Degree change requested', degree });
+      // Fetch degree with creator and collaborators for email
+      const User = await models.User();
+      const updated = await Degree.findByPk(degree.id, {
+        include: [
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'degreeCollaborators', attributes: ['id', 'first_name', 'last_name', 'email'], through: { attributes: [] }, required: false }
+        ],
+      });
+      let collaborators = [];
+      if (updated.degreeCollaborators && Array.isArray(updated.degreeCollaborators)) {
+        collaborators = updated.degreeCollaborators.map(u => ({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          email: u.email
+        }));
+      }
+      const { sendTemplateEmail } = require('../utils/email');
+      const statusVars = {
+        FACULTY_NAME: `${updated.creator.first_name} ${updated.creator.last_name}`,
+        DEGREE_NAME: updated.name,
+        DEGREE_CODE: updated.code,
+        HOD_NAME: user.first_name + ' ' + user.last_name,
+        REJECTION_REASON: reason || '',
+        APP_NAME: process.env.FROM_NAME,
+        YEAR: new Date().getFullYear(),
+      };
+      // Creator
+      sendTemplateEmail('degree-change-requested', updated.creator.email, `Degree Change Requested: ${updated.code} - ${process.env.FROM_NAME}`, statusVars).catch(() => {});
+      // Collaborators
+      if (Array.isArray(collaborators)) {
+        collaborators.filter(c => c.email && c.id !== updated.creator.id).forEach(collab => {
+          sendTemplateEmail('degree-change-requested', collab.email, `Degree Change Requested: ${updated.code} - ${process.env.FROM_NAME}`, {
+            ...statusVars,
+            FACULTY_NAME: `${collab.first_name} ${collab.last_name}`
+          }).catch(() => {});
+        });
+      }
+      res.json({ message: 'Degree change requested', degree: updated });
     } catch (error) {
       handleCaughtError(res, error, 'Failed to request degree change');
     }
@@ -321,8 +363,12 @@ router.post(
   async (req, res) => {
     try {
       const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
+      // Always include degree collaborators for permission checks
       const degree = await Degree.findByPk(req.params.id, {
-        include: [{ model: Department, as: 'departmentByCode' }],
+        include: [
+          { model: Department, as: 'departmentByCode' },
+          { model: User, as: 'degreeCollaborators', attributes: ['id'], through: { attributes: [] }, required: false }
+        ],
       });
       if (!degree) {
         return res.status(404).json({ error: 'Degree not found' });
@@ -336,8 +382,8 @@ router.post(
         if (typeof degree.getCollaborators === 'function') {
           const collaborators = await degree.getCollaborators();
           isCollaborator = collaborators.some(u => u.id === req.user.id);
-        } else if (degree.collaborators && Array.isArray(degree.collaborators)) {
-          isCollaborator = degree.collaborators.some(u => u.id === req.user.id);
+        } else if (degree.degreeCollaborators && Array.isArray(degree.degreeCollaborators)) {
+          isCollaborator = degree.degreeCollaborators.some(u => u.id === req.user.id);
         }
         if (!isCollaborator) {
           return res.status(403).json({ error: 'You do not have permission to create a version of this degree' });
@@ -837,15 +883,29 @@ router.put(
   '/:id',
   authenticateToken,
   authorizeRoles('faculty', 'admin'),
-  degreeValidation,
-  handleValidationErrors,
+  // Custom validation skip logic for status-only updates
+  (req, res, next) => {
+    const keys = Object.keys(req.body || {});
+    if (keys.length === 1 && keys[0] === 'status') {
+      // Skip validation for status-only updates
+      return next();
+    }
+    return degreeValidation.concat([handleValidationErrors])(req, res, next);
+  },
   captureOriginalData('Degree', 'id'),
   auditMiddleware('update', 'degree', 'Degree updated'),
   async (req, res) => {
     try {
       const { Degree, Department, User } = await models.getMany('Degree', 'Department', 'User');
 
-      const degree = await Degree.findByPk(req.params.id);
+      // Fetch degree with creator and collaborators for email notification
+      const degree = await Degree.findByPk(req.params.id, {
+        include: [
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'degreeCollaborators', attributes: ['id', 'first_name', 'last_name', 'email'], through: { attributes: [] }, required: false },
+          { model: Department, as: 'departmentByCode', attributes: ['id', 'name', 'code'] },
+        ],
+      });
       if (!degree) return res.status(404).json({ error: 'Degree not found' });
 
       const user = req.user;
@@ -872,55 +932,65 @@ router.put(
         }
       }
 
-      // Allow list for updatable fields
-      const allowedFields = new Set([
-        'name',
-        'code',
-        'description',
-        'duration_years',
-        'courses_per_semester',
-        'status',
-        'prerequisites',
-        'study_details',
-        'faculty_details',
-        'version',
-        'version_history',
-        'feedback',
-        'approval_history',
-        'updated_by',
-        'approved_by',
-        'department_code',
-        // Add all rich text fields
-        'specializations',
-        'career_prospects',
-        'admission_requirements',
-        'accreditation',
-        'fees',
-        'entry_requirements',
-        'learning_outcomes',
-        'assessment_methods',
-        'contact_information',
-        'application_deadlines',
-        'application_process',
-      ]);
 
-      const updates = {};
-      Object.keys(req.body || {}).forEach((k) => {
-        if (allowedFields.has(k)) updates[k] = req.body[k];
-      });
+      // Only allow status update if only status is provided
+      const keys = Object.keys(req.body || {});
+      if (keys.length === 1 && keys[0] === 'status') {
+        await degree.update({ status: req.body.status, updated_by: user.id });
+      } else {
+        // Can't update approved/active degrees directly (except status-only)
+        if (["approved", "active"].includes(degree.status)) {
+          return res.status(400).json({ error: "Cannot update approved/active degrees directly" });
+        }
+        // Allow list for updatable fields
+        const allowedFields = new Set([
+          'name',
+          'code',
+          'description',
+          'duration_years',
+          'courses_per_semester',
+          'status',
+          'prerequisites',
+          'study_details',
+          'faculty_details',
+          'version',
+          'version_history',
+          'feedback',
+          'approval_history',
+          'updated_by',
+          'approved_by',
+          'department_code',
+          // Add all rich text fields
+          'specializations',
+          'career_prospects',
+          'admission_requirements',
+          'accreditation',
+          'fees',
+          'entry_requirements',
+          'learning_outcomes',
+          'assessment_methods',
+          'contact_information',
+          'application_deadlines',
+          'application_process',
+        ]);
 
-      if (updates.code) updates.code = String(updates.code).toUpperCase();
+        const updates = {};
+        Object.keys(req.body || {}).forEach((k) => {
+          if (allowedFields.has(k)) updates[k] = req.body[k];
+        });
 
-      // Minimal validation: ensure department_code (if changing) maps to an existing department
-      if (updates.department_code) {
-        const dept = await Department.findOne({ where: { code: updates.department_code } });
-        if (!dept) return res.status(400).json({ error: 'Invalid department_code' });
+        if (updates.code) updates.code = String(updates.code).toUpperCase();
 
+        // Minimal validation: ensure department_code (if changing) maps to an existing department
+        if (updates.department_code) {
+          const dept = await Department.findOne({ where: { code: updates.department_code } });
+          if (!dept) return res.status(400).json({ error: 'Invalid department_code' });
+        }
+
+        // Always set updated_by to current user
+        updates.updated_by = user.id;
+        await degree.update(updates);
       }
-
-      // Always set updated_by to current user
-      updates.updated_by = user.id;
-      await degree.update(updates);
 
       const refreshed = await Degree.findByPk(degree.id, {
         include: [{ model: Department, as: 'departmentByCode' }],
@@ -989,7 +1059,7 @@ router.patch(
         });
       }
 
-      // Notify HOD (if found) about the submission
+      // Notify HOD, creator, and collaborators about the submission
       try {
         const hod = await User.findOne({
           where: {
@@ -1000,8 +1070,25 @@ router.patch(
         });
         if (hod) {
           const { sendDegreeApprovalEmail } = require('../utils/email');
-          sendDegreeApprovalEmail(degree, hod).catch(emailErr => {
-            console.error('Failed to send degree approval email to HOD:', emailErr);
+          // Use req.user as the creator for 'Submitted by'
+          const degreeForEmail = {
+            id: degree.id,
+            name: degree.name,
+            code: degree.code,
+            departmentByCode: degree.departmentByCode ? { ...degree.departmentByCode.dataValues } : null,
+            creator: {
+              id: req.user.id,
+              first_name: req.user.first_name,
+              last_name: req.user.last_name,
+              email: req.user.email,
+            },
+            collaborators: Array.isArray(degree.degreeCollaborators)
+              ? degree.degreeCollaborators.map(u => ({ ...u.dataValues }))
+              : [],
+            notes: req.body.message ? req.body.message : undefined,
+          };
+          sendDegreeApprovalEmail(degreeForEmail, hod, req.body.message).catch(emailErr => {
+            console.error('Failed to send degree approval email to HOD/faculty/collaborators:', emailErr);
           });
         }
       } catch (notifyErr) {
@@ -1009,11 +1096,8 @@ router.patch(
       }
 
       // Return updated degree
-      const Department = await models.Department();
-      const updated = await Degree.findByPk(degree.id, {
-        include: [{ model: Department, as: 'departmentByCode' }],
-      });
-
+      // Return updated degree
+      const updated = await Degree.findByPk(degree.id);
       res.json({ message: 'Degree submitted for approval', degree: updated });
     } catch (error) {
       handleCaughtError(res, error, 'Failed to submit degree for approval');
@@ -1083,13 +1167,50 @@ router.patch(
       await transaction.commit();
 
       const Department = await models.Department();
+      const User = await models.User();
       const updated = await Degree.findByPk(degree.id, {
-        include: [{ model: Department, as: 'departmentByCode' }],
+        include: [
+          { model: Department, as: 'departmentByCode' },
+          { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name', 'email'] },
+          { model: User, as: 'degreeCollaborators', attributes: ['id', 'first_name', 'last_name', 'email'], through: { attributes: [] }, required: false }
+        ],
       });
-
-      res.json({ message: 'Degree approved', degree: updated });
+      let collaborators = [];
+      if (updated.degreeCollaborators && Array.isArray(updated.degreeCollaborators)) {
+        collaborators = updated.degreeCollaborators.map(u => ({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          email: u.email
+        }));
+      }
+      const { sendTemplateEmail } = require('../utils/email');
+      const statusVars = {
+        FACULTY_NAME: `${updated.creator.first_name} ${updated.creator.last_name}`,
+        DEGREE_NAME: updated.name,
+        DEGREE_CODE: updated.code,
+        DEGREE_URL: `${process.env.FRONTEND_URL}/degree/${updated.id}`,
+        STATUS: 'Approved',
+        REASON: req.body.reason || '',
+        APP_NAME: process.env.FROM_NAME,
+        YEAR: new Date().getFullYear(),
+      };
+      // Creator
+      sendTemplateEmail('degree-status', updated.creator.email, `Degree Approved: ${updated.code} - ${process.env.FROM_NAME}`, statusVars).catch(() => {});
+      // Collaborators
+      if (Array.isArray(collaborators)) {
+        collaborators.filter(c => c.email && c.id !== updated.creator.id).forEach(collab => {
+          sendTemplateEmail('degree-status', collab.email, `Degree Approved: ${updated.code} - ${process.env.FROM_NAME}`, {
+            ...statusVars,
+            FACULTY_NAME: `${collab.first_name} ${collab.last_name}`
+          }).catch(() => {});
+        });
+      }
+      res.json({ message: 'Degree approved successfully', degree: updated });
     } catch (error) {
-      if (transaction) await transaction.rollback();
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
       handleCaughtError(res, error, 'Failed to approve degree');
     }
   }
