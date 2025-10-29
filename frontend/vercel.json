@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://collage-platform-backend.vercel.app/api/:path*"
+      "destination": "https://college-platform-backend.vercel.app/api/:path*"
     }
   ]
 }

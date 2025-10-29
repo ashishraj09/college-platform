@@ -110,7 +110,7 @@
 ### 1. Clone the repository
 ```bash
 git clone <repository-url>
-cd collage-platform
+cd college-platform
 ```
 
 ### 2. Set up the backend
@@ -191,7 +191,7 @@ NEXT_PUBLIC_APP_NAME=College Platform
 ## 📁 Project Structure
 
 ```
-collage-platform/
+college-platform/
 ├── backend/
 │   ├── config/
 │   │   └── database.js          # Database configuration
